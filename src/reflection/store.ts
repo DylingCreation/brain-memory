@@ -15,6 +15,7 @@ import { type DatabaseSyncInstance } from "@photostructure/sqlite";
 import type { BmConfig, ReflectionInsight, ReflectionConfig } from "../types.ts";
 import { upsertNode, findByName, allActiveNodes, normalizeName } from "../store/store.ts";
 import { sanitizeReflectionText } from "./extractor.ts";
+import { tokenize, jaccardSimilarity } from "../utils/text.ts";
 
 // ─── Insight → Node Mapping ───────────────────────────────────
 
@@ -143,22 +144,7 @@ function findRelatedNode(
   return bestMatch;
 }
 
-function tokenize(text: string): Set<string> {
-  return new Set(
-    text.toLowerCase()
-      .replace(/[^\p{L}\p{N}\s]/gu, " ")
-      .split(/\s+/)
-      .filter(t => t.length > 1)
-  );
-}
-
-function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
-  if (a.size === 0 && b.size === 0) return 1;
-  let intersection = 0;
-  for (const item of a) { if (b.has(item)) intersection++; }
-  const union = a.size + b.size - intersection;
-  return union > 0 ? intersection / union : 0;
-}
+// tokenize, jaccardSimilarity imported from ../utils/text.ts
 
 // ─── Turn Reflection: Apply Importance Boosts ─────────────────
 

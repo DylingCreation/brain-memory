@@ -8,6 +8,7 @@
 import { type DatabaseSyncInstance } from "@photostructure/sqlite";
 import type { BmNode, BmEdge } from "../types.ts";
 import { getCommunitySummary, getEpisodicMessages } from "../store/store.ts";
+import { escapeXml } from "../utils/xml.ts";
 
 const CHARS_PER_TOKEN = 3;
 
@@ -165,6 +166,4 @@ export function assembleContext(
   };
 }
 
-function escapeXml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
+// escapeXml imported from ../utils/xml.ts

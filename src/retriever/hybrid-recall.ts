@@ -34,7 +34,7 @@ export class HybridRecaller {
   private graphRecaller: Recaller;
   private vectorRecaller: VectorRecaller;
 
-  constructor(db: DatabaseSyncInstance, cfg: BmConfig) {
+  constructor(private db: DatabaseSyncInstance, private cfg: BmConfig) {
     this.graphRecaller = new Recaller(db, cfg);
     this.vectorRecaller = new VectorRecaller(db, cfg);
   }
@@ -55,9 +55,15 @@ export class HybridRecaller {
     const graphEdges = graphResult.status === "fulfilled" ? graphResult.value.edges : [];
     const vectorNodes = vectorResult.status === "fulfilled" ? vectorResult.value.nodes : [];
 
-    // Normalize scores to [0, 1] range for fair fusion
-    const graphScores = this.normalizeScores(graphNodes, "pagerank");
-    const vectorScores = this.normalizeScores(vectorNodes, "fused");
+    // Compute RRF-based scores for vector results (rank position → score)
+    const vectorRRFScores = this.computeRRFScores(vectorNodes);
+
+    // Normalize scores to [0,1] range before fusion — PPR and RRF are on
+    // different scales, so direct averaging is unfair.
+    const { graphNorm, vectorNorm } = this.computeNormalization(
+      graphNodes.map(n => n.pagerank),
+      vectorNodes.map(n => vectorRRFScores.get(n.id) ?? 0),
+    );
 
     // Merge by node ID
     const nodeMap = new Map<string, ScoredItem>();
@@ -65,7 +71,7 @@ export class HybridRecaller {
     for (const node of graphNodes) {
       nodeMap.set(node.id, {
         node,
-        graphScore: graphScores.get(node.id) ?? 0,
+        graphScore: graphNorm(node.pagerank),
         vectorScore: 0,
         fusedScore: 0,
       });
@@ -73,27 +79,28 @@ export class HybridRecaller {
 
     let overlapCount = 0;
     for (const node of vectorNodes) {
-      const vScore = vectorScores.get(node.id) ?? 0;
+      const vScore = vectorNorm(vectorRRFScores.get(node.id) ?? 0);
       if (nodeMap.has(node.id)) {
         overlapCount++;
         const existing = nodeMap.get(node.id)!;
-        // Average fusion: both sources agree → higher confidence
         existing.vectorScore = vScore;
-        existing.fusedScore = (existing.graphScore + vScore) / 2;
+        // RRF fusion for overlapping nodes (both sources agree)
+        existing.fusedScore = existing.graphScore + vScore;
       } else {
         nodeMap.set(node.id, {
           node,
           graphScore: 0,
           vectorScore: vScore,
-          fusedScore: vScore * 0.6, // Vector-only gets 60% weight
+          // Vector-only nodes get a discount (no graph edges to add context)
+          fusedScore: vScore * 0.8,
         });
       }
     }
 
-    // Boost graph-only nodes slightly (graph edges add context value)
+    // Graph-only nodes: edges add context value, but slightly less than overlap
     for (const [id, item] of nodeMap) {
       if (item.vectorScore === 0 && item.graphScore > 0) {
-        item.fusedScore = item.graphScore * 0.7;
+        item.fusedScore = item.graphScore * 0.8;
       }
     }
 
@@ -101,9 +108,7 @@ export class HybridRecaller {
     const sorted = Array.from(nodeMap.values())
       .sort((a, b) => b.fusedScore - a.fusedScore);
 
-    const limit = graphResult.status === "fulfilled"
-      ? (graphResult.value as any).length ?? 10
-      : 10;
+    const limit = this.cfg.recallMaxNodes;
 
     const finalNodes = sorted.slice(0, limit).map(s => s.node);
     const ids = new Set(finalNodes.map(n => n.id));
@@ -124,26 +129,37 @@ export class HybridRecaller {
     };
   }
 
-  /** Normalize scores to [0, 1] using min-max scaling */
-  private normalizeScores(nodes: BmNode[], scoreKey: "pagerank" | "fused"): Map<string, number> {
-    if (nodes.length === 0) return new Map();
-
-    // Use validatedCount + pagerank as proxy for graph score
-    const rawScores = nodes.map(n => {
-      if (scoreKey === "pagerank") return n.pagerank;
-      return 0.5; // fallback for vector scores (already normalized in VectorRecaller)
-    });
-
-    const min = Math.min(...rawScores);
-    const max = Math.max(...rawScores);
-    const range = max - min || 1;
-
+  /** Compute RRF-based scores from rank position (K=60) */
+  private computeRRFScores(nodes: BmNode[]): Map<string, number> {
+    const K = 60;
     const scores = new Map<string, number>();
-    nodes.forEach((n, i) => {
-      scores.set(n.id, (rawScores[i] - min) / range);
-    });
-
+    for (let i = 0; i < nodes.length; i++) {
+      scores.set(nodes[i].id, 1 / (K + i + 1));
+    }
     return scores;
+  }
+
+  /**
+   * Compute min-max normalizers for graph and vector scores.
+   * Returns functions that map raw scores to [0,1] range,
+   * enabling fair fusion across different score scales.
+   */
+  private computeNormalization(
+    graphScores: number[],
+    vectorScores: number[],
+  ): { graphNorm: (s: number) => number; vectorNorm: (s: number) => number } {
+    const norm = (scores: number[]): ((s: number) => number) => {
+      if (scores.length === 0) return (s: number) => 0;
+      let min = scores[0], max = scores[0];
+      for (const s of scores) {
+        if (s < min) min = s;
+        if (s > max) max = s;
+      }
+      const range = max - min;
+      if (range < 1e-9) return (s: number) => 1; // all same score → equal weight
+      return (s: number) => (s - min) / range;
+    };
+    return { graphNorm: norm(graphScores), vectorNorm: norm(vectorScores) };
   }
 
   private estimateTokens(nodes: BmNode[]): number {

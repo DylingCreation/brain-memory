@@ -192,7 +192,8 @@ Weibull 分层衰减模型，按重要性、访问频率、时间综合计算：
 | `bm_maintain` | 触发维护（去重 → PPR → 社区检测 → 摘要 → 融合） |
 | `bm_reflect` | 手动触发会话反思 |
 | `bm_fuse` | 手动触发知识融合 |
-| `bm_compact` | 批量处理未提取消息（兜底） |
+
+> `compact` 是 ContextEngine 生命周期方法（批量处理未提取消息的兜底），不是独立工具。
 
 ---
 
@@ -218,32 +219,6 @@ Weibull 分层衰减模型，按重要性、访问频率、时间综合计算：
 
 ---
 
-## 项目状态
-
-> 最后更新：2026-04-20
-
-| 层级 | 状态 | 说明 |
-|------|------|------|
-| 基础层 | ✅ 完成 | 图谱 + 向量 + 提取 + 召回 + 组装 + 维护 |
-| 管理层 | ✅ 完成 | 衰减 + 噪声 + 准入 + 意图 + 时间分类 + 偏好 + 隔离 + 压缩 |
-| 认知层 | ✅ 完成 | 反思 + 工作记忆 + 知识融合 + 推理检索 |
-
-**测试覆盖：** 17 个测试文件，2641 行，187 个测试全部通过（180 单元测试 + 7 LLM 集成测试，DashScope qwen3.6-plus）。
-
----
-
-## 文档索引
-
-| 文档 | 说明 |
-|------|------|
-| [SETUP.md](SETUP.md) | 安装与配置指南，含个性化调整示例 |
-| [docs/VISION.md](docs/VISION.md) | 项目愿景、设计灵感、三层架构理念 |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 系统架构、数据模型、模块职责、数据流 |
-| [docs/PLAN.md](docs/PLAN.md) | 分阶段推进计划、时间线、设计决策 |
-| [docs/ISSUES.md](docs/ISSUES.md) | 已验证的问题记录和修复追踪 |
-
----
-
 ## 源码结构
 
 ```
@@ -255,13 +230,6 @@ Weibull 分层衰减模型，按重要性、访问频率、时间综合计算：
 ├── vitest.config.ts            # Vitest 测试配置
 ├── README.md                   # 项目说明（本文件）
 ├── SETUP.md                    # 安装与配置指南
-│
-├── docs/
-│   ├── VISION.md               # 项目愿景与设计理念
-│   ├── ARCHITECTURE.md         # 系统架构与模块设计
-│   ├── PLAN.md                 # 开发计划与时间线
-│   └── ISSUES.md               # 问题记录与修复追踪
-│
 ├── src/
 │   ├── types.ts                # 统一类型定义（8 类 + 图节点 + 边 + 配置）
 │   ├── store/                  # 数据库 Schema + CRUD（SQLite + FTS5）
@@ -316,7 +284,7 @@ Weibull 分层衰减模型，按重要性、访问频率、时间综合计算：
 ├── scripts/
 │   └── setup.js                # 首次配置向导
 │
-└── test/                       # 测试文件（17 个，187 个测试）
+└── test/                       # 测试文件（20 个，233 个测试）
     ├── helpers.ts              # 测试工具函数
     ├── store.test.ts
     ├── extractor.test.ts
@@ -344,7 +312,7 @@ Weibull 分层衰减模型，按重要性、访问频率、时间综合计算：
 - **运行环境：** Node.js 22+，OpenClaw 插件
 - **数据库：** SQLite + FTS5 全文检索
 - **LLM 兼容：** OpenAI、Anthropic、DashScope、SiliconFlow 等
-- **测试：** Vitest 180+ 单元测试
+- **测试：** Vitest 226+ 单元测试 + 7 LLM 集成测试
 
 ---
 

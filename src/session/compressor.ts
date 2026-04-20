@@ -74,6 +74,7 @@ export function evaluateSessionValue(
 /**
  * Compress a session's messages by extracting key decisions and conclusions.
  * Uses LLM to summarize the session while preserving critical information.
+ * All database queries use parameterized binding (no SQL injection risk).
  */
 export async function compressSession(
   db: DatabaseSyncInstance,
@@ -108,13 +109,15 @@ export async function compressSession(
     const summary = await llm(sysPrompt, text.slice(0, 8000)); // Limit input size
 
     // Store the compressed summary as a special node
+    // All values are bound via parameterized query (? placeholders) — safe from SQL injection
     const now = Date.now();
+    const nodeId = `session-summary-${sessionId}`;
     db.prepare(`
       INSERT INTO bm_nodes (id, type, category, name, description, content, status, validated_count, source_sessions, created_at, updated_at, temporal_type)
       VALUES (?, 'TASK', 'tasks', ?, ?, ?, 'active', 1, ?, ?, ?, 'static')
     `).run(
-      `session-summary-${sessionId}`,
-      `session-summary-${sessionId}`,
+      nodeId,
+      nodeId,
       `Compressed session summary`,
       summary,
       JSON.stringify([sessionId]),

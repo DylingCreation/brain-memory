@@ -10,6 +10,7 @@ import type { DatabaseSyncInstance } from "@photostructure/sqlite";
 import type { MemoryCategory } from "../types.ts";
 import { searchNodes, vectorSearchWithScore } from "../store/store.ts";
 import type { EmbedFn } from "../engine/embed.ts";
+import { tokenize, jaccardSimilarity } from "../utils/text.ts";
 
 export interface AdmissionConfig {
   enabled: boolean;
@@ -105,19 +106,6 @@ export class AdmissionController {
   }
 }
 
-function tokenizeText(text: string): Set<string> {
-  return new Set(
-    text.toLowerCase()
-      .replace(/[^\p{L}\p{N}\s]/gu, " ")
-      .split(/\s+/)
-      .filter(t => t.length > 1)
-  );
-}
-
-function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
-  if (a.size === 0 && b.size === 0) return 1;
-  let intersection = 0;
-  for (const item of a) { if (b.has(item)) intersection++; }
-  const union = a.size + b.size - intersection;
-  return union > 0 ? intersection / union : 0;
-}
+// tokenize, jaccardSimilarity imported from ../utils/text.ts
+// Local alias for backward compatibility with evaluate() usage
+function tokenizeText(text: string): Set<string> { return tokenize(text); }

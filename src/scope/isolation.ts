@@ -46,9 +46,15 @@ export function scopeKey(scope: MemoryScope): string {
   ].join("|");
 }
 
+/** Escape a string for safe use in SQL literal (prevents injection) */
+function sqlEscape(s: string): string {
+  return s.replace(/'/g, "''");
+}
+
 /**
  * Build a SQL WHERE clause for scope filtering.
  * Returns empty string if no filtering needed.
+ * All scope values are SQL-escaped to prevent injection.
  */
 export function buildScopeFilterClause(filter: ScopeFilter): string {
   const conditions: string[] = [];
@@ -57,9 +63,9 @@ export function buildScopeFilterClause(filter: ScopeFilter): string {
   if (filter.includeScopes.length > 0) {
     const includeClauses = filter.includeScopes.map(s => {
       const parts: string[] = [];
-      if (s.sessionId) parts.push(`scope_session = '${s.sessionId}'`);
-      if (s.agentId) parts.push(`scope_agent = '${s.agentId}'`);
-      if (s.workspaceId) parts.push(`scope_workspace = '${s.workspaceId}'`);
+      if (s.sessionId) parts.push(`scope_session = '${sqlEscape(s.sessionId)}'`);
+      if (s.agentId) parts.push(`scope_agent = '${sqlEscape(s.agentId)}'`);
+      if (s.workspaceId) parts.push(`scope_workspace = '${sqlEscape(s.workspaceId)}'`);
       return parts.length > 0 ? `(${parts.join(" OR ")})` : "1=1";
     });
     conditions.push(`(${includeClauses.join(" OR ")})`);
@@ -69,9 +75,9 @@ export function buildScopeFilterClause(filter: ScopeFilter): string {
   if (filter.excludeScopes.length > 0) {
     const excludeClauses = filter.excludeScopes.map(s => {
       const parts: string[] = [];
-      if (s.sessionId) parts.push(`scope_session != '${s.sessionId}'`);
-      if (s.agentId) parts.push(`scope_agent != '${s.agentId}'`);
-      if (s.workspaceId) parts.push(`scope_workspace != '${s.workspaceId}'`);
+      if (s.sessionId) parts.push(`scope_session != '${sqlEscape(s.sessionId)}'`);
+      if (s.agentId) parts.push(`scope_agent != '${sqlEscape(s.agentId)}'`);
+      if (s.workspaceId) parts.push(`scope_workspace != '${sqlEscape(s.workspaceId)}'`);
       return parts.length > 0 ? `(${parts.join(" AND ")})` : "1=1";
     });
     conditions.push(excludeClauses.join(" AND "));

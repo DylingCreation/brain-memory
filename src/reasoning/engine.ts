@@ -14,6 +14,7 @@
 import type { BmConfig, BmNode, BmEdge } from "../types.ts";
 import type { CompleteFn } from "../engine/llm.ts";
 import { REASONING_SYS } from "./prompts.ts";
+import { escapeXml } from "../utils/xml.ts";
 
 export interface ReasoningConclusion {
   text: string;
@@ -52,13 +53,21 @@ export async function runReasoning(
 
   const maxConclusions = (cfg as any).reasoning?.maxConclusions ?? 3;
 
+  // Build node id-to-name lookup for readable edge display
+  const idToName = new Map<string, string>();
+  for (const n of nodes) idToName.set(n.id, n.name);
+
   // Build context for LLM
   const nodesText = nodes
     .map(n => `[${n.type}:${n.category}] ${n.name}: ${n.description} | ${n.content.slice(0, 200)}`)
     .join("\n");
 
   const edgesText = edges.length > 0
-    ? edges.map(e => `${e.fromId} --[${e.type}]--> ${e.toId}: ${e.instruction}`).join("\n")
+    ? edges.map(e => {
+        const fromName = idToName.get(e.fromId) ?? e.fromId;
+        const toName = idToName.get(e.toId) ?? e.toId;
+        return `${fromName} --[${e.type}]--> ${toName}: ${e.instruction}`;
+      }).join("\n")
     : "（无边关系）";
 
   const userPrompt = `查询: ${query}\n\n知识节点:\n${nodesText}\n\n边关系:\n${edgesText}`;
@@ -121,6 +130,4 @@ export function parseReasoningResult(raw: string, maxConclusions: number): Reaso
   }
 }
 
-function escapeXml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
+// escapeXml imported from ../utils/xml.ts

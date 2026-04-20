@@ -16,6 +16,8 @@ import type { CompleteFn } from "../engine/llm.ts";
 import type { EmbedFn } from "../engine/embed.ts";
 import { allActiveNodes, getVector, mergeNodes, upsertEdge, normalizeName } from "../store/store.ts";
 import { FUSION_DECIDE_SYS } from "./prompts.ts";
+import { cosineSimilarityF32 } from "../utils/similarity.ts";
+import { tokenize, jaccardSimilarity } from "../utils/text.ts";
 
 export interface FusionCandidate {
   nodeA: BmNode;
@@ -219,34 +221,12 @@ export function computeNameSimilarity(a: string, b: string): number {
   return jaccardSimilarity(tokensA, tokensB);
 }
 
-export function tokenize(text: string): Set<string> {
-  return new Set(
-    text.toLowerCase()
-      .replace(/[^\p{L}\p{N}\s]/gu, " ")
-      .split(/\s+/)
-      .filter(t => t.length > 1)
-  );
-}
+// tokenize, jaccardSimilarity imported from ../utils/text.ts
+// cosineSimilarityF32 imported from ../utils/similarity.ts
 
-export function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
-  if (a.size === 0 && b.size === 0) return 1;
-  let intersection = 0;
-  for (const item of a) { if (b.has(item)) intersection++; }
-  const union = a.size + b.size - intersection;
-  return union > 0 ? intersection / union : 0;
-}
-
-export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
-  const len = Math.min(a.length, b.length);
-  if (len === 0) return 0;
-  let dot = 0, normA = 0, normB = 0;
-  for (let i = 0; i < len; i++) {
-    dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB) + 1e-9);
-}
+// Re-export for tests and external callers (backward compatible)
+export { tokenize, jaccardSimilarity } from "../utils/text.ts";
+export { cosineSimilarityF32 as cosineSimilarity } from "../utils/similarity.ts";
 
 export function parseFusionDecision(raw: string): { decision: "merge" | "link" | "none"; reason: string } {
   try {

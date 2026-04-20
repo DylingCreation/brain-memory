@@ -7,6 +7,7 @@
 
 import type { BmConfig, BmNode } from "../types.ts";
 import type { EmbedFn } from "../engine/embed.ts";
+import { cosineSimilarity } from "../utils/similarity.ts";
 
 export type RerankProvider = "jina" | "siliconflow" | "voyage" | "dashscope" | "tei" | "pinecone";
 
@@ -29,7 +30,7 @@ export interface RerankResult {
 export class Reranker {
   private config: RerankerConfig;
 
-  constructor(cfg: BmConfig, embedFn?: EmbedFn | null) {
+  constructor(cfg: BmConfig) {
     const raw = (cfg as any).rerank || {};
     this.config = {
       enabled: !!raw.enabled,
@@ -147,14 +148,4 @@ export class Reranker {
   }
 }
 
-function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length === 0 || b.length === 0) return 0;
-  const len = Math.min(a.length, b.length);
-  let dot = 0, normA = 0, normB = 0;
-  for (let i = 0; i < len; i++) {
-    dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB) + 1e-9);
-}
+// cosineSimilarity imported from ../utils/similarity.ts

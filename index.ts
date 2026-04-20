@@ -23,6 +23,7 @@ import { Recaller } from "./src/recaller/recall.ts";
 import { VectorRecaller } from "./src/retriever/vector-recall.ts";
 import { HybridRecaller } from "./src/retriever/hybrid-recall.ts";
 import { Reranker } from "./src/retriever/reranker.ts";
+import { AdmissionController, DEFAULT_ADMISSION_CONFIG } from "./src/retriever/admission-control.ts";
 import { assembleContext } from "./src/format/assemble.ts";
 import { runMaintenance } from "./src/graph/maintenance.ts";
 import { invalidateGraphCache, computeGlobalPageRank } from "./src/graph/pagerank.ts";
@@ -150,8 +151,18 @@ function cleanPrompt(raw: string): string {
       prompt = lines.join("\n").trim();
     }
   }
-  prompt = prompt.replace(/^\/\w+\s+/, "").trim();
-  prompt = prompt.replace(/^\[[\w\s\-:]+\]\s*/, "").trim();
+  // Only strip OpenClaw metadata patterns, NOT legitimate user content.
+  // A real command like "/new" or "/reset" starts at the very beginning with no
+  // preceding text, and is a known OpenClaw slash command.
+  const OPENCLAW_COMMANDS = /^\/(new|reset|status|approve|reasoning)\s+.*$/i;
+  if (OPENCLAW_COMMANDS.test(prompt)) {
+    prompt = prompt.replace(/^\/\w+\s+/, "").trim();
+  }
+  // Only strip timestamp tags that match OpenClaw's exact format: [Day YYYY-MM-DD HH:MM TZ]
+  const OPENCLAW_TIMESTAMP = /^\[[A-Z][a-z]{2}\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}\s+[^\]]+\]\s+/;
+  if (OPENCLAW_TIMESTAMP.test(prompt)) {
+    prompt = prompt.replace(OPENCLAW_TIMESTAMP, "");
+  }
   return prompt;
 }
 
@@ -229,6 +240,8 @@ export default async function (api: OpenClawPluginApi) {
     log("FTS5 full-text search mode (no embedding — semantic search, dedup, community summaries disabled)");
   }
 
+  const admissionController = new AdmissionController(db, DEFAULT_ADMISSION_CONFIG, embedFn);
+
   const extractor = llm ? new Extractor(cfg, llm) : null;
 
   log(`ready | db=${dbPath} | engine=${cfg.engine} | storage=${cfg.storage} | llm=${hasLlm ? "yes" : "no"} | embed=${hasEmbed ? "yes" : "no"}`);
@@ -276,6 +289,19 @@ export default async function (api: OpenClawPluginApi) {
 
         const nameToId = new Map<string, string>();
         for (const nc of result.nodes) {
+          // Admission control: gatekeep memory writes
+          const admissionResult = admissionController.evaluate({
+            name: nc.name,
+            content: nc.content,
+            category: nc.category,
+          });
+          if (admissionResult.decision === "reject") {
+            if (process.env.BM_DEBUG) {
+              api.logger.warn(`brain-memory: admission rejected "${nc.name}": ${admissionResult.reason}`);
+            }
+            continue; // skip this node
+          }
+
           const { node } = upsertNode(db, {
             type: nc.type,
             category: nc.category,
@@ -421,6 +447,21 @@ export default async function (api: OpenClawPluginApi) {
               // Graph mode (default): use graph recall (PPR + community)
               const gr = await recaller.recall(cleaned);
               freshRec = { nodes: gr.nodes, edges: gr.edges };
+            }
+            // Rerank: cross-encoder or cosine fallback
+            if (cfg.rerank?.enabled && embedFn) {
+              try {
+                const queryVec = await embedFn(cleaned);
+                const rerankResult = await reranker.rerank(cleaned, queryVec, freshRec.nodes, embedFn);
+                if (rerankResult.apiUsed) {
+                  freshRec.nodes = rerankResult.nodes;
+                }
+              } catch (err) {
+                if (process.env.BM_DEBUG) {
+                  api.logger.warn(`brain-memory: rerank failed: ${err}`);
+                }
+                // Fall through with original order
+              }
             }
             if (freshRec.nodes.length) {
               rec = freshRec;

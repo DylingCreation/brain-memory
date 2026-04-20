@@ -78,9 +78,9 @@ export class Recaller {
 
     const filtered = nodes
       .sort((a, b) => {
-        const scoreA = this.cfg.decay.enabled ? applyTimeDecay(pprScores.get(b.id) || 0, b, this.cfg.decay) : (pprScores.get(b.id) || 0);
-        const scoreB = this.cfg.decay.enabled ? applyTimeDecay(pprScores.get(a.id) || 0, a, this.cfg.decay) : (pprScores.get(a.id) || 0);
-        return scoreA - scoreB || b.validatedCount - a.validatedCount || b.updatedAt - a.updatedAt;
+        const scoreA = this.cfg.decay.enabled ? applyTimeDecay(pprScores.get(a.id) || 0, a, this.cfg.decay) : (pprScores.get(a.id) || 0);
+        const scoreB = this.cfg.decay.enabled ? applyTimeDecay(pprScores.get(b.id) || 0, b, this.cfg.decay) : (pprScores.get(b.id) || 0);
+        return scoreB - scoreA || b.validatedCount - a.validatedCount || b.updatedAt - a.updatedAt;
       })
       .slice(0, limit);
 
@@ -124,9 +124,9 @@ export class Recaller {
 
     const filtered = nodes
       .sort((a, b) => {
-        const scoreA = this.cfg.decay.enabled ? applyTimeDecay(pprScores.get(b.id) || 0, b, this.cfg.decay) : (pprScores.get(b.id) || 0);
-        const scoreB = this.cfg.decay.enabled ? applyTimeDecay(pprScores.get(a.id) || 0, a, this.cfg.decay) : (pprScores.get(a.id) || 0);
-        return scoreA - scoreB || b.updatedAt - a.updatedAt || b.validatedCount - a.validatedCount;
+        const scoreA = this.cfg.decay.enabled ? applyTimeDecay(pprScores.get(a.id) || 0, a, this.cfg.decay) : (pprScores.get(a.id) || 0);
+        const scoreB = this.cfg.decay.enabled ? applyTimeDecay(pprScores.get(b.id) || 0, b, this.cfg.decay) : (pprScores.get(b.id) || 0);
+        return scoreB - scoreA || b.updatedAt - a.updatedAt || b.validatedCount - a.validatedCount;
       })
       .slice(0, limit);
 

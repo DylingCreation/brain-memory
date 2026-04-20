@@ -11,6 +11,7 @@ import type { CompleteFn } from "../engine/llm.ts";
 import { isNoise } from "../noise/filter.ts";
 import { classifyTemporal } from "../temporal/classifier.ts";
 import { normalizeName } from "../store/store.ts";
+import { extractJson } from "../utils/json.ts";
 
 const VALID_NODE_TYPES = new Set(["TASK", "SKILL", "EVENT"]);
 const VALID_EDGE_TYPES = new Set(["USED_SKILL", "SOLVED_BY", "REQUIRES", "PATCHES", "CONFLICTS_WITH"]);
@@ -209,15 +210,4 @@ function correctEdgeType(
   return { ...edge, type };
 }
 
-function extractJson(raw: string): string {
-  let s = raw.trim();
-  s = s.replace(/<think>[\s\S]*?<\/think>/gi, "");
-  s = s.replace(/<think>[\s\S]*/gi, "");
-  s = s.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?\s*```\s*$/i, "");
-  s = s.trim();
-  if (s.startsWith("{") && s.endsWith("}")) return s;
-  const first = s.indexOf("{");
-  const last = s.lastIndexOf("}");
-  if (first !== -1 && last > first) return s.slice(first, last + 1);
-  return s;
-}
+// extractJson imported from ../utils/json.ts

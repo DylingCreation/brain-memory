@@ -12,6 +12,7 @@
 import type { BmConfig, ReflectionConfig, ReflectionInsight, ReflectionResult } from "../types.ts";
 import type { CompleteFn } from "../engine/llm.ts";
 import { TURN_REFLECTION_SYS, SESSION_REFLECTION_SYS } from "./prompts.ts";
+import { extractJson } from "../utils/json.ts";
 
 // ─── Safety filter for reflection content ──────────────────────
 // Prevents prompt injection through reflection results.
@@ -169,15 +170,4 @@ function parseSessionReflection(raw: string, cfg: ReflectionConfig): ReflectionI
 
 // ─── Helpers ──────────────────────────────────────────────────
 
-function extractJson(raw: string): string {
-  let s = raw.trim();
-  s = s.replace(/<think>[\s\S]*?<\/think>/gi, "");
-  s = s.replace(/<think>[\s\S]*/gi, "");
-  s = s.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?\s*```\s*$/i, "");
-  s = s.trim();
-  if (s.startsWith("{") && s.endsWith("}")) return s;
-  const first = s.indexOf("{");
-  const last = s.lastIndexOf("}");
-  if (first !== -1 && last > first) return s.slice(first, last + 1);
-  return s;
-}
+// extractJson imported from ../utils/json.ts

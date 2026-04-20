@@ -40,7 +40,7 @@ export function scoreDecay(node: BmNode, cfg: DecayConfig, now?: number): DecayS
     ? cfg.timeDecayHalfLifeDays / 3
     : cfg.timeDecayHalfLifeDays;
 
-  const recency = weibullDecay(ageDays, cfg.recencyHalfLifeDays, tier.beta, tier.floor);
+  const recency = weibullDecay(ageDays, effectiveHalfLife, tier.beta, tier.floor);
   const frequency = Math.min(1, Math.log10(node.accessCount + 1) / 3);
   const intrinsic = node.importance;
   const composite = cfg.recencyWeight * recency

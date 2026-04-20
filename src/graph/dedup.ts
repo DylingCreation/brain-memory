@@ -25,19 +25,55 @@ function cosineSim(a: Float32Array, b: Float32Array): number {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB) + 1e-9);
 }
 
+/**
+ * LSH-style bucketing using sign-based random projections.
+ * Groups similar vectors into the same bucket, reducing pairwise
+ * comparisons from O(n²) to O(n × bucket_size).
+ */
+function buildLshBuckets(
+  vectors: Array<{ nodeId: string; embedding: Float32Array }>,
+  numBits: number = 8,
+): Map<string, number[]> {
+  const buckets = new Map<string, number[]>();
+  for (let i = 0; i < vectors.length; i++) {
+    const v = vectors[i].embedding;
+    let sig = "";
+    for (let b = 0; b < numBits; b++) {
+      // Deterministic pseudo-random index from vector components
+      const idx = ((b * 131 + 7) * 3) % v.length;
+      sig += v[idx] >= 0 ? "1" : "0";
+    }
+    if (!buckets.has(sig)) buckets.set(sig, []);
+    buckets.get(sig)!.push(i);
+  }
+  return buckets;
+}
+
 export function detectDuplicates(db: DatabaseSyncInstance, cfg: BmConfig): DedupResult["pairs"] {
   const vectors = getAllVectors(db);
   if (vectors.length < 2) return [];
   const threshold = cfg.dedupThreshold;
   const pairs: DedupResult["pairs"] = [];
-  for (let i = 0; i < vectors.length; i++) {
-    for (let j = i + 1; j < vectors.length; j++) {
-      const sim = cosineSim(vectors[i].embedding, vectors[j].embedding);
-      if (sim >= threshold) {
-        const nodeA = findById(db, vectors[i].nodeId);
-        const nodeB = findById(db, vectors[j].nodeId);
-        if (nodeA && nodeB) {
-          pairs.push({ nodeA: nodeA.id, nodeB: nodeB.id, nameA: nodeA.name, nameB: nodeB.name, similarity: sim });
+
+  // LSH bucketing: only compare vectors in the same bucket
+  const buckets = buildLshBuckets(vectors);
+  const compared = new Set<string>();
+
+  for (const [, members] of buckets) {
+    for (let i = 0; i < members.length; i++) {
+      for (let j = i + 1; j < members.length; j++) {
+        const a = members[i], b = members[j];
+        const key = a < b ? `${a}-${b}` : `${b}-${a}`;
+        if (compared.has(key)) continue;
+        compared.add(key);
+
+        const sim = cosineSim(vectors[a].embedding, vectors[b].embedding);
+        if (sim >= threshold) {
+          const nodeA = findById(db, vectors[a].nodeId);
+          const nodeB = findById(db, vectors[b].nodeId);
+          if (nodeA && nodeB) {
+            pairs.push({ nodeA: nodeA.id, nodeB: nodeB.id, nameA: nodeA.name, nameB: nodeB.name, similarity: sim });
+          }
         }
       }
     }
