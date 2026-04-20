@@ -21,7 +21,9 @@
     "prebuild": "npm run clean",
     "postinstall": "echo 'brain-memory installation complete'",
     "configure": "node scripts/configure.js",
-    "setup-openclaw": "node scripts/setup.js"
+    "setup-openclaw": "node scripts/setup.js",
+    "release": "bash scripts/release.sh",
+    "publish": "bash scripts/publish-npm.sh"
   },
   "keywords": [
     "ai",
