@@ -4,9 +4,13 @@
  * Tests that actually call the LLM to verify prompts work end-to-end.
  * Requires: ANTHROPIC_API_KEY or DASHSCOPE_API_KEY env var.
  *
+ * Setup: copy .env.example to .env and set DASHSCOPE_API_KEY
  * Run with: BM_LLM_TEST=1 npx vitest run test/llm-integration.test.ts
  * Skip (default): npx vitest run test/ --exclude 'llm-integration'
  */
+
+import dotenv from "dotenv";
+dotenv.config({ path: ".env" });
 
 import { describe, it, expect, beforeAll } from "vitest";
 import { createCompleteFn, type CompleteFn } from "../src/engine/llm.ts";
@@ -19,9 +23,9 @@ import { DatabaseSync } from "@photostructure/sqlite";
 // ─── Test Configuration ──────────────────────────────────────────
 
 const LLM_ENABLED = process.env.BM_LLM_TEST === "1";
-const API_KEY = "sk-sp-876da19ae67142baa215b9d9ff8cc325";
-const BASE_URL = "https://coding.dashscope.aliyuncs.com/v1";
-const MODEL = "qwen3.6-plus";
+const API_KEY = process.env.DASHSCOPE_API_KEY;
+const BASE_URL = process.env.DASHSCOPE_BASE_URL ?? "https://coding.dashscope.aliyuncs.com/v1";
+const MODEL = process.env.DASHSCOPE_MODEL ?? "qwen3.6-plus";
 
 let llm: CompleteFn;
 
