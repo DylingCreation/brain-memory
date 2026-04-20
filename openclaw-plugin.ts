@@ -27,7 +27,7 @@ export class BrainMemoryPlugin implements OpenClawPlugin {
     this.config = { enabled: true, injectMemories: true, extractMemories: true, autoMaintain: true, ...config };
   }
 
-  async initialize(): Promise<void> {
+  async init(): Promise<void> {
     if (!this.config.enabled) {
       console.log('[brain-memory] Plugin disabled by configuration');
       return;
@@ -78,7 +78,7 @@ export class BrainMemoryPlugin implements OpenClawPlugin {
     }
   }
 
-  async onMessage(message: Message): Promise<Message | null> {
+  async handleMessage(message: Message): Promise<Message | null> {
     if (!this.engine || !this.config.enabled || !this.config.extractMemories) return null;
 
     try {
@@ -96,6 +96,37 @@ export class BrainMemoryPlugin implements OpenClawPlugin {
       return null;
     } catch (error) {
       console.error('[brain-memory] Message processing failed:', error);
+      return null;
+    }
+  }
+
+  async getMemoryContext(message: Message): Promise<any> {
+    if (!this.engine || !this.config.enabled || !this.config.injectMemories) return null;
+
+    try {
+      // Query relevant memories for this conversation
+      const recallResult = await this.engine.recall(
+        message.content.toString(),
+        message.sessionId,
+        message.agentId,
+        message.workspaceId
+      );
+
+      if (recallResult.nodes.length > 0) {
+        const memoryContext = this.engine.getWorkingMemoryContext();
+        
+        console.log(`[brain-memory] Retrieved ${recallResult.nodes.length} relevant memories`);
+        
+        return {
+          memoryContext,
+          relatedNodes: recallResult.nodes,
+          tokenEstimate: recallResult.tokenEstimate
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[brain-memory] Memory context retrieval failed:', error);
       return null;
     }
   }

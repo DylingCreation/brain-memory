@@ -11,6 +11,7 @@
     "handleMessage", 
     "onSessionStart",
     "onSessionEnd",
+    "beforeMessageSend",
     "getMemoryContext",
     "getStatus",
     "shutdown"
