@@ -5,6 +5,10 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
+  "bin": {
+    "like-human-brain-memory-configure": "scripts/configure.js",
+    "like-human-brain-memory-setup": "scripts/setup.js"
+  },
   "scripts": {
     "start": "tsx index.ts",
     "dev": "tsx watch index.ts",
@@ -66,5 +70,9 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "bin": {
+    "like-human-brain-memory-configure": "./scripts/configure.js",
+    "like-human-brain-memory-setup": "./scripts/setup.js"
   }
 }
