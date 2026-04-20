@@ -79,13 +79,14 @@ To integrate with OpenClaw, use the built-in setup script:
 
 ```bash
 # Run the OpenClaw integration script
-node scripts/setup-openclaw.js
+node scripts/setup.js
 ```
 
 This script will guide you through:
-- Specifying the OpenClaw configuration file path
-- Configuring the brain-memory plugin parameters
-- Automatically updating the configuration file
+- Selecting your API provider (DashScope, OpenAI, SiliconFlow, or custom)
+- Entering your API key
+- Automatically generating and writing the complete configuration to OpenClaw config file
+- Creating a backup of your existing configuration
 
 ## Usage
 
@@ -193,5 +194,5 @@ MIT
 2. Install dependencies: `npm install`
 3. Configure using the interactive script: `node scripts/configure.js`
 4. Build the project: `npm run build`
-5. For OpenClaw integration: `node scripts/setup-openclaw.js`
+5. For OpenClaw integration: `node scripts/setup.js`
 6. Test the deployment: `npm test` or run `npx tsx validate_features.js`
