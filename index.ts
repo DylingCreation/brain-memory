@@ -94,4 +94,19 @@ export {
 // Export all type definitions
 export * from './src/types';
 
+// Export OpenClaw plugin functions (required for plugin loading)
+export {
+  register,
+  init,
+  activate,
+  deactivate,
+  handleMessage,
+  onSessionStart,
+  onSessionEnd,
+  beforeMessageSend,
+  getMemoryContext,
+  getStatus,
+  shutdown
+} from './openclaw-register';
+
 console.log('brain-memory module loaded successfully.');

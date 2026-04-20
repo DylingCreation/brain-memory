@@ -25,6 +25,9 @@
   },
   "include": [
     "index.ts",
+    "openclaw-plugin.ts",
+    "openclaw-register.ts",
+    "openclaw-wrapper.ts",
     "src/**/*"
   ],
   "exclude": [

@@ -1,4 +1,4 @@
-# brain-memory
+# like-human-brain-memory
 
 Unified knowledge graph + vector memory system for AI agents. Provides 8-category memory system with dual-path recall (graph + vector), community detection, and reflection capabilities.
 
@@ -40,13 +40,13 @@ Unified knowledge graph + vector memory system for AI agents. Provides 8-categor
 ## Installation
 
 ```bash
-npm install brain-memory
+npm install like-human-brain-memory
 ```
 
 ## Usage
 
 ```typescript
-import { ContextEngine, DEFAULT_CONFIG } from 'brain-memory';
+import { ContextEngine, DEFAULT_CONFIG } from 'like-human-brain-memory';
 
 const config = {
   ...DEFAULT_CONFIG,
@@ -135,6 +135,54 @@ The system includes several performance optimizations:
 - Scope-based isolation for multi-tenant environments
 - Input validation and sanitization
 - Secure credential handling
+
+## Configuration
+
+The package offers both programmatic and interactive configuration options:
+
+### Interactive Configuration (Recommended for non-programmers)
+
+Run the interactive configuration wizard after installation:
+
+```bash
+# If you're in the project directory:
+npm run configure
+
+# Or run the configuration script directly:
+npx like-human-brain-memory configure
+```
+
+The interactive configuration will guide you through:
+- Setting up database path
+- Configuring LLM API settings (API key, base URL, model)
+- Configuring embedding API settings
+- Setting up decay and recall parameters
+- Customizing other system behaviors
+
+### Programmatic Configuration (For developers)
+
+For programmatic use, you can configure the engine directly in code:
+
+```typescript
+import { ContextEngine, DEFAULT_CONFIG } from 'like-human-brain-memory';
+
+const config = {
+  ...DEFAULT_CONFIG,
+  dbPath: './my-brain-memory.db',
+  llm: {
+    apiKey: process.env.OPENAI_API_KEY!,
+    baseURL: 'https://api.openai.com/v1',
+    model: 'gpt-4o-mini'
+  },
+  embedding: {
+    apiKey: process.env.OPENAI_API_KEY!,
+    baseURL: 'https://api.openai.com/v1',
+    model: 'text-embedding-3-small'
+  }
+};
+
+const engine = new ContextEngine(config);
+```
 
 ## Testing
 
