@@ -5,9 +5,9 @@
  * Falls back to cosine similarity if API is unavailable.
  */
 
-import type { BmConfig, BmNode } from "../types.ts";
-import type { EmbedFn } from "../engine/embed.ts";
-import { cosineSimilarity } from "../utils/similarity.ts";
+import type { BmConfig, BmNode } from "../types";
+import type { EmbedFn } from "../engine/embed";
+import { cosineSimilarity } from "../utils/similarity";
 
 export type RerankProvider = "jina" | "siliconflow" | "voyage" | "dashscope" | "tei" | "pinecone";
 
@@ -130,9 +130,11 @@ export class Reranker {
     if (embedFn && queryVec.length > 0) {
       for (const node of nodes) {
         try {
-          const nodeVec = await embedFn(`${node.name}: ${node.description}`);
+          const nodeVec = await embedFn(`${node?.name || ''}: ${node?.description || ''}`);
           const sim = cosineSimilarity(queryVec, nodeVec);
-          scores.set(node.id, sim);
+          if (node && node.id) {
+            scores.set(node.id, sim);
+          }
         } catch { /* skip */ }
       }
     }

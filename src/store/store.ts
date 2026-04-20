@@ -7,9 +7,9 @@
 
 import { type DatabaseSyncInstance } from "@photostructure/sqlite";
 import { createHash } from "crypto";
-import type { BmNode, BmEdge, EdgeType, GraphNodeType, MemoryCategory } from "../types.ts";
-import type { ScopeFilter } from "../scope/isolation.ts";
-import { buildScopeFilterClause } from "../scope/isolation.ts";
+import type { BmNode, BmEdge, EdgeType, GraphNodeType, MemoryCategory } from "../types";
+import type { ScopeFilter } from "../scope/isolation";
+import { buildScopeFilterClause } from "../scope/isolation";
 
 // ─── Helpers ───────────────────────────────────────────────────
 
@@ -229,21 +229,42 @@ export function topNodes(db: DatabaseSyncInstance, limit = 6, scopeFilter?: Scop
 }
 
 export function vectorSearchWithScore(db: DatabaseSyncInstance, vec: number[], limit: number, scopeFilter?: ScopeFilter): Array<{ node: BmNode; score: number }> {
-  const rows = db.prepare("SELECT node_id, embedding FROM bm_vectors").all() as any[];
-  if (!rows.length) return [];
+  // First get all active nodes with scope filtering applied
+  const { clause, params } = scopeFilter ? buildScopeFilterClause(scopeFilter) : { clause: "", params: [] };
+  const nodes = db.prepare(`SELECT * FROM bm_nodes WHERE status='active'${clause}`).all(...params) as any[];
+  
+  if (!nodes.length) return [];
+  
+  // Create a set of valid node IDs for faster lookup
+  const validNodeIds = new Set(nodes.map(n => n.id));
+  
+  // Load only vectors for valid nodes
+  const placeholders = nodes.map(() => "?").join(",");
+  const vectorRows = db.prepare(`SELECT node_id, embedding FROM bm_vectors WHERE node_id IN (${placeholders})`).all(...nodes.map(n => n.id)) as any[];
+  
+  if (!vectorRows.length) return [];
+  
   const q = new Float32Array(vec);
   const qNorm = Math.sqrt(q.reduce((s, x) => s + x * x, 0)) || 1e-9;
+  
+  // Pre-compute nodes to avoid repeated DB calls
+  const nodeMap = new Map<string, BmNode>();
+  for (const node of nodes) {
+    nodeMap.set(node.id, toNode(node));
+  }
+  
   const scored: Array<{ node: BmNode; score: number }> = [];
-  for (const r of rows) {
+  for (const r of vectorRows) {
     const raw = r.embedding as Uint8Array;
     const v = new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength / 4);
     let dot = 0, vNorm = 0;
     const len = Math.min(v.length, q.length);
     for (let i = 0; i < len; i++) { dot += v[i] * q[i]; vNorm += v[i] * v[i]; }
     const score = dot / (Math.sqrt(vNorm) * qNorm + 1e-9);
-    const node = findById(db, r.node_id);
-    if (node && node.status === 'active' && matchesScopeFilter(node, scopeFilter)) scored.push({ node, score });
+    const node = nodeMap.get(r.node_id);
+    if (node) scored.push({ node, score });
   }
+  
   return scored.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
@@ -298,7 +319,7 @@ export function getAllVectors(db: DatabaseSyncInstance): Array<{ nodeId: string;
   const rows = db.prepare("SELECT node_id, embedding FROM bm_vectors").all() as any[];
   return rows.map(r => {
     const raw = r.embedding as Uint8Array;
-    return { nodeId: r.node_id, embedding: new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength / 4) };
+    return { nodeId: r?.node_id, embedding: new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength / 4) };
   });
 }
 

@@ -6,12 +6,12 @@
  * Authors: adoresever (graph-memory), win4r (memory-lancedb-pro), brain-memory contributors
  */
 
-import type { BmConfig, ExtractionResult, FinalizeResult, MemoryCategory, MEMORY_CATEGORIES } from "../types.ts";
-import type { CompleteFn } from "../engine/llm.ts";
-import { isNoise } from "../noise/filter.ts";
-import { classifyTemporal } from "../temporal/classifier.ts";
-import { normalizeName } from "../store/store.ts";
-import { extractJson } from "../utils/json.ts";
+import type { BmConfig, ExtractionResult, FinalizeResult, MemoryCategory, MEMORY_CATEGORIES } from "../types";
+import type { CompleteFn } from "../engine/llm";
+import { isNoise } from "../noise/filter";
+import { classifyTemporal } from "../temporal/classifier";
+import { normalizeName } from "../store/store";
+import { extractJson } from "../utils/json";
 
 const VALID_NODE_TYPES = new Set(["TASK", "SKILL", "EVENT"]);
 const VALID_EDGE_TYPES = new Set(["USED_SKILL", "SOLVED_BY", "REQUIRES", "PATCHES", "CONFLICTS_WITH"]);
@@ -88,37 +88,47 @@ export class Extractor {
   constructor(private cfg: BmConfig, private llm: CompleteFn) {}
 
   async extract(params: { messages: any[]; existingNames: string[] }): Promise<ExtractionResult> {
-    // Noise filter: skip low-quality messages before extraction
-    const noiseCfg = this.cfg.noiseFilter;
-    const filtered = noiseCfg.enabled
-      ? params.messages.filter(m => {
-          const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
-          return !isNoise(text, noiseCfg);
-        })
-      : params.messages;
+    try {
+      // Noise filter: skip low-quality messages before extraction
+      const noiseCfg = this.cfg.noiseFilter;
+      const filtered = noiseCfg.enabled
+        ? params.messages.filter(m => {
+            const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+            return !isNoise(text, noiseCfg);
+          })
+        : params.messages;
 
-    if (filtered.length === 0) return { nodes: [], edges: [] };
+      if (filtered.length === 0) return { nodes: [], edges: [] };
 
-    const msgs = filtered
-      .map(m => `[${(m.role ?? "?").toUpperCase()} t=${m.turn_index ?? 0}]\n${
-        String(typeof m.content === "string" ? m.content : JSON.stringify(m.content)).slice(0, 800)
-      }`).join("\n\n---\n\n");
+      const msgs = filtered
+        .map(m => `[${(m.role ?? "?").toUpperCase()} t=${m.turn_index ?? 0}]\n${
+          String(typeof m.content === "string" ? m.content : JSON.stringify(m.content)).slice(0, 800)
+        }`).join("\n\n---\n\n");
 
-    const raw = await this.llm(
-      EXTRACT_SYS,
-      `<Existing Nodes>\n${params.existingNames.join(", ") || "（无）"}\n\n<Conversation>\n${msgs}`,
-    );
-    return this.parseExtract(raw);
+      const raw = await this.llm(
+        EXTRACT_SYS,
+        `<Existing Nodes>\n${params.existingNames.join(", ") || "（无）"}\n\n<Conversation>\n${msgs}`,
+      );
+      return this.parseExtract(raw);
+    } catch (error) {
+      console.error("[brain-memory] Failed to extract knowledge:", error);
+      return { nodes: [], edges: [] }; // Return empty result on failure
+    }
   }
 
   async finalize(params: { sessionNodes: any[]; graphSummary: string }): Promise<FinalizeResult> {
-    const raw = await this.llm(
-      FINALIZE_SYS,
-      `<Session Nodes>\n${JSON.stringify(params.sessionNodes.map(n => ({
-        id: n.id, type: n.type, name: n.name, description: n.description, v: n.validatedCount
-      })), null, 2)}\n\n<Graph Summary>\n${params.graphSummary}`,
-    );
-    return this.parseFinalize(raw, params.sessionNodes);
+    try {
+      const raw = await this.llm(
+        FINALIZE_SYS,
+        `<Session Nodes>\n${JSON.stringify(params.sessionNodes.map(n => ({
+          id: n.id, type: n.type, name: n.name, description: n.description, v: n.validatedCount
+        })), null, 2)}\n\n<Graph Summary>\n${params.graphSummary}`,
+      );
+      return this.parseFinalize(raw, params.sessionNodes);
+    } catch (error) {
+      console.error("[brain-memory] Failed to finalize extraction:", error);
+      return { newEdges: [], promotedSkills: [], invalidations: [] };
+    }
   }
 
   private parseExtract(raw: string): ExtractionResult {

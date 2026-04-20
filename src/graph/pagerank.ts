@@ -9,8 +9,8 @@
  */
 
 import { type DatabaseSyncInstance } from "@photostructure/sqlite";
-import type { BmConfig } from "../types.ts";
-import { updatePageranks } from "../store/store.ts";
+import type { BmConfig } from "../types";
+import { updatePageranks } from "../store/store";
 
 interface GraphStructure {
   nodeIds: Set<string>;

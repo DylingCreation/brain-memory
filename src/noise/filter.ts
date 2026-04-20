@@ -5,7 +5,7 @@
  * Authors: win4r (memory-lancedb-pro), brain-memory contributors
  */
 
-import type { NoiseFilterConfig } from "../types.ts";
+import type { NoiseFilterConfig } from "../types";
 
 const GREETING_RE = /^(hi|hello|hey|hallo|ohayo|こん|안녕|ciao|bonjour|halo|喂|你好|哈喽|嗨|嘿)/i;
 const THANKS_RE = /^(thanks?|thank you|thx|ty|谢谢|感谢|多谢|merci|gracias|danke)/i;

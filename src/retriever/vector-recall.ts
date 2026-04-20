@@ -6,15 +6,15 @@
  */
 
 import { type DatabaseSyncInstance } from "@photostructure/sqlite";
-import type { BmConfig, BmNode, BmEdge } from "../types.ts";
-import type { EmbedFn } from "../engine/embed.ts";
-import type { ScopeFilter } from "../scope/isolation.ts";
+import type { BmConfig, BmNode, BmEdge } from "../types";
+import type { EmbedFn } from "../engine/embed";
+import type { ScopeFilter } from "../scope/isolation";
 import {
   searchNodes, vectorSearchWithScore, updateAccess,
-} from "../store/store.ts";
-import { applyTimeDecay } from "../decay/engine.ts";
-import { expandQuery } from "./query-expander.ts";
-import { analyzeIntent } from "./intent-analyzer.ts";
+} from "../store/store";
+import { applyTimeDecay } from "../decay/engine";
+import { expandQuery } from "./query-expander"
+import { analyzeIntent } from "./intent-analyzer"
 
 export interface VectorRecallResult {
   nodes: BmNode[];
@@ -64,7 +64,11 @@ export class VectorRecaller {
         const vec = await this.embed(query);
         const scored = vectorSearchWithScore(this.db, vec, candidatePool, scopeFilter);
         vectorNodes = scored.map(s => s.node);
-        for (const s of scored) vectorScores.set(s.node.id, s.score);
+        for (const s of scored) {
+          if (s && s.node && s.node.id !== undefined) {
+            vectorScores.set(s.node.id, s.score);
+          }
+        }
       } catch { /* vector unavailable, fallback to BM25 */ }
     }
 
@@ -72,7 +76,11 @@ export class VectorRecaller {
     try {
       bm25Nodes = searchNodes(this.db, bm25Query, candidatePool, scopeFilter);
       // BM25 scores: normalize by rank
-      bm25Nodes.forEach((n, i) => bm25Scores.set(n.id, 1 / (i + 1)));
+      bm25Nodes.forEach((n, i) => {
+        if (n && n.id !== undefined) {
+          bm25Scores.set(n.id, 1 / (i + 1));
+        }
+      });
     } catch { /* FTS5 unavailable */ }
 
     // RRF fusion
@@ -121,7 +129,7 @@ export class VectorRecaller {
     // Vector results
     for (let i = 0; i < vectorNodes.length; i++) {
       const n = vectorNodes[i];
-      if (!nodeMap.has(n.id)) {
+      if (n && n.id && !nodeMap.has(n.id)) {
         nodeMap.set(n.id, { node: n, vScore: vectorScores.get(n.id) ?? 0, vRank: i + 1, bScore: 0, bRank: 0 });
       }
     }
@@ -129,7 +137,7 @@ export class VectorRecaller {
     // BM25 results
     for (let i = 0; i < bm25Nodes.length; i++) {
       const n = bm25Nodes[i];
-      if (!nodeMap.has(n.id)) {
+      if (n && n.id && !nodeMap.has(n.id)) {
         nodeMap.set(n.id, { node: n, vScore: 0, vRank: 0, bScore: bm25Scores.get(n.id) ?? 0, bRank: i + 1 });
       } else {
         nodeMap.get(n.id)!.bScore = bm25Scores.get(n.id) ?? 0;

@@ -6,7 +6,7 @@ export default defineConfig({
     environment: 'node',
     
     // Test file patterns
-    include: ['tests/unit/**/*.test.{ts,js}', 'tests/unit/**/*.spec.{ts,js}'],
+    include: ['tests/unit/**/*.test.{ts,js}', 'tests/unit/**/*.spec.{ts,js}', 'test/**/*.test.{ts,js}', 'test/**/*.spec.{ts,js}'],
     exclude: ['node_modules', 'dist', 'tests/e2e'],
     
     // Test globals
@@ -35,9 +35,13 @@ export default defineConfig({
     hookTimeout: 15000,
     
     // Parallelization
-    threads: true,
-    maxThreads: 4,
-    minThreads: 2,
+    pool: 'threads',
+    poolOptions: {
+      threads: {
+        maxThreads: 4,
+        minThreads: 2,
+      }
+    },
     
     // Reporter
     reporters: ['default', 'verbose']

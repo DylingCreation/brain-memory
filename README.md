@@ -1,251 +1,158 @@
-# 🧠 brain-memory
+# brain-memory
 
-> Unified knowledge graph + vector memory system for AI agents
+Unified knowledge graph + vector memory system for AI agents. Provides 8-category memory system with dual-path recall (graph + vector), community detection, and reflection capabilities.
 
-<div align="center">
+## Features
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-green)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-%3E%3D5.0-blue)](https://www.typescriptlang.org/)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/your-repo/brain-memory)
+- **8-Category Memory System**: Tasks, skills, events, profiles, preferences, entities, cases, patterns
+- **Dual-Path Recall**: Combines graph traversal and vector similarity for optimal results
+- **Community Detection**: Identifies related knowledge clusters using Label Propagation Algorithm
+- **Personalized PageRank**: Ranks knowledge based on relevance to current context
+- **Reflection System**: Derives insights from conversation history
+- **Working Memory**: Maintains short-term context for ongoing conversations
+- **Decay Model**: Implements Weibull model for intelligent forgetting
+- **Multi-Scope Isolation**: Supports session/agent/workspace level data isolation
 
-**Merges graph-memory (knowledge graphs) with vector memory into an 8-category system with intelligent decay and reflection.**
+## Architecture
 
-</div>
-
-## ✨ Features
-
-| Feature | Description |
-|--------|-------------|
-| **8-Category Memory System** | profile, preferences, entities, events, tasks, skills, cases, patterns |
-| **3 Graph Node Types** | TASK, SKILL, EVENT with 5 relationship types |
-| **Dual-Path Recall** | Graph + Vector retrieval with personalized PageRank |
-| **Intelligent Decay** | Weibull model-based forgetting with configurable tiers |
-| **Reflection System** | Session-level insights with safety filtering |
-| **Multi-Scope Isolation** | Per-session/agent/workspace memory isolation |
-| **Noise Filtering** | Automatic filtering of irrelevant content |
-| **Knowledge Fusion** | Duplicate detection and merging |
-| **Reasoning Engine** | Path derivation, implicit relations, pattern generalization |
-
-## 🏗️ Architecture
-
-<div align="center">
-
-```mermaid
-graph LR
-    A[Extractor] --> B(Recaller)
-    B --> C[Assembler]
-    
-    subgraph "Knowledge Extraction"
-        A
-    end
-    
-    subgraph "Knowledge Retrieval"
-        B
-    end
-    
-    subgraph "Context Assembly"
-        C
-    end
-    
-    A -.->|Converts messages to graph nodes| A
-    B -.->|Retrieves relevant knowledge| B
-    C -.->|Combines knowledge for context| C
+```
+┌─────────────────────────────────────────────────────────┐
+│                    API Layer                            │
+│             ContextEngine (Unified Interface)           │
+└─────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────┐
+│                   Control Layer                         │
+│  Extractor │ Recaller │ Fusion │ Reflection │ Reasoning │
+└─────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────┐
+│                   Algorithm Layer                       │
+│ PageRank │ Community Detection │ Vector Similarity    │
+└─────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────┐
+│                   Storage Layer                         │
+│        SQLite (Graph + Vector + FTS5)                 │
+└─────────────────────────────────────────────────────────┘
 ```
 
-*Graph-based knowledge extraction, retrieval, and assembly pipeline*
-
-</div>
-
-## 🚀 Installation
+## Installation
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-
-# Navigate to project directory
-cd brain-memory
-
-# Install dependencies
-npm install
+npm install brain-memory
 ```
 
-## ⚙️ Configuration
-
-### Interactive Setup Script
-
-The project includes an interactive configuration script to help you set up your API credentials:
-
-```bash
-# Run the interactive configuration script
-node scripts/configure.js
-```
-
-This script will guide you through:
-
-- 🔍 Selecting your API provider (DashScope, OpenAI, SiliconFlow, or custom)
-- 🔐 Entering your API credentials
-- 📋 Generating the necessary configuration files
-
-### Environment Variables
-
-Alternatively, create `.env` file with your settings:
-
-```env
-# LLM Configuration
-LLM_BASE_URL=your_llm_base_url
-LLM_API_KEY=your_api_key
-LLM_MODEL=your_model_name
-
-# Embedding Configuration
-EMBEDDING_MODEL=your_embedding_model
-EMBEDDING_BASE_URL=your_embedding_base_url
-```
-
-### JavaScript Configuration
-
-For programmatic configuration, create `config.js` based on the template:
-
-```bash
-cp config.template.js config.js
-```
-
-Then edit `config.js` to add your actual credentials.
-
-## 🔗 OpenClaw Integration
-
-To integrate with OpenClaw, use the built-in setup script:
-
-```bash
-# Run the OpenClaw integration script
-node scripts/setup.js
-```
-
-This script will guide you through:
-
-- 🔍 Selecting your API provider (DashScope, OpenAI, SiliconFlow, or custom)
-- 🔐 Entering your API key
-- 📝 Automatically generating and writing the complete configuration to OpenClaw config file
-- 💾 Creating a backup of your existing configuration
-
-## 💻 Usage
+## Usage
 
 ```typescript
-import { ContextEngine } from './src/engine/context.ts';
-import { DEFAULT_CONFIG } from './src/types.ts';
+import { ContextEngine, DEFAULT_CONFIG } from 'brain-memory';
 
-const engine = new ContextEngine(DEFAULT_CONFIG);
+const config = {
+  ...DEFAULT_CONFIG,
+  dbPath: './my-brain-memory.db',
+  llm: {
+    apiKey: process.env.OPENAI_API_KEY!,
+    baseURL: 'https://api.openai.com/v1',
+    model: 'gpt-4o-mini'
+  },
+  embedding: {
+    apiKey: process.env.OPENAI_API_KEY!,
+    baseURL: 'https://api.openai.com/v1',
+    model: 'text-embedding-3-small'
+  }
+};
 
-// Process a conversation turn
-const result = await engine.process({
-  messages: [
-    { role: 'user', content: 'How do I deploy a Flask app?' },
-    { role: 'assistant', content: 'You can use Docker for deployment.' }
-  ],
-  sessionId: 'session-1'
+const engine = new ContextEngine(config);
+
+// Process conversation turns
+const result = await engine.processTurn({
+  sessionId: 'session-1',
+  agentId: 'agent-1',
+  workspaceId: 'workspace-1',
+  messages: [{
+    role: 'user',
+    content: 'I need to learn TypeScript patterns for AI agents'
+  }]
 });
 
-// Retrieve relevant knowledge
-const recall = await engine.recall('docker deployment');
+// Recall relevant knowledge
+const recallResult = await engine.recall('TypeScript patterns');
 ```
 
-## 🧪 Testing
+## Configuration
 
-```bash
-# Run unit tests
-npm test
+The system supports comprehensive configuration for all aspects:
 
-# Run specific test suites
-npm run test:unit
-npm run test:integration
-npm run test:performance
-```
+- **LLM Settings**: API endpoints, models, parameters
+- **Embedding Settings**: Vector models, dimensions, endpoints
+- **Recall Settings**: Max nodes, strategies, depth
+- **Fusion Settings**: Duplicate detection thresholds
+- **Decay Settings**: Half-life periods, weighting
+- **Reflection Settings**: Enabled modes, thresholds
+- **Working Memory Settings**: Capacity, retention policies
 
-## 🛠️ Build Commands
-
-```bash
-# Build the project
-npm run build
-
-# Clean build artifacts
-npm run clean
-
-# Run linting
-npm run lint
-
-# Generate documentation
-npm run docs
-```
-
-## 📁 Directory Structure
-
-<details>
-<summary>Click to expand directory structure</summary>
-
-```
-src/                 # Source code
-├── store/          # Database operations
-├── extractor/      # Knowledge extraction
-├── recaller/       # Knowledge retrieval
-├── reasoning/      # Inference engine
-├── reflection/     # Reflection system
-├── fusion/         # Knowledge fusion
-├── decay/          # Decay algorithms
-├── scope/          # Multi-tenant isolation
-├── temporal/       # Time-based processing
-├── noise/          # Noise filtering
-├── working-memory/ # Working memory management
-├── format/         # Context formatting
-├── engine/         # Core engine components
-└── utils/          # Utility functions
-
-tests/              # Test files
-├── unit/           # Unit tests
-├── integration/    # Integration tests
-├── performance/    # Performance tests
-└── data/           # Test data
-
-docs/               # Documentation
-scripts/            # Build/deploy scripts
-```
-
-</details>
-
-## 📚 API Reference
+## Key Components
 
 ### ContextEngine
-Main interface for the memory system.
+Main orchestrator that integrates all components. Provides unified API for:
+- Knowledge extraction from conversations
+- Dual-path recall (graph + vector)
+- Knowledge fusion and deduplication
+- Reflection and reasoning
+- Working memory management
 
-#### Methods:
-- `process(params)`: Process conversation messages and update memory
-- `recall(query)`: Retrieve relevant knowledge
-- `maintain()`: Run maintenance tasks (compaction, decay, etc.)
+### Knowledge Extraction
+Extracts structured knowledge from conversations using LLMs:
+- Graph triple extraction (nodes and relationships)
+- 8-category memory classification
+- Temporal classification (static/dynamic)
+- Noise filtering
 
-## 🤝 Contributing
+### Dual-Path Recall
+Combines two complementary approaches:
+- **Graph Path**: Vector/FTS5 → Community expansion → Graph traversal → PPR ranking
+- **Vector Path**: Vector search → FTS5 → RRF fusion → Reranking
 
-We welcome contributions from the community! Here's how you can help:
+### Memory Decay
+Implements Weibull model for intelligent forgetting:
+- Separates static and dynamic information
+- Applies different decay rates
+- Considers access frequency and recency
 
-<div align="center">
+## Performance Optimizations
 
-| Step | Action |
-|------|--------|
-| 🍴 | **Fork** the repository |
-| 🌿 | **Create** a feature branch |
-| ✍️ | **Make** your changes |
-| 🧪 | **Add** tests for new functionality |
-| 🚀 | **Submit** a pull request |
+The system includes several performance optimizations:
 
-</div>
+1. **Efficient Vector Search**: Filters nodes before loading vectors to reduce memory usage
+2. **Batched Database Operations**: Reduces database round trips
+3. **Caching Mechanisms**: Caches frequently accessed data
+4. **Algorithmic Improvements**: Optimized graph algorithms for large datasets
 
-## 📄 License
+## Security
 
-[MIT License](./LICENSE) ©️ DylingCreation's Openclaw-Agents Team
+- Parameterized SQL queries to prevent injection attacks
+- Scope-based isolation for multi-tenant environments
+- Input validation and sanitization
+- Secure credential handling
 
-## 🚀 Deployment Steps
+## Testing
 
-1. 📦 **Clone** the repository to your desired path
-2. 🔧 **Install** dependencies: `npm install`
-3. ⚙️ **Configure** using the interactive script: `node scripts/configure.js`
-4. 🏗️ **Build** the project: `npm run build`
-5. 🔗 **For OpenClaw integration**: `node scripts/setup.js`
-6. ✅ **Test** the deployment: `npm test` or run `npx tsx validate_features.js`
+The project includes comprehensive test coverage:
+- Unit tests for individual components
+- Integration tests for full workflows
+- Performance benchmarks
+- Error handling verification
+
+Run tests with:
+```bash
+npm test
+```
+
+## Contributing
+
+See CONTRIBUTING.md for contribution guidelines.
+
+## License
+
+MIT

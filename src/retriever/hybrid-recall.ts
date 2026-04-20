@@ -6,11 +6,11 @@
  */
 
 import { type DatabaseSyncInstance } from "@photostructure/sqlite";
-import type { BmConfig, BmNode, BmEdge } from "../types.ts";
-import type { EmbedFn } from "../engine/embed.ts";
-import type { ScopeFilter } from "../scope/isolation.ts";
-import { Recaller } from "../recaller/recall.ts";
-import { VectorRecaller } from "./vector-recall.ts";
+import type { BmConfig, BmNode, BmEdge } from "../types";
+import type { EmbedFn } from "../engine/embed";
+import type { ScopeFilter } from "../scope/isolation";
+import { Recaller } from "../recaller/recall";
+import { VectorRecaller } from "./vector-recall"
 
 export interface HybridRecallResult {
   nodes: BmNode[];
@@ -62,24 +62,27 @@ export class HybridRecaller {
     // Normalize scores to [0,1] range before fusion — PPR and RRF are on
     // different scales, so direct averaging is unfair.
     const { graphNorm, vectorNorm } = this.computeNormalization(
-      graphNodes.map(n => n.pagerank),
-      vectorNodes.map(n => vectorRRFScores.get(n.id) ?? 0),
+      graphNodes.map(n => n?.pagerank ?? 0),
+      vectorNodes.map(n => vectorRRFScores.get(n?.id) ?? 0),
     );
 
     // Merge by node ID
     const nodeMap = new Map<string, ScoredItem>();
 
     for (const node of graphNodes) {
-      nodeMap.set(node.id, {
-        node,
-        graphScore: graphNorm(node.pagerank),
-        vectorScore: 0,
-        fusedScore: 0,
-      });
+      if (node && node.id) {
+        nodeMap.set(node.id, {
+          node,
+          graphScore: graphNorm(node.pagerank),
+          vectorScore: 0,
+          fusedScore: 0,
+        });
+      }
     }
 
     let overlapCount = 0;
     for (const node of vectorNodes) {
+      if (!node || !node.id) continue;
       const vScore = vectorNorm(vectorRRFScores.get(node.id) ?? 0);
       if (nodeMap.has(node.id)) {
         overlapCount++;
@@ -156,6 +159,7 @@ export class HybridRecaller {
         if (s < min) min = s;
         if (s > max) max = s;
       }
+      if (min === undefined || max === undefined) return (s: number) => 0;
       const range = max - min;
       if (range < 1e-9) return (s: number) => 1; // all same score → equal weight
       return (s: number) => (s - min) / range;

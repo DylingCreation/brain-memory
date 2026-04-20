@@ -11,13 +11,27 @@
  */
 
 import { type DatabaseSyncInstance } from "@photostructure/sqlite";
-import type { BmConfig, BmNode } from "../types.ts";
-import type { CompleteFn } from "../engine/llm.ts";
-import type { EmbedFn } from "../engine/embed.ts";
-import { allActiveNodes, getVector, mergeNodes, upsertEdge, normalizeName } from "../store/store.ts";
-import { FUSION_DECIDE_SYS } from "./prompts.ts";
-import { cosineSimilarityF32 } from "../utils/similarity.ts";
-import { tokenize, jaccardSimilarity } from "../utils/text.ts";
+import type { BmConfig, BmNode } from "../types";
+import type { CompleteFn } from "../engine/llm";
+import type { EmbedFn } from "../engine/embed";
+import { allActiveNodes, getVector, mergeNodes, upsertEdge, normalizeName } from "../store/store";
+import { FUSION_DECIDE_SYS } from "./prompts"
+// Define cosineSimilarityF32 locally to avoid importing the problematic file
+function cosineSimilarityF32(a: Float32Array, b: Float32Array): number {
+  if (!a || !b || a.length === 0 || b.length === 0) return 0;
+  const len = Math.min(a.length, b.length);
+  if (len === 0) return 0;
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < len; i++) {
+    if (a && b && a[i] !== undefined && b[i] !== undefined) {
+      dot += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+  }
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB) + 1e-9);
+}
+import { tokenize, jaccardSimilarity } from "../utils/text";
 
 export interface FusionCandidate {
   nodeA: BmNode;
@@ -69,11 +83,13 @@ export function findFusionCandidates(
     for (let j = i + 1; j < nodes.length; j++) {
       const a = nodes[i];
       const b = nodes[j];
+      
+      if (!a || !b) continue;
 
       // Skip same-type check — different types shouldn't merge
       if (a.type !== b.type) continue;
 
-      const nameScore = computeNameSimilarity(a.name, b.name);
+      const nameScore = computeNameSimilarity(a?.name ?? "", b?.name ?? "");
       if (nameScore < 0.2) continue; // Too dissimilar in name
 
       // Phase 2: Vector similarity (if embeddings available)
@@ -82,7 +98,7 @@ export function findFusionCandidates(
         const vecA = getVector(db, a.id);
         const vecB = getVector(db, b.id);
         if (vecA && vecB) {
-          vectorScore = cosineSimilarity(vecA, vecB);
+          vectorScore = cosineSimilarityF32(vecA, vecB);
         }
       }
 
@@ -98,7 +114,7 @@ export function findFusionCandidates(
           nameScore,
           vectorScore,
           combinedScore,
-          decision: "none",
+          decision: "none" as const,
           reason: "",
         });
       }
@@ -150,10 +166,11 @@ export function executeFusion(
 
   for (const candidate of candidates) {
     if (candidate.decision === "none") continue;
-    if (consumed.has(candidate.nodeA.id) || consumed.has(candidate.nodeB.id)) continue;
+    if (!candidate.nodeA || !candidate.nodeB || consumed.has(candidate.nodeA.id) || consumed.has(candidate.nodeB.id)) continue;
 
     if (candidate.decision === "merge") {
       // Merge: keep higher validatedCount node
+      if (!candidate.nodeA || !candidate.nodeB) continue;
       const keepId = candidate.nodeA.validatedCount >= candidate.nodeB.validatedCount
         ? candidate.nodeA.id
         : candidate.nodeB.id;
@@ -225,8 +242,8 @@ export function computeNameSimilarity(a: string, b: string): number {
 // cosineSimilarityF32 imported from ../utils/similarity.ts
 
 // Re-export for tests and external callers (backward compatible)
-export { tokenize, jaccardSimilarity } from "../utils/text.ts";
-export { cosineSimilarityF32 as cosineSimilarity } from "../utils/similarity.ts";
+export { tokenize, jaccardSimilarity } from "../utils/text";
+export { cosineSimilarityF32 as cosineSimilarity } from "../utils/similarity";
 
 export function parseFusionDecision(raw: string): { decision: "merge" | "link" | "none"; reason: string } {
   try {

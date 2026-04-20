@@ -9,10 +9,10 @@
  * Reflection results are stored as graph nodes (not flat text).
  */
 
-import type { BmConfig, ReflectionConfig, ReflectionInsight, ReflectionResult } from "../types.ts";
-import type { CompleteFn } from "../engine/llm.ts";
-import { TURN_REFLECTION_SYS, SESSION_REFLECTION_SYS } from "./prompts.ts";
-import { extractJson } from "../utils/json.ts";
+import type { BmConfig, ReflectionConfig, ReflectionInsight, ReflectionResult } from "../types";
+import type { CompleteFn } from "../engine/llm";
+import { TURN_REFLECTION_SYS, SESSION_REFLECTION_SYS } from "./prompts"
+import { extractJson } from "../utils/json";
 
 // ─── Safety filter for reflection content ──────────────────────
 // Prevents prompt injection through reflection results.

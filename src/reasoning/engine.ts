@@ -11,10 +11,10 @@
  *  4. contradiction: conflicting content → alert user
  */
 
-import type { BmConfig, BmNode, BmEdge } from "../types.ts";
-import type { CompleteFn } from "../engine/llm.ts";
-import { REASONING_SYS } from "./prompts.ts";
-import { escapeXml } from "../utils/xml.ts";
+import type { BmConfig, BmNode, BmEdge } from "../types";
+import type { CompleteFn } from "../engine/llm";
+import { REASONING_SYS } from "./prompts"
+import { escapeXml } from "../utils/xml";
 
 export interface ReasoningConclusion {
   text: string;

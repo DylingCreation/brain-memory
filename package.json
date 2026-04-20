@@ -49,10 +49,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-repo/brain-memory.git"
+    "url": "https://github.com/DylingCreation/brain-memory.git"
   },
   "bugs": {
-    "url": "https://github.com/your-repo/brain-memory/issues"
+    "url": "https://github.com/DylingCreation/brain-memory/issues"
   },
-  "homepage": "https://github.com/your-repo/brain-memory#readme"
+  "homepage": "https://github.com/DylingCreation/brain-memory#readme"
 }

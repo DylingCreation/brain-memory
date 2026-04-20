@@ -6,9 +6,9 @@
  */
 
 import { type DatabaseSyncInstance } from "@photostructure/sqlite";
-import type { BmNode, BmEdge } from "../types.ts";
-import { getCommunitySummary, getEpisodicMessages } from "../store/store.ts";
-import { escapeXml } from "../utils/xml.ts";
+import type { BmNode, BmEdge } from "../types";
+import { getCommunitySummary, getEpisodicMessages } from "../store/store";
+import { escapeXml } from "../utils/xml";
 
 const CHARS_PER_TOKEN = 3;
 
@@ -168,7 +168,8 @@ export function assembleContext(
       return `  <${tag} name="${n.name}" desc="${escapeXml(n.description)}"${srcAttr}/>`;
     }).join("\n")}${edgesXml}\n</knowledge_graph>`;
   } else if (params.recallStrategy === "off") {
-    xml = null;
+    // recallStrategy "off": skip everything
+    return { xml: null, systemPrompt: "", tokens: 0, episodicXml: "", episodicTokens: 0 };
   }
 
   // recallStrategy "off": skip everything
@@ -197,7 +198,7 @@ export function assembleContext(
     ? `<episodic_context>\n${episodicParts.join("\n")}\n</episodic_context>`
     : "";
 
-  const fullContent = systemPrompt + "\n\n" + xml + (episodicXml ? "\n\n" + episodicXml : "");
+  const fullContent = systemPrompt + "\n\n" + (xml || "") + ((episodicXml && episodicXml.length > 0) ? "\n\n" + episodicXml : "");
   return {
     xml,
     systemPrompt,

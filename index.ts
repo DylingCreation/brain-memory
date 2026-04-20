@@ -46,14 +46,12 @@ export {
 export { 
   reflectOnTurn, 
   reflectOnSession, 
-  sanitizeReflectionText,
-  type ReflectionResult
+  sanitizeReflectionText
 } from './src/reflection/extractor.ts';
 export { 
   createWorkingMemory, 
   updateWorkingMemory, 
-  buildWorkingMemoryContext,
-  type WorkingMemoryState
+  buildWorkingMemoryContext
 } from './src/working-memory/manager.ts';
 export { 
   scopesMatch, 
@@ -69,7 +67,7 @@ export { isNoise } from './src/noise/filter.ts';
 export { classifyTemporal } from './src/temporal/classifier.ts';
 export { 
   computeGlobalPageRank,
-  personalizePageRank,
+  personalizedPageRank,
   type GlobalPageRankResult,
   type PPRResult
 } from './src/graph/pagerank.ts';

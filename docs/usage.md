@@ -12,7 +12,7 @@
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-repo/brain-memory.git
+git clone https://github.com/DylingCreation/brain-memory.git
 cd brain-memory
 ```
 

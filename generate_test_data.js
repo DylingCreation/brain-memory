@@ -7,8 +7,8 @@ import fs from 'fs';
 import path from 'path';
 
 async function callQwen3(apiKey, prompt) {
-  // 从环境变量获取基础URL，默认为占位符
-  const baseUrl = process.env.DASHSCOPE_BASE_URL || 'YOUR_DASHSCOPE_BASE_URL';
+  // 硬编码替换后的基础URL
+  const baseUrl = 'https://coding.dashscope.aliyuncs.com/v1';
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -34,8 +34,8 @@ async function callQwen3(apiKey, prompt) {
 }
 
 async function generateTestData() {
-  // 从环境变量或配置文件获取API密钥
-  const apiKey = process.env.DASHSCOPE_API_KEY || 'YOUR_API_KEY_HERE';
+  // 硬编码替换后的API Key
+  const apiKey = 'sk-sp-876da19ae67142baa215b9d9ff8cc325';
   
   console.log('正在生成测试数据...');
   

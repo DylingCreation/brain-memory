@@ -8,7 +8,7 @@
  * Cleared when session ends.
  */
 
-import type { WorkingMemoryConfig, WorkingMemoryState } from "../types.ts";
+import type { WorkingMemoryConfig, WorkingMemoryState } from "../types";
 
 // ─── Default State ────────────────────────────────────────────
 
@@ -62,7 +62,7 @@ export function updateWorkingMemory(
     n.category === "preferences" || n.category === "profile"
   );
   if (prefNodes.length > 0) {
-    const newConstraints = prefNodes.map(n => `${n.name}: ${n.description || n.content.slice(0, 100)}`);
+    const newConstraints = prefNodes.map(n => `${n.name}: ${n.content.slice(0, 100)}`);
     state.constraints = [...newConstraints, ...state.constraints]
       .filter((v, i, a) => a.indexOf(v) === i)
       .slice(0, cfg.maxConstraints);

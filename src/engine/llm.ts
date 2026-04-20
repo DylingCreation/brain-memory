@@ -33,25 +33,81 @@ export function createCompleteFn(cfg?: LlmConfig): CompleteFn | null {
 }
 
 async function openaiComplete(apiKey: string, baseURL: string, model: string, system: string, user: string): Promise<string> {
-  const res = await fetch(`${baseURL}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages: [{ role: "system", content: system }, { role: "user", content: user }], temperature: 0.1, max_tokens: 4096 }),
-  });
-  if (!res.ok) throw new Error(`LLM error: ${res.status}`);
-  const data = await res.json() as any;
-  return data.choices?.[0]?.message?.content ?? "";
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+    
+    const res = await fetch(`${baseURL}/chat/completions`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json", 
+        Authorization: `Bearer ${apiKey}`,
+        "User-Agent": "brain-memory/1.0"
+      },
+      body: JSON.stringify({ 
+        model, 
+        messages: [{ role: "system", content: system }, { role: "user", content: user }], 
+        temperature: 0.1, 
+        max_tokens: 4096 
+      }),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!res.ok) {
+      const errorMessage = await res.text();
+      throw new Error(`LLM error: ${res.status} - ${errorMessage}`);
+    }
+    
+    const data = await res.json() as any;
+    return data.choices?.[0]?.message?.content ?? "";
+  } catch (error) {
+    if ((error as Error).name === 'AbortError') {
+      throw new Error('LLM request timed out after 60 seconds');
+    }
+    throw error;
+  }
 }
 
 async function anthropicComplete(system: string, user: string, model: string): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("No LLM configured: set config.llm.apiKey or ANTHROPIC_API_KEY");
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model, system, messages: [{ role: "user", content: user }], max_tokens: 4096 }),
-  });
-  if (!res.ok) throw new Error(`Anthropic error: ${res.status}`);
-  const data = await res.json() as any;
-  return data.content?.[0]?.text ?? "";
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+    
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json", 
+        "x-api-key": apiKey, 
+        "anthropic-version": "2023-06-01",
+        "User-Agent": "brain-memory/1.0"
+      },
+      body: JSON.stringify({ 
+        model, 
+        system, 
+        messages: [{ role: "user", content: user }], 
+        max_tokens: 4096 
+      }),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!res.ok) {
+      const errorMessage = await res.text();
+      throw new Error(`Anthropic error: ${res.status} - ${errorMessage}`);
+    }
+    
+    const data = await res.json() as any;
+    return data.content?.[0]?.text ?? "";
+  } catch (error) {
+    if ((error as Error).name === 'AbortError') {
+      throw new Error('Anthropic request timed out after 60 seconds');
+    }
+    throw error;
+  }
 }

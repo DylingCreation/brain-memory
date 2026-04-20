@@ -7,10 +7,10 @@
  */
 
 import type { DatabaseSyncInstance } from "@photostructure/sqlite";
-import type { MemoryCategory } from "../types.ts";
-import { searchNodes, vectorSearchWithScore } from "../store/store.ts";
-import type { EmbedFn } from "../engine/embed.ts";
-import { tokenize, jaccardSimilarity } from "../utils/text.ts";
+import type { MemoryCategory } from "../types";
+import { searchNodes, vectorSearchWithScore } from "../store/store";
+import type { EmbedFn } from "../engine/embed";
+import { tokenize, jaccardSimilarity } from "../utils/text";
 
 export interface AdmissionConfig {
   enabled: boolean;
@@ -83,9 +83,11 @@ export class AdmissionController {
       const candidateTokens = tokenizeText(content);
       let maxOverlap = 0;
       for (const ex of existing) {
-        const existingTokens = tokenizeText(ex.content);
-        const overlap = jaccardSimilarity(candidateTokens, existingTokens);
-        if (overlap > maxOverlap) maxOverlap = overlap;
+        if (ex && ex.content !== undefined) {
+          const existingTokens = tokenizeText(ex.content);
+          const overlap = jaccardSimilarity(candidateTokens, existingTokens);
+          if (overlap > maxOverlap) maxOverlap = overlap;
+        }
       }
       if (maxOverlap > duplicateThreshold) {
         return { decision: "reject", reason: `high content overlap (${maxOverlap.toFixed(2)} > ${duplicateThreshold})`, similarityToExisting: maxOverlap };

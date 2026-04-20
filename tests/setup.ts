@@ -6,6 +6,6 @@
 console.log('Setting up tests...');
 
 // Example: set global variables, mock objects, etc.
-global.TEST_MODE = true;
+(global as any).TEST_MODE = true;
 
 export {};

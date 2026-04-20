@@ -6,12 +6,12 @@
  */
 
 import { type DatabaseSyncInstance } from "@photostructure/sqlite";
-import type { BmConfig } from "../types.ts";
-import type { CompleteFn } from "../engine/llm.ts";
-import type { EmbedFn } from "../engine/embed.ts";
-import { invalidateGraphCache, computeGlobalPageRank } from "./pagerank.ts";
-import { detectCommunities, summarizeCommunities } from "./community.ts";
-import { dedup } from "./dedup.ts";
+import type { BmConfig } from "../types";
+import type { CompleteFn } from "../engine/llm";
+import type { EmbedFn } from "../engine/embed";
+import { invalidateGraphCache, computeGlobalPageRank } from "./pagerank"
+import { detectCommunities, summarizeCommunities } from "./community"
+import { dedup } from "./dedup"
 
 export async function runMaintenance(
   db: DatabaseSyncInstance,

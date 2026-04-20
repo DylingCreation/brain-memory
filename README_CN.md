@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-green)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-%3E%3D5.0-blue)](https://www.typescriptlang.org/)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/your-repo/brain-memory)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/DylingCreation/brain-memory)
 
 **将知识图谱与向量记忆融合为8类系统的统一记忆系统，具备智能遗忘和反思功能。**
 

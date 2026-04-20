@@ -12,10 +12,10 @@
  */
 
 import { type DatabaseSyncInstance } from "@photostructure/sqlite";
-import type { BmConfig, ReflectionInsight, ReflectionConfig } from "../types.ts";
-import { upsertNode, findByName, allActiveNodes, normalizeName } from "../store/store.ts";
-import { sanitizeReflectionText } from "./extractor.ts";
-import { tokenize, jaccardSimilarity } from "../utils/text.ts";
+import type { BmConfig, ReflectionInsight, ReflectionConfig } from "../types";
+import { upsertNode, findByName, allActiveNodes, normalizeName } from "../store/store";
+import { sanitizeReflectionText } from "./extractor"
+import { tokenize, jaccardSimilarity } from "../utils/text";
 
 // ─── Insight → Node Mapping ───────────────────────────────────
 

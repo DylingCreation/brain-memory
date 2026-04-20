@@ -7,7 +7,7 @@
  * Authors: win4r (memory-lancedb-pro), brain-memory contributors
  */
 
-import type { DecayConfig, BmNode } from "../types.ts";
+import type { DecayConfig, BmNode } from "../types";
 
 const MS_PER_DAY = 86_400_000;
 

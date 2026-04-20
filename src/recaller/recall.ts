@@ -10,17 +10,17 @@
 
 import { type DatabaseSyncInstance } from "@photostructure/sqlite";
 import { createHash } from "crypto";
-import type { BmConfig, RecallResult, BmNode, BmEdge } from "../types.ts";
-import type { EmbedFn } from "../engine/embed.ts";
-import type { ScopeFilter } from "../scope/isolation.ts";
+import type { BmConfig, RecallResult, BmNode, BmEdge } from "../types";
+import type { EmbedFn } from "../engine/embed";
+import type { ScopeFilter } from "../scope/isolation";
 import {
   searchNodes, vectorSearchWithScore, graphWalk,
   communityVectorSearch, nodesByCommunityIds, saveVector, getVectorHash,
   updateAccess,
-} from "../store/store.ts";
-import { getCommunityPeers, communityRepresentatives } from "../graph/community.ts";
-import { personalizedPageRank } from "../graph/pagerank.ts";
-import { applyTimeDecay } from "../decay/engine.ts";
+} from "../store/store";
+import { getCommunityPeers, communityRepresentatives } from "../graph/community";
+import { personalizedPageRank } from "../graph/pagerank";
+import { applyTimeDecay } from "../decay/engine";
 
 export class Recaller {
   private embed: EmbedFn | null = null;

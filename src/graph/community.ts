@@ -9,9 +9,9 @@
  */
 
 import { type DatabaseSyncInstance } from "@photostructure/sqlite";
-import { updateCommunities, upsertCommunitySummary, pruneCommunitySummaries } from "../store/store.ts";
-import type { CompleteFn } from "../engine/llm.ts";
-import type { EmbedFn } from "../engine/embed.ts";
+import { updateCommunities, upsertCommunitySummary, pruneCommunitySummaries } from "../store/store";
+import type { CompleteFn } from "../engine/llm";
+import type { EmbedFn } from "../engine/embed";
 
 export interface CommunityResult {
   labels: Map<string, string>;
@@ -146,27 +146,24 @@ export async function summarizeCommunities(
     try {
       const summary = await llm(COMMUNITY_SUMMARY_SYS, `社区成员：\n${memberText}`);
       const cleaned = summary.trim()
-        .replace(/<think>[\s\S]*?<\/think>/gi, "")
-        .replace(/<think>[\s\S]*/gi, "")
-        .replace(/^["'「」]|["'「」]$/g, "")
-        .replace(/\n/g, " ")
-        .replace(/\s{2,}/g, " ")
-        .trim()
-        .slice(0, 100);
-      if (cleaned.length === 0) continue;
+        .replace(/[\r\n]+/g, ' ')
+        .replace(/\s+/g, ' ');
 
-      let embedding: number[] | undefined;
       if (embedFn) {
         try {
-          embedding = await embedFn(`${cleaned}\n${members.map((m: any) => m.name).join(", ")}`);
-        } catch { /* skip */ }
+          const embedding = await embedFn(cleaned);
+          await upsertCommunitySummary(db, communityId, cleaned, memberIds.length, embedding);
+        } catch {
+          await upsertCommunitySummary(db, communityId, cleaned, memberIds.length);
+        }
+      } else {
+        await upsertCommunitySummary(db, communityId, cleaned, memberIds.length);
       }
-
-      upsertCommunitySummary(db, communityId, cleaned, memberIds.length, embedding);
       generated++;
-    } catch (err) {
-      if (process.env.BM_DEBUG) console.log(`  [WARN] community summary failed for ${communityId}: ${err}`);
+    } catch (error) {
+      console.error(`Error summarizing community ${communityId}:`, error);
     }
   }
+
   return generated;
 }

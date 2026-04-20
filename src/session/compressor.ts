@@ -6,8 +6,8 @@
  */
 
 import type { DatabaseSyncInstance } from "@photostructure/sqlite";
-import type { BmConfig } from "../types.ts";
-import type { CompleteFn } from "../engine/llm.ts";
+import type { BmConfig } from "../types";
+import type { CompleteFn } from "../engine/llm";
 
 export interface SessionValue {
   sessionId: string;

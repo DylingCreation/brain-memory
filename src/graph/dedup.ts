@@ -6,8 +6,8 @@
  */
 
 import { type DatabaseSyncInstance } from "@photostructure/sqlite";
-import type { BmConfig } from "../types.ts";
-import { findById, mergeNodes, getAllVectors } from "../store/store.ts";
+import type { BmConfig } from "../types";
+import { findById, mergeNodes, getAllVectors } from "../store/store";
 
 export interface DedupResult {
   pairs: Array<{ nodeA: string; nodeB: string; nameA: string; nameB: string; similarity: number }>;
@@ -18,9 +18,11 @@ function cosineSim(a: Float32Array, b: Float32Array): number {
   const len = Math.min(a.length, b.length);
   let dot = 0, normA = 0, normB = 0;
   for (let i = 0; i < len; i++) {
-    dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
+    if (a[i] !== undefined && b[i] !== undefined) {
+      dot += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
   }
   return dot / (Math.sqrt(normA) * Math.sqrt(normB) + 1e-9);
 }
@@ -41,7 +43,7 @@ function buildLshBuckets(
     for (let b = 0; b < numBits; b++) {
       // Deterministic pseudo-random index from vector components
       const idx = ((b * 131 + 7) * 3) % v.length;
-      sig += v[idx] >= 0 ? "1" : "0";
+      sig += v[idx] !== undefined && v[idx] >= 0 ? "1" : "0";
     }
     if (!buckets.has(sig)) buckets.set(sig, []);
     buckets.get(sig)!.push(i);
@@ -62,17 +64,24 @@ export function detectDuplicates(db: DatabaseSyncInstance, cfg: BmConfig): Dedup
   for (const [, members] of buckets) {
     for (let i = 0; i < members.length; i++) {
       for (let j = i + 1; j < members.length; j++) {
-        const a = members[i], b = members[j];
-        const key = a < b ? `${a}-${b}` : `${b}-${a}`;
+        const aIdx = members[i], bIdx = members[j];
+        if (aIdx === undefined || bIdx === undefined) continue;
+        const key = aIdx < bIdx ? `${aIdx}-${bIdx}` : `${bIdx}-${aIdx}`;
         if (compared.has(key)) continue;
         compared.add(key);
 
-        const sim = cosineSim(vectors[a].embedding, vectors[b].embedding);
+        const vecA = vectors[aIdx]?.embedding;
+        const vecB = vectors[bIdx]?.embedding;
+        if (!vecA || !vecB) continue;
+        const sim = cosineSim(vecA, vecB);
         if (sim >= threshold) {
-          const nodeA = findById(db, vectors[a].nodeId);
-          const nodeB = findById(db, vectors[b].nodeId);
+          const nodeIdA = vectors[aIdx]?.nodeId;
+          const nodeIdB = vectors[bIdx]?.nodeId;
+          if (!nodeIdA || !nodeIdB) continue;
+          const nodeA = findById(db, nodeIdA);
+          const nodeB = findById(db, nodeIdB);
           if (nodeA && nodeB) {
-            pairs.push({ nodeA: nodeA.id, nodeB: nodeB.id, nameA: nodeA.name, nameB: nodeB.name, similarity: sim });
+            pairs.push({ nodeA: nodeA.id, nodeB: nodeB.id, nameA: nodeA.name || '', nameB: nodeB.name || '', similarity: sim });
           }
         }
       }
@@ -89,7 +98,7 @@ export function dedup(db: DatabaseSyncInstance, cfg: BmConfig): DedupResult {
     if (consumed.has(pair.nodeA) || consumed.has(pair.nodeB)) continue;
     const a = findById(db, pair.nodeA);
     const b = findById(db, pair.nodeB);
-    if (!a || !b || a.type !== b.type) continue;
+    if (!a || !b || a?.type !== b?.type) continue;
     const keepId = a.validatedCount >= b.validatedCount ? a.id : b.id;
     const mergeId = keepId === a.id ? b.id : a.id;
     mergeNodes(db, keepId, mergeId);
