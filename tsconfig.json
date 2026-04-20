@@ -10,8 +10,12 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "baseUrl": ".",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
     "paths": {
       "@src/*": ["./src/*"],
       "@tests/*": ["./tests/*"],
@@ -20,12 +24,15 @@
     }
   },
   "include": [
+    "index.ts",
     "src/**/*"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "tests",
-    "test"
+    "test",
+    "benchmark",
+    "docs"
   ]
 }

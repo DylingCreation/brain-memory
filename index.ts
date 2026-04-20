@@ -7,9 +7,9 @@
  * @module brain-memory
  */
 
-export { ContextEngine } from './src/engine/context.ts';
-export { DEFAULT_CONFIG, type BmConfig } from './src/types.ts';
-export { initDb } from './src/store/db.ts';
+export { ContextEngine } from './src/engine/context';
+export { DEFAULT_CONFIG, type BmConfig } from './src/types';
+export { initDb } from './src/store/db';
 export { 
   upsertNode, 
   searchNodes, 
@@ -23,9 +23,9 @@ export {
   communityVectorSearch,
   nodesByCommunityIds,
   type ScoredCommunity
-} from './src/store/store.ts';
-export { Recaller } from './src/recaller/recall.ts';
-export { Extractor } from './src/extractor/extract.ts';
+} from './src/store/store';
+export { Recaller } from './src/recaller/recall';
+export { Extractor } from './src/extractor/extract';
 export { 
   computeNameSimilarity, 
   findFusionCandidates, 
@@ -34,7 +34,7 @@ export {
   runFusion,
   type FusionCandidate,
   type FusionResult
-} from './src/fusion/analyzer.ts';
+} from './src/fusion/analyzer';
 export { 
   runReasoning, 
   shouldRunReasoning,
@@ -42,17 +42,17 @@ export {
   parseReasoningResult,
   type ReasoningConclusion,
   type ReasoningResult
-} from './src/reasoning/engine.ts';
+} from './src/reasoning/engine';
 export { 
   reflectOnTurn, 
   reflectOnSession, 
   sanitizeReflectionText
-} from './src/reflection/extractor.ts';
+} from './src/reflection/extractor';
 export { 
   createWorkingMemory, 
   updateWorkingMemory, 
   buildWorkingMemoryContext
-} from './src/working-memory/manager.ts';
+} from './src/working-memory/manager';
 export { 
   scopesMatch, 
   scopeKey, 
@@ -60,38 +60,38 @@ export {
   DEFAULT_SCOPE_FILTER,
   type MemoryScope,
   type ScopeFilter
-} from './src/scope/isolation.ts';
-export { assembleContext, buildSystemPromptAddition } from './src/format/assemble.ts';
-export { scoreDecay, applyTimeDecay } from './src/decay/engine.ts';
-export { isNoise } from './src/noise/filter.ts';
-export { classifyTemporal } from './src/temporal/classifier.ts';
+} from './src/scope/isolation';
+export { assembleContext, buildSystemPromptAddition } from './src/format/assemble';
+export { scoreDecay, applyTimeDecay } from './src/decay/engine';
+export { isNoise } from './src/noise/filter';
+export { classifyTemporal } from './src/temporal/classifier';
 export { 
   computeGlobalPageRank,
   personalizedPageRank,
   type GlobalPageRankResult,
   type PPRResult
-} from './src/graph/pagerank.ts';
+} from './src/graph/pagerank';
 export { 
   detectCommunities, 
   getCommunityPeers, 
   communityRepresentatives 
-} from './src/graph/community.ts';
+} from './src/graph/community';
 export { 
   extractJson 
-} from './src/utils/json.ts';
+} from './src/utils/json';
 export { 
   escapeXml 
-} from './src/utils/xml.ts';
+} from './src/utils/xml';
 export { 
   cosineSimilarityF32,
   type SimilarityFn
-} from './src/utils/similarity.ts';
+} from './src/utils/similarity';
 export { 
   tokenize, 
   jaccardSimilarity 
-} from './src/utils/text.ts';
+} from './src/utils/text';
 
 // Export all type definitions
-export * from './src/types.ts';
+export * from './src/types';
 
 console.log('brain-memory module loaded successfully.');
