@@ -1,0 +1,55 @@
+# Set default behavior to automatically normalize line endings
+* text=auto
+
+# Force the following file types to use LF (Unix-style) line endings
+*.js text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.sql text eol=lf
+*.txt text eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.less text eol=lf
+*.xml text eol=lf
+*.svg text eol=lf
+*.csv text eol=lf
+*.env text eol=lf
+*.env.* text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+*.zip binary
+*.tar.gz binary
+*.so binary
+*.dylib binary
+*.dll binary
+
+# Ignore build outputs
+dist/** export-ignore
+build/** export-ignore
+coverage/** export-ignore
+*.log export-ignore
+
+# Package managers
+node_modules/** export-ignore
+npm-debug.log* export-ignore
+yarn-debug.log* export-ignore
+yarn-error.log* export-ignore
+.pnp.cjs export-ignore
+.pnp.loader.mjs export-ignore

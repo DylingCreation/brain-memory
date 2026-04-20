@@ -1,0 +1,133 @@
+{
+  "id": "brain-memory",
+  "name": "Brain Memory",
+  "version": "1.0.0",
+  "description": "Unified knowledge graph + vector memory system for AI agents",
+  "author": "OpenClaw Team",
+  "license": "MIT",
+  "entry": "./openclaw-plugin.js",
+  "hooks": [
+    "init",
+    "handleMessage", 
+    "onSessionStart",
+    "onSessionEnd",
+    "getMemoryContext",
+    "getStatus",
+    "shutdown"
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "default": true,
+        "description": "Enable the brain-memory plugin"
+      },
+      "engine": {
+        "type": "string",
+        "enum": ["graph", "vector", "hybrid"],
+        "default": "graph",
+        "description": "Engine mode: graph=knowledge graph, vector=vector search, hybrid=both"
+      },
+      "storage": {
+        "type": "string",
+        "enum": ["sqlite", "lancedb"],
+        "default": "sqlite",
+        "description": "Storage backend"
+      },
+      "dbPath": {
+        "type": "string",
+        "default": "~/.openclaw/brain-memory.db",
+        "description": "Path to the database file"
+      },
+      "injectMemories": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether to inject memories into conversation context"
+      },
+      "extractMemories": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether to extract memories from conversations"
+      },
+      "autoMaintain": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether to run maintenance automatically"
+      },
+      "llm": {
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "type": "string",
+            "description": "LLM API key"
+          },
+          "baseURL": {
+            "type": "string",
+            "default": "https://api.openai.com/v1",
+            "description": "LLM API base URL"
+          },
+          "model": {
+            "type": "string",
+            "default": "gpt-4o-mini",
+            "description": "LLM model to use"
+          }
+        }
+      },
+      "embedding": {
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "type": "string",
+            "description": "Embedding API key"
+          },
+          "baseURL": {
+            "type": "string",
+            "default": "https://api.openai.com/v1",
+            "description": "Embedding API base URL"
+          },
+          "model": {
+            "type": "string",
+            "default": "text-embedding-3-small",
+            "description": "Embedding model to use"
+          }
+        }
+      },
+      "decay": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "recencyHalfLifeDays": {
+            "type": "number",
+            "default": 30
+          },
+          "timeDecayHalfLifeDays": {
+            "type": "number",
+            "default": 60
+          }
+        }
+      },
+      "reflection": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "turnReflection": {
+            "type": "boolean",
+            "default": false
+          },
+          "sessionReflection": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      }
+    },
+    "required": ["enabled"]
+  }
+}

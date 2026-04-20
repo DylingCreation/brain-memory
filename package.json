@@ -1,0 +1,70 @@
+{
+  "name": "brain-memory",
+  "version": "1.0.0",
+  "description": "Unified knowledge graph + vector memory system for AI agents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "start": "tsx index.ts",
+    "dev": "tsx watch index.ts",
+    "test": "vitest",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:performance": "vitest run tests/performance",
+    "test:e2e": "vitest run tests/e2e",
+    "test:ci": "vitest run --reporter=junit --reporter=verbose",
+    "lint": "eslint src/**/*.ts",
+    "build": "tsc",
+    "docs": "typedoc --out docs/api src/",
+    "clean": "rm -rf dist coverage",
+    "prebuild": "npm run clean",
+    "postinstall": "echo 'brain-memory installation complete'",
+    "configure": "node scripts/configure.js",
+    "setup-openclaw": "node scripts/setup.js",
+    "release": "bash scripts/release.sh",
+    "publish": "bash scripts/publish-npm.sh"
+  },
+  "keywords": [
+    "ai",
+    "memory",
+    "knowledge-graph",
+    "vector-database",
+    "context-management",
+    "llm",
+    "typescript"
+  ],
+  "author": "OpenClaw Team",
+  "license": "MIT",
+  "dependencies": {
+    "@photostructure/sqlite": "^1.0.0",
+    "tsx": "^4.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "vitest": "^1.0.0",
+    "typescript": "^5.0.0",
+    "eslint": "^8.0.0",
+    "typedoc": "^0.25.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DylingCreation/brain-memory.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DylingCreation/brain-memory/issues"
+  },
+  "homepage": "https://github.com/DylingCreation/brain-memory#readme",
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

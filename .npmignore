@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+
+# Test files
+tests/
+test/
+
+# Documentation
+docs/
+
+# Development files
+.devcontainer/
+.editorconfig
+.eslintignore
+.eslintrc.json
+.git/
+.github/
+.gitignore
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vs/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Temporary folders
+tmp/
+temp/
+
+# Build artifacts
+dist/
+build/
+
+# Scripts that are only used for development
+scripts/dev/
+scripts/test/
