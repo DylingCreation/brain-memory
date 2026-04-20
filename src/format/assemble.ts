@@ -55,6 +55,7 @@ export function assembleContext(
   db: DatabaseSyncInstance,
   params: {
     tokenBudget: number;
+    recallStrategy: "full" | "summary" | "adaptive" | "off";
     activeNodes: BmNode[];
     activeEdges: BmEdge[];
     recalledNodes: BmNode[];
@@ -75,7 +76,23 @@ export function assembleContext(
       b.pagerank - a.pagerank
     );
 
-  const selected = sorted;
+  // Enforce token budget: truncate nodes that exceed the limit.
+  // A budget of 0 means no limit (return all nodes).
+  const selected: typeof sorted = [];
+  if (params.tokenBudget > 0) {
+    let usedTokens = 0;
+    const budget = params.tokenBudget;
+    for (const n of sorted) {
+      const nodeTokens = Math.ceil(
+        (n.name.length + n.description.length + n.content.length) / CHARS_PER_TOKEN,
+      );
+      if (usedTokens + nodeTokens > budget && selected.length > 0) break;
+      selected.push(n);
+      usedTokens += nodeTokens;
+    }
+  } else {
+    selected.push(...sorted);
+  }
   if (!selected.length) return { xml: null, systemPrompt: "", tokens: 0, episodicXml: "", episodicTokens: 0 };
 
   const idToName = new Map<string, string>();
@@ -131,7 +148,31 @@ export function assembleContext(
       }).join("\n")}\n  </edges>`
     : "";
 
-  const xml = `<knowledge_graph>\n${nodesXml}${edgesXml}\n</knowledge_graph>`;
+  let xml = `<knowledge_graph>\n${nodesXml}${edgesXml}\n</knowledge_graph>`;
+
+  // recallStrategy controls how recalled nodes are presented:
+  // "full"     → inject complete XML (name + desc + content)
+  // "summary"  → inject only name + description (no content)
+  // "adaptive" → full if ≤6 nodes, otherwise summary to save tokens
+  // "off"      → skip injection entirely
+  if (params.recallStrategy === "summary") {
+    xml = `<knowledge_graph>\n${selected.map(n => {
+      const tag = n.type.toLowerCase();
+      const srcAttr = n.src === "recalled" ? ` source="recalled"` : "";
+      return `  <${tag} name="${n.name}" desc="${escapeXml(n.description)}"${srcAttr}/>`;
+    }).join("\n")}${edgesXml}\n</knowledge_graph>`;
+  } else if (params.recallStrategy === "adaptive" && selected.length > 6) {
+    xml = `<knowledge_graph>\n${selected.map(n => {
+      const tag = n.type.toLowerCase();
+      const srcAttr = n.src === "recalled" ? ` source="recalled"` : "";
+      return `  <${tag} name="${n.name}" desc="${escapeXml(n.description)}"${srcAttr}/>`;
+    }).join("\n")}${edgesXml}\n</knowledge_graph>`;
+  } else if (params.recallStrategy === "off") {
+    xml = null;
+  }
+
+  // recallStrategy "off": skip everything
+  if (!xml) return { xml: null, systemPrompt: "", tokens: 0, episodicXml: "", episodicTokens: 0 };
 
   const systemPrompt = buildSystemPromptAddition({
     selectedNodes: selected.map(n => ({ type: n.type, src: n.src })),

@@ -8,6 +8,7 @@
 import { type DatabaseSyncInstance } from "@photostructure/sqlite";
 import type { BmConfig, BmNode, BmEdge } from "../types.ts";
 import type { EmbedFn } from "../engine/embed.ts";
+import type { ScopeFilter } from "../scope/isolation.ts";
 import {
   searchNodes, vectorSearchWithScore, updateAccess,
 } from "../store/store.ts";
@@ -43,7 +44,7 @@ export class VectorRecaller {
 
   setEmbedFn(fn: EmbedFn): void { this.embed = fn; }
 
-  async recall(query: string): Promise<VectorRecallResult> {
+  async recall(query: string, scopeFilter?: ScopeFilter): Promise<VectorRecallResult> {
     const intent = analyzeIntent(query);
     const limit = this.cfg.recallMaxNodes;
     const candidatePool = Math.max(limit * 3, 15);
@@ -61,7 +62,7 @@ export class VectorRecaller {
     if (this.embed) {
       try {
         const vec = await this.embed(query);
-        const scored = vectorSearchWithScore(this.db, vec, candidatePool);
+        const scored = vectorSearchWithScore(this.db, vec, candidatePool, scopeFilter);
         vectorNodes = scored.map(s => s.node);
         for (const s of scored) vectorScores.set(s.node.id, s.score);
       } catch { /* vector unavailable, fallback to BM25 */ }
@@ -69,7 +70,7 @@ export class VectorRecaller {
 
     // FTS5 search
     try {
-      bm25Nodes = searchNodes(this.db, bm25Query, candidatePool);
+      bm25Nodes = searchNodes(this.db, bm25Query, candidatePool, scopeFilter);
       // BM25 scores: normalize by rank
       bm25Nodes.forEach((n, i) => bm25Scores.set(n.id, 1 / (i + 1)));
     } catch { /* FTS5 unavailable */ }

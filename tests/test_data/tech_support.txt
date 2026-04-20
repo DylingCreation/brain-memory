@@ -1,0 +1,61 @@
+**技术支持对话记录**
+
+**用户**：你好，我们的数据同步服务从昨天凌晨开始频繁报错。调用 `POST /api/v2/batch-import` 时直接返回 HTTP 500。错误信息如下：
+`{"code": "ERR_DB_LOCK_TIMEOUT", "message": "数据库写入锁等待超时 (30000ms)", "trace_id": "tx_99a2c8f1", "details": "connection_pool_exhausted", "timestamp": "2024-05-21T02:14:33Z"}`
+我们已经按业务逻辑重试了三次，依然复现。麻烦帮忙看下。
+
+**技术支持**：您好，已记录。为快速定位，请问该接口是同步还是异步调用？当前脚本的并发量大约是多少？另外，客户端使用的是官方 SDK 还是自行封装的 HTTP 请求？
+
+**用户**：我们团队习惯用纯命令行工具跑自动化任务，不用你们的 Web 控制台。脚本是 Python 写的，直接用 `requests` 同步发请求。为了赶进度，开了 50 个线程并发推数据。每次 payload 是 2MB 左右的完整 JSON。版本是 Python 3.10 + requests 2.31。谢谢。
+
+**技术支持**：收到。50 并发对批量写入接口来说确实偏高。我先在预发环境拉取该 `trace_id` 的全链路日志。请问您的脚本里配置了 `timeout` 参数吗？有没有做失败重试或退避机制？
+
+**用户**：没设超时，用的默认值。以前一直稳定运行，就没加重试逻辑。知道了，等你们查。
+
+**技术支持**：明白。日志分析完毕。问题根因已定位：
+1. 高并发（50 线程）+ 单条大 Payload（2MB）导致单次数据库写入耗时拉长（平均 18s）。
+2. 您的脚本未复用连接池，每个线程默认创建独立的连接实例，瞬间打满后端数据库连接池上限（配置为 60）。
+3. 无超时与重试机制，导致请求堆积在队列中，最终触发 `connection_pool_exhausted` 并抛出锁等待超时。
+
+**用户**：原来是这样。谢谢。那我们该怎么改？
+
+**技术支持**：建议按以下三步调整：
+1. **控制并发**：将并发数降至 8~10，使用 `ThreadPoolExecutor` 管理线程。
+2. **复用连接与设置超时**：全局使用 `requests.Session()`，显式配置 `timeout=(5, 30)`（连接超时 5s，读取超时 30s）。
+3. **增加指数退避重试**：针对 `5xx` 和 `ERR_DB_LOCK_TIMEOUT` 实现 3 次重试，间隔 2s/4s/8s。
+若业务允许，后续可考虑将 2MB JSON 拆分为 500KB 分片请求，后端对分片有独立写入通道。
+
+**用户**：好的，知道了。我先把并发降到 8，加上 Session 和超时，再补个重试。分片改动大，先不接。谢谢。
+
+**技术支持**：没问题，分片为可选优化。您可以参考以下配置快速验证：
+```python
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import concurrent.futures
+
+session = requests.Session()
+retry = Retry(total=3, backoff_factor=2, status_forcelist=[429, 500, 502, 503, 504])
+session.mount('https://', HTTPAdapter(max_retries=retry))
+session.mount('http://', HTTPAdapter(max_retries=retry))
+
+def send_batch(data):
+    return session.post('https://api.example.com/v2/batch-import', 
+                        json=data, timeout=(5, 30))
+
+with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+    futures = [executor.submit(send_batch, chunk) for chunk in payload_list]
+    for f in concurrent.futures.as_completed(futures):
+        print(f.result().status_code)
+```
+部署后观察 15 分钟，看是否还有同类报错。
+
+**用户**：代码收到了，谢谢。我这就去改，跑一轮压测看看。
+
+**技术支持**：好的，压测建议从单线程跑通后再逐步加到 8 并发。过程中如有新日志随时同步。
+
+**用户**：明白。刚测完，连续跑 3000 次，零 500 错误，P95 延迟降到 1.4s。问题解决了，辛苦了。
+
+**技术支持**：太好了，感谢反馈。后续若数据量持续增长，可随时联系我们开启异步分片模式。祝您业务顺利！
+
+**用户**：好的，知道了。谢谢。

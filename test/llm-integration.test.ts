@@ -24,7 +24,7 @@ import { DatabaseSync } from "@photostructure/sqlite";
 
 const LLM_ENABLED = process.env.BM_LLM_TEST === "1";
 const API_KEY = process.env.DASHSCOPE_API_KEY;
-const BASE_URL = process.env.DASHSCOPE_BASE_URL ?? "https://coding.dashscope.aliyuncs.com/v1";
+const BASE_URL = process.env.DASHSCOPE_BASE_URL ?? "YOUR_DASHSCOPE_BASE_URL";
 const MODEL = process.env.DASHSCOPE_MODEL ?? "qwen3.6-plus";
 
 let llm: CompleteFn;

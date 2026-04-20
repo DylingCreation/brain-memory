@@ -12,6 +12,7 @@ import { type DatabaseSyncInstance } from "@photostructure/sqlite";
 import { createHash } from "crypto";
 import type { BmConfig, RecallResult, BmNode, BmEdge } from "../types.ts";
 import type { EmbedFn } from "../engine/embed.ts";
+import type { ScopeFilter } from "../scope/isolation.ts";
 import {
   searchNodes, vectorSearchWithScore, graphWalk,
   communityVectorSearch, nodesByCommunityIds, saveVector, getVectorHash,
@@ -28,10 +29,10 @@ export class Recaller {
 
   setEmbedFn(fn: EmbedFn): void { this.embed = fn; }
 
-  async recall(query: string): Promise<RecallResult> {
+  async recall(query: string, scopeFilter?: ScopeFilter): Promise<RecallResult> {
     const limit = this.cfg.recallMaxNodes;
-    const precise = await this.recallPrecise(query, limit);
-    const generalized = await this.recallGeneralized(query, limit);
+    const precise = await this.recallPrecise(query, limit, scopeFilter);
+    const generalized = await this.recallGeneralized(query, limit, scopeFilter);
     const merged = this.mergeResults(precise, generalized);
 
     if (process.env.BM_DEBUG) {
@@ -43,22 +44,22 @@ export class Recaller {
   }
 
   /** 精确召回：向量/FTS5 → 社区扩展 → 图遍历 → PPR 排序 */
-  private async recallPrecise(query: string, limit: number): Promise<RecallResult> {
+  private async recallPrecise(query: string, limit: number, scopeFilter?: ScopeFilter): Promise<RecallResult> {
     let seeds: BmNode[] = [];
 
     if (this.embed) {
       try {
         const vec = await this.embed(query);
-        const scored = vectorSearchWithScore(this.db, vec, Math.ceil(limit / 2));
+        const scored = vectorSearchWithScore(this.db, vec, Math.ceil(limit / 2), scopeFilter);
         seeds = scored.map(s => s.node);
         if (seeds.length < 2) {
-          const fts = searchNodes(this.db, query, limit);
+          const fts = searchNodes(this.db, query, limit, scopeFilter);
           const seen = new Set(seeds.map(n => n.id));
           seeds.push(...fts.filter(n => !seen.has(n.id)));
         }
-      } catch { seeds = searchNodes(this.db, query, limit); }
+      } catch { seeds = searchNodes(this.db, query, limit, scopeFilter); }
     } else {
-      seeds = searchNodes(this.db, query, limit);
+      seeds = searchNodes(this.db, query, limit, scopeFilter);
     }
 
     if (!seeds.length) return { nodes: [], edges: [], tokenEstimate: 0 };
@@ -98,7 +99,7 @@ export class Recaller {
   }
 
   /** 泛化召回：社区向量匹配 → 成员 → 图遍历 → PPR 排序 */
-  private async recallGeneralized(query: string, limit: number): Promise<RecallResult> {
+  private async recallGeneralized(query: string, limit: number, scopeFilter?: ScopeFilter): Promise<RecallResult> {
     let seeds: BmNode[] = [];
 
     if (this.embed) {
@@ -113,6 +114,10 @@ export class Recaller {
     }
 
     if (!seeds.length) seeds = communityRepresentatives(this.db, 2);
+    // Filter generalized seeds by scope if needed
+    if (scopeFilter) {
+      seeds = seeds.filter(n => matchesScope(n, scopeFilter));
+    }
     if (!seeds.length) return { nodes: [], edges: [], tokenEstimate: 0 };
 
     const seedIds = seeds.map(n => n.id);
@@ -183,4 +188,25 @@ export class Recaller {
       if (vec.length) saveVector(this.db, node.id, node.content, vec);
     } catch { /* 不影响主流程 */ }
   }
+}
+
+function matchesScope(node: BmNode, filter: ScopeFilter): boolean {
+  // exclude: node must NOT match any excluded scope
+  for (const ex of filter.excludeScopes) {
+    if (
+      (!ex.sessionId || node.scopeSession === ex.sessionId) &&
+      (!ex.agentId || node.scopeAgent === ex.agentId) &&
+      (!ex.workspaceId || node.scopeWorkspace === ex.workspaceId)
+    ) return false;
+  }
+  // include: if set, node must match at least one included scope
+  if (filter.includeScopes.length > 0) {
+    return filter.includeScopes.some(
+      inc =>
+        (!inc.sessionId || node.scopeSession === inc.sessionId) &&
+        (!inc.agentId || node.scopeAgent === inc.agentId) &&
+        (!inc.workspaceId || node.scopeWorkspace === inc.workspaceId),
+    );
+  }
+  return true;
 }

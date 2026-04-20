@@ -8,6 +8,7 @@
 import { type DatabaseSyncInstance } from "@photostructure/sqlite";
 import type { BmConfig, BmNode, BmEdge } from "../types.ts";
 import type { EmbedFn } from "../engine/embed.ts";
+import type { ScopeFilter } from "../scope/isolation.ts";
 import { Recaller } from "../recaller/recall.ts";
 import { VectorRecaller } from "./vector-recall.ts";
 
@@ -44,11 +45,11 @@ export class HybridRecaller {
     this.vectorRecaller.setEmbedFn(fn);
   }
 
-  async recall(query: string): Promise<HybridRecallResult> {
+  async recall(query: string, scopeFilter?: ScopeFilter): Promise<HybridRecallResult> {
     // Run both recallers in parallel
     const [graphResult, vectorResult] = await Promise.allSettled([
-      this.graphRecaller.recall(query),
-      this.vectorRecaller.recall(query),
+      this.graphRecaller.recall(query, scopeFilter),
+      this.vectorRecaller.recall(query, scopeFilter),
     ]);
 
     const graphNodes = graphResult.status === "fulfilled" ? graphResult.value.nodes : [];

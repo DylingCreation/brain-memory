@@ -8,6 +8,8 @@
 import { type DatabaseSyncInstance } from "@photostructure/sqlite";
 import { createHash } from "crypto";
 import type { BmNode, BmEdge, EdgeType, GraphNodeType, MemoryCategory } from "../types.ts";
+import type { ScopeFilter } from "../scope/isolation.ts";
+import { buildScopeFilterClause } from "../scope/isolation.ts";
 
 // ─── Helpers ───────────────────────────────────────────────────
 
@@ -69,8 +71,10 @@ export function findById(db: DatabaseSyncInstance, id: string): BmNode | null {
   return r ? toNode(r) : null;
 }
 
-export function allActiveNodes(db: DatabaseSyncInstance): BmNode[] {
-  return (db.prepare("SELECT * FROM bm_nodes WHERE status='active'").all() as any[]).map(toNode);
+export function allActiveNodes(db: DatabaseSyncInstance, scopeFilter?: ScopeFilter): BmNode[] {
+  const { clause, params } = scopeFilter ? buildScopeFilterClause(scopeFilter) : { clause: "", params: [] };
+  return (db.prepare(`SELECT * FROM bm_nodes WHERE status='active'${clause}`)
+    .all(...params) as any[]).map(toNode);
 }
 
 export function allEdges(db: DatabaseSyncInstance): BmEdge[] {
@@ -191,37 +195,40 @@ export function edgesTo(db: DatabaseSyncInstance, id: string): BmEdge[] {
 
 // ─── FTS5 Search ───────────────────────────────────────────────
 
-export function searchNodes(db: DatabaseSyncInstance, query: string, limit = 6): BmNode[] {
+export function searchNodes(db: DatabaseSyncInstance, query: string, limit = 6, scopeFilter?: ScopeFilter): BmNode[] {
   const terms = query.trim().split(/\s+/).filter(Boolean).slice(0, 8);
-  if (!terms.length) return topNodes(db, limit);
+  if (!terms.length) return topNodes(db, limit, scopeFilter);
+
+  const { clause, params: scopeParams } = scopeFilter ? buildScopeFilterClause(scopeFilter) : { clause: "", params: [] };
 
   try {
     const ftsQuery = terms.map(t => `"${t.replace(/"/g, "")}"`).join(" OR ");
     const rows = db.prepare(`
       SELECT n.*, rank FROM bm_nodes_fts fts
       JOIN bm_nodes n ON n.rowid = fts.rowid
-      WHERE bm_nodes_fts MATCH ? AND n.status = 'active'
+      WHERE bm_nodes_fts MATCH ? AND n.status = 'active'${clause}
       ORDER BY rank LIMIT ?
-    `).all(ftsQuery, limit) as any[];
+    `).all(ftsQuery, ...scopeParams, limit) as any[];
     if (rows.length > 0) return rows.map(toNode);
   } catch { /* fallback */ }
 
   const where = terms.map(() => "(name LIKE ? OR description LIKE ? OR content LIKE ?)").join(" OR ");
   const likes = terms.flatMap(t => [`%${t}%`, `%${t}%`, `%${t}%`]);
   return (db.prepare(`
-    SELECT * FROM bm_nodes WHERE status='active' AND (${where})
+    SELECT * FROM bm_nodes WHERE status='active' AND (${where})${clause}
     ORDER BY pagerank DESC, validated_count DESC, updated_at DESC LIMIT ?
-  `).all(...likes, limit) as any[]).map(toNode);
+  `).all(...likes, ...scopeParams, limit) as any[]).map(toNode);
 }
 
-export function topNodes(db: DatabaseSyncInstance, limit = 6): BmNode[] {
+export function topNodes(db: DatabaseSyncInstance, limit = 6, scopeFilter?: ScopeFilter): BmNode[] {
+  const { clause, params } = scopeFilter ? buildScopeFilterClause(scopeFilter) : { clause: "", params: [] };
   return (db.prepare(`
-    SELECT * FROM bm_nodes WHERE status='active'
+    SELECT * FROM bm_nodes WHERE status='active'${clause}
     ORDER BY pagerank DESC, validated_count DESC, updated_at DESC LIMIT ?
-  `).all(limit) as any[]).map(toNode);
+  `).all(...params, limit) as any[]).map(toNode);
 }
 
-export function vectorSearchWithScore(db: DatabaseSyncInstance, vec: number[], limit: number): Array<{ node: BmNode; score: number }> {
+export function vectorSearchWithScore(db: DatabaseSyncInstance, vec: number[], limit: number, scopeFilter?: ScopeFilter): Array<{ node: BmNode; score: number }> {
   const rows = db.prepare("SELECT node_id, embedding FROM bm_vectors").all() as any[];
   if (!rows.length) return [];
   const q = new Float32Array(vec);
@@ -235,9 +242,34 @@ export function vectorSearchWithScore(db: DatabaseSyncInstance, vec: number[], l
     for (let i = 0; i < len; i++) { dot += v[i] * q[i]; vNorm += v[i] * v[i]; }
     const score = dot / (Math.sqrt(vNorm) * qNorm + 1e-9);
     const node = findById(db, r.node_id);
-    if (node && node.status === 'active') scored.push({ node, score });
+    if (node && node.status === 'active' && matchesScopeFilter(node, scopeFilter)) scored.push({ node, score });
   }
   return scored.sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+function matchesScopeFilter(node: BmNode, scopeFilter?: ScopeFilter): boolean {
+  if (!scopeFilter) return true;
+
+  // Check exclude scopes — reject if node matches ANY excluded scope
+  for (const ex of scopeFilter.excludeScopes) {
+    if (
+      (!ex.sessionId || node.scopeSession === ex.sessionId) &&
+      (!ex.agentId || node.scopeAgent === ex.agentId) &&
+      (!ex.workspaceId || node.scopeWorkspace === ex.workspaceId)
+    ) return false;
+  }
+
+  // Check include scopes — if non-empty, node must match at least one
+  if (scopeFilter.includeScopes.length > 0) {
+    return scopeFilter.includeScopes.some(
+      inc =>
+        (!inc.sessionId || node.scopeSession === inc.sessionId) &&
+        (!inc.agentId || node.scopeAgent === inc.agentId) &&
+        (!inc.workspaceId || node.scopeWorkspace === inc.workspaceId),
+    );
+  }
+
+  return true;
 }
 
 // ─── Vector ops ────────────────────────────────────────────────
