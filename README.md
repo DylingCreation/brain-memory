@@ -34,9 +34,23 @@ npm install
 
 ## Configuration
 
+### Interactive Configuration Script
+
+The project includes an interactive configuration script to help you set up your API credentials:
+
+```bash
+# Run the interactive configuration script
+node scripts/configure.js
+```
+
+This script will guide you through:
+- Selecting your API provider (DashScope or custom)
+- Entering your API credentials
+- Generating the necessary configuration files
+
 ### Environment Variables
 
-Create `.env` file with your settings:
+Alternatively, create `.env` file with your settings:
 
 ```env
 # LLM Configuration
@@ -58,6 +72,20 @@ cp config.template.js config.js
 ```
 
 Then edit `config.js` to add your actual credentials.
+
+## OpenClaw Integration
+
+To integrate with OpenClaw, use the built-in setup script:
+
+```bash
+# Run the OpenClaw integration script
+node scripts/setup-openclaw.js
+```
+
+This script will guide you through:
+- Specifying the OpenClaw configuration file path
+- Configuring the brain-memory plugin parameters
+- Automatically updating the configuration file
 
 ## Usage
 
@@ -87,8 +115,25 @@ const recall = await engine.recall('docker deployment');
 npm test
 
 # Run specific test suites
+npm run test:unit
 npm run test:integration
 npm run test:performance
+```
+
+## Build Commands
+
+```bash
+# Build the project
+npm run build
+
+# Clean build artifacts
+npm run clean
+
+# Run linting
+npm run lint
+
+# Generate documentation
+npm run docs
 ```
 
 ## Directory Structure
@@ -141,3 +186,12 @@ Main interface for the memory system.
 ## License
 
 MIT
+
+## Deployment Steps
+
+1. Clone the repository to your desired path
+2. Install dependencies: `npm install`
+3. Configure using the interactive script: `node scripts/configure.js`
+4. Build the project: `npm run build`
+5. For OpenClaw integration: `node scripts/setup-openclaw.js`
+6. Test the deployment: `npm test` or run `npx tsx validate_features.js`

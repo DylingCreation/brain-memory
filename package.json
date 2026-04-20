@@ -18,7 +18,9 @@
     "docs": "typedoc --out docs/api src/",
     "clean": "rm -rf dist coverage",
     "prebuild": "npm run clean",
-    "postinstall": "echo 'brain-memory installation complete'"
+    "postinstall": "echo 'brain-memory installation complete'",
+    "configure": "node scripts/configure.js",
+    "setup-openclaw": "node scripts/setup-openclaw.js"
   },
   "keywords": [
     "ai",
