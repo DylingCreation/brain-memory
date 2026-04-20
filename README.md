@@ -52,7 +52,8 @@ brain-memory 是 OpenClaw 的 AI 记忆引擎插件，把对话历史变成**结
 ### 1. 安装
 
 ```bash
-cd ~/.openclaw/codinghelper/brain-memory   # 或你的项目目录
+git clone https://github.com/DylingCreation/brain-memory.git
+cd brain-memory
 npm install
 ```
 
