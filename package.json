@@ -1,6 +1,6 @@
 {
-  "name": "like-human-brain-memory",
-  "version": "1.2.0",
+  "name": "memory-likehuman-pro",
+  "version": "0.1.0",
   "description": "Unified knowledge graph + vector memory system for AI agents",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
