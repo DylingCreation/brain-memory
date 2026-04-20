@@ -1,0 +1,40 @@
+{
+  "name": "brain-memory",
+  "version": "1.0.0",
+  "description": "Unified AI Memory Engine for OpenClaw — Knowledge Graph + Vector Store + Decay + Community Detection",
+  "main": "index.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@photostructure/sqlite": "^1.0.0",
+    "@sinclair/typebox": "^0.34.48"
+  },
+  "optionalDependencies": {
+    "@lancedb/lancedb": "^0.26.2",
+    "apache-arrow": "18.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.4.0"
+  },
+  "peerDependencies": {
+    "openclaw": "*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "hooks": {}
+  },
+  "license": "MIT",
+  "authors": [
+    "adoresever (graph-memory)",
+    "win4r (memory-lancedb-pro)",
+    "brain-memory contributors"
+  ]
+}

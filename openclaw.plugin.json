@@ -1,0 +1,123 @@
+{
+  "id": "brain-memory",
+  "name": "Brain Memory",
+  "version": "1.0.0",
+  "description": "统一 AI 记忆引擎：知识图谱 + 向量检索 + 智能衰减 + 社区检测",
+  "kind": "memory",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "engine": {
+        "type": "string",
+        "enum": ["graph", "vector", "hybrid"],
+        "default": "graph",
+        "description": "记忆引擎：graph=知识图谱(默认), vector=向量检索, hybrid=双引擎混合"
+      },
+      "storage": {
+        "type": "string",
+        "enum": ["sqlite", "lancedb"],
+        "default": "sqlite",
+        "description": "存储后端：sqlite=轻量SQLite(默认), lancedb=向量数据库"
+      },
+      "dbPath": {
+        "type": "string",
+        "default": "~/.openclaw/brain-memory.db",
+        "description": "数据库路径"
+      },
+      "compactTurnCount": {
+        "type": "integer",
+        "default": 6,
+        "description": "每隔多少轮触发知识提取"
+      },
+      "recallMaxNodes": {
+        "type": "integer",
+        "default": 6,
+        "description": "跨对话召回最多注入几个节点"
+      },
+      "recallMaxDepth": {
+        "type": "integer",
+        "default": 2,
+        "description": "图遍历深度"
+      },
+      "recallStrategy": {
+        "type": "string",
+        "enum": ["full", "summary", "adaptive", "off"],
+        "default": "full",
+        "description": "召回策略"
+      },
+      "dedupThreshold": {
+        "type": "number",
+        "default": 0.90,
+        "description": "向量去重阈值 (0-1)"
+      },
+      "pagerankDamping": {
+        "type": "number",
+        "default": 0.85,
+        "description": "PageRank 阻尼系数"
+      },
+      "pagerankIterations": {
+        "type": "integer",
+        "default": 20,
+        "description": "PageRank 迭代次数"
+      },
+      "decay": {
+        "type": "object",
+        "description": "智能衰减配置",
+        "properties": {
+          "enabled": { "type": "boolean", "default": false, "description": "启用衰减模型" },
+          "recencyHalfLifeDays": { "type": "number", "default": 30 },
+          "timeDecayHalfLifeDays": { "type": "number", "default": 60 }
+        }
+      },
+      "noiseFilter": {
+        "type": "object",
+        "description": "噪声过滤配置",
+        "properties": {
+          "enabled": { "type": "boolean", "default": true },
+          "minContentLength": { "type": "number", "default": 10 }
+        }
+      },
+      "llm": {
+        "type": "object",
+        "description": "LLM 配置（知识提取/反思/融合/推理需要）⚠️ 必须配置 apiKey",
+        "properties": {
+          "apiKey": {
+            "type": "string",
+            "description": "LLM API Key（必填）。支持 OpenAI 兼容格式，如 DashScope、SiliconFlow 等"
+          },
+          "baseURL": {
+            "type": "string",
+            "description": "LLM API 端点（可选）。默认 https://api.openai.com/v1。DashScope 示例：https://dashscope.aliyuncs.com/compatible-mode/v1"
+          },
+          "model": {
+            "type": "string",
+            "description": "LLM 模型名（可选）。默认 gpt-4o-mini。DashScope 示例：qwen3.6-plus"
+          }
+        }
+      },
+      "embedding": {
+        "type": "object",
+        "description": "Embedding 配置（向量检索/去重/社区摘要需要）⚠️ 不配置则降级为 FTS5 全文检索",
+        "properties": {
+          "apiKey": {
+            "type": "string",
+            "description": "Embedding API Key（可选，不配则禁用向量检索）。支持 OpenAI 兼容格式"
+          },
+          "baseURL": {
+            "type": "string",
+            "description": "Embedding API 端点（可选）。默认 https://api.openai.com/v1。DashScope 示例：https://dashscope.aliyuncs.com/compatible-mode/v1"
+          },
+          "model": {
+            "type": "string",
+            "description": "Embedding 模型名（可选）。默认 text-embedding-3-small。DashScope 示例：text-embedding-v3"
+          },
+          "dimensions": {
+            "type": "integer",
+            "default": 512,
+            "description": "向量维度"
+          }
+        }
+      }
+    }
+  }
+}
