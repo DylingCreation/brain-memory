@@ -1,13 +1,13 @@
 {
   "name": "memory-likehuman-pro",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Unified knowledge graph + vector memory system for AI agents",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
   "bin": {
-    "like-human-brain-memory-configure": "scripts/configure.js",
-    "like-human-brain-memory-setup": "scripts/setup.js"
+    "like-human-brain-memory-configure": "./scripts/configure.js",
+    "like-human-brain-memory-setup": "./scripts/setup.js"
   },
   "scripts": {
     "start": "tsx index.ts",
@@ -70,9 +70,5 @@
   ],
   "publishConfig": {
     "access": "public"
-  },
-  "bin": {
-    "like-human-brain-memory-configure": "./scripts/configure.js",
-    "like-human-brain-memory-setup": "./scripts/setup.js"
   }
 }
