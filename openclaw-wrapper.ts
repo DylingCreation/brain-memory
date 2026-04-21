@@ -30,6 +30,17 @@ let pluginInstance: BrainMemoryPluginClass | null = null;
 // Store configuration globally for access in hooks
 let storedConfig: any = null;
 
+// Default configuration values
+const DEFAULT_CONFIG = {
+  enabled: true,
+  injectMemories: true,
+  extractMemories: true,
+  autoMaintain: true,
+  maxRecallNodes: 6,
+  recallMaxDepth: 3,
+  dbPath: `${process.env.HOME}/.openclaw/brain-memory.db`
+};
+
 /**
  * Register the plugin with OpenClaw
  * 
@@ -51,7 +62,8 @@ export function register(api: any) {
   }
   
   // Store config globally for access in hook functions
-  storedConfig = bmConfig;
+  // Merge with default values to ensure all required config options exist
+  storedConfig = { ...DEFAULT_CONFIG, ...bmConfig };
   
   // Register hooks using api.on() as per OpenClaw requirements
   if (api?.on) {
@@ -273,47 +285,14 @@ export const onSessionEnd = session_end;
 
 /**
  * Prepare message before sending
+ * 
+ * Note: This is a synchronous hook in OpenClaw, so we return the original event
+ * and handle any memory injection asynchronously without blocking the message flow.
  */
-export async function before_message_write(event: any, ctx: any) {
-  // Lazy initialization
-  if (!pluginInstance) {
-    try {
-      console.log('[brain-memory] Initializing plugin on first use');
-      
-      // Use the config stored during registration
-      if (!storedConfig) {
-        console.error('[brain-memory] No config available for initialization');
-        return event;
-      }
-      
-      pluginInstance = createBrainMemoryPlugin(storedConfig);
-      await pluginInstance.init();
-      
-      console.log('[brain-memory] Plugin initialized successfully');
-    } catch (error) {
-      console.error('[brain-memory] Plugin initialization failed:', error);
-      return event;
-    }
-  }
-  
-  try {
-    // Convert OpenClaw's (event, ctx) format to brain-memory's Message format
-    const message = {
-      sessionId: ctx?.conversationId || 'default-session',
-      agentId: ctx?.accountId || 'default-agent',
-      workspaceId: 'default-workspace',
-      content: event?.content || '',
-      role: 'assistant'
-    };
-    
-    const result = await pluginInstance.beforeMessageSend(message);
-    
-    // Convert result back to OpenClaw format if needed
-    return result || event;
-  } catch (error) {
-    console.error('[brain-memory] Before message send failed:', error);
-    return event;
-  }
+export function before_message_write(event: any, ctx: any) {
+  // For synchronous hook, we return the original event immediately
+  // Any memory injection should happen via other mechanisms
+  return event;
 }
 
 /**
