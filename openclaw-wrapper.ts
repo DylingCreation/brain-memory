@@ -41,6 +41,9 @@ const DEFAULT_CONFIG = {
   dbPath: `${process.env.HOME}/.openclaw/brain-memory.db`
 };
 
+// Cache for storing retrieved memories per session
+const sessionMemoryCache = new Map<string, any>();
+
 /**
  * Register the plugin with OpenClaw
  * 
@@ -181,7 +184,23 @@ export async function message_received(event: any, ctx: any) {
       role: 'user'
     };
     
-    return await pluginInstance.handleMessage(message);
+    // Process the message (extract memories, etc.)
+    const result = await pluginInstance.handleMessage(message);
+    
+    // Retrieve relevant memories for this session and cache them
+    try {
+      const memoryContext = await pluginInstance.getMemoryContext(message);
+      if (memoryContext && memoryContext.relatedNodes && memoryContext.relatedNodes.length > 0) {
+        sessionMemoryCache.set(message.sessionId, memoryContext);
+        console.log(`[brain-memory] Cached ${memoryContext.relatedNodes.length} memories for session ${message.sessionId}`);
+      } else {
+        sessionMemoryCache.delete(message.sessionId); // Clear cache if no memories
+      }
+    } catch (memoryError) {
+      console.warn('[brain-memory] Memory retrieval failed:', memoryError);
+    }
+    
+    return result;
   } catch (error) {
     console.error('[brain-memory] Handle message failed:', error);
     return null;
@@ -286,12 +305,26 @@ export const onSessionEnd = session_end;
 /**
  * Prepare message before sending
  * 
- * Note: This is a synchronous hook in OpenClaw, so we return the original event
+ * Note: This is a synchronous hook in OpenClaw, so we return the original event immediately
  * and handle any memory injection asynchronously without blocking the message flow.
+ * However, we can attach cached memories if available.
  */
 export function before_message_write(event: any, ctx: any) {
-  // For synchronous hook, we return the original event immediately
-  // Any memory injection should happen via other mechanisms
+  // Check if we have cached memories for this session
+  const sessionId = ctx?.conversationId || 'default-session';
+  const cachedMemoryContext = sessionMemoryCache.get(sessionId);
+  
+  if (cachedMemoryContext) {
+    // Attach memory context to the event if available
+    return {
+      ...event,
+      memoryContext: cachedMemoryContext,
+      // Optionally modify the content to include memory hints
+      content: event?.content || ''
+    };
+  }
+  
+  // Return original event if no cached memories
   return event;
 }
 
