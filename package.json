@@ -20,6 +20,8 @@
     "test:ci": "vitest run --reporter=junit --reporter=verbose",
     "lint": "eslint src/**/*.ts",
     "build": "tsc",
+    "build:plugin": "tsc -p tsconfig.plugin.json",
+    "build:all": "npm run clean && npm run build && npm run build:plugin",
     "docs": "typedoc --out docs/api src/",
     "clean": "rm -rf dist coverage",
     "prebuild": "npm run clean",

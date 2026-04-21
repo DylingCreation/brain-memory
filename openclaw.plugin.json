@@ -5,7 +5,7 @@
   "description": "Unified knowledge graph + vector memory system for AI agents",
   "author": "OpenClaw Team",
   "license": "MIT",
-  "entry": "./openclaw-plugin.js",
+  "entry": "./dist/openclaw-register.js",
   "hooks": [
     "init",
     "handleMessage", 

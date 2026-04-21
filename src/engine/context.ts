@@ -106,7 +106,7 @@ export class ContextEngine {
     sessionId: string;
     agentId: string;
     workspaceId: string;
-    messages: Array<{ role: string; content: string; turn_index?: number }>;  
+    messages: Array<{ role?: string; content: string; turn_index?: number }>;  
   }): Promise<{
     extractedNodes: BmNode[];
     extractedEdges: BmEdge[];
@@ -119,8 +119,14 @@ export class ContextEngine {
       const existingNames = existingNodes.map(n => n.name);
 
       // Extract knowledge from messages
+      const normalizedMessages = params.messages.map(msg => ({
+        role: msg.role || 'user',
+        content: msg.content,
+        ...(msg.turn_index !== undefined ? { turn_index: msg.turn_index } : {})
+      }));
+      
       const extractionResult = await this.extractor.extract({
-        messages: params.messages,
+        messages: normalizedMessages,
         existingNames: existingNames,
       });
 
@@ -305,7 +311,7 @@ export class ContextEngine {
   /**
    * Perform session-level reflection at the end of a conversation
    */
-  async reflectOnSession(sessionId: string, messages: Array<{ role: string; content: string }>): Promise<ReflectionInsight[]> {
+  async reflectOnSession(sessionId: string, messages: Array<{ role?: string; content: string }>): Promise<ReflectionInsight[]> {
     if (!this.config.reflection.enabled || !this.config.reflection.sessionReflection) {
       return [];
     }
