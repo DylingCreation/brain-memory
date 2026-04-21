@@ -30,8 +30,31 @@ let pluginInstance: BrainMemoryPluginClass | null = null;
 /**
  * Register the plugin with OpenClaw
  */
-export function register(api: any) {
+export async function register(api: any) {
   console.log('[brain-memory] Registering plugin with OpenClaw');
+  
+  // Extract configuration from OpenClaw's config structure
+  const fullConfig = (api && api.config) || {};
+  const bmConfig = fullConfig?.plugins?.entries?.['brain-memory']?.config || {};
+  
+  // Expand ~ path if present
+  if (!bmConfig.dbPath) {
+    bmConfig.dbPath = `${process.env.HOME}/.openclaw/brain-memory.db`;
+  } else if (bmConfig.dbPath?.startsWith('~')) {
+    bmConfig.dbPath = bmConfig.dbPath.replace('~', process.env.HOME || '');
+  }
+  
+  // Initialize plugin with extracted config
+  pluginInstance = createBrainMemoryPlugin(bmConfig);
+  await pluginInstance.init();
+  
+  // Register hooks using api.on() as per OpenClaw requirements
+  if (api?.on) {
+    api.on('message_received', message_received);
+    api.on('before_message_write', before_message_write);
+    api.on('session_start', session_start);
+    api.on('session_end', session_end);
+  }
   
   return {
     id: 'brain-memory',
@@ -40,16 +63,6 @@ export function register(api: any) {
     description: 'Unified knowledge graph + vector memory system for AI agents',
     author: 'OpenClaw Team',
     license: 'MIT',
-    hooks: [
-      'init',
-      'handleMessage', 
-      'onSessionStart',
-      'onSessionEnd',
-      'beforeMessageSend',
-      'getMemoryContext',
-      'getStatus',
-      'shutdown'
-    ]
   };
 }
 
@@ -62,9 +75,6 @@ export async function init(config: any) {
     
     // Create plugin instance
     pluginInstance = createBrainMemoryPlugin(config);
-    
-    // Initialize the plugin
-    await pluginInstance.init();
     
     // Initialize the plugin
     await pluginInstance.init();
@@ -119,7 +129,7 @@ export async function deactivate() {
 /**
  * Handle incoming messages
  */
-export async function handleMessage(message: any) {
+export async function message_received(message: any) {
   if (!pluginInstance) {
     console.warn('[brain-memory] Plugin not initialized');
     return null;
@@ -134,9 +144,14 @@ export async function handleMessage(message: any) {
 }
 
 /**
+ * Handle incoming messages (alias for backward compatibility)
+ */
+export const handleMessage = message_received;
+
+/**
  * Handle session start
  */
-export async function onSessionStart(event: any) {
+export async function session_start(event: any) {
   if (!pluginInstance) {
     console.warn('[brain-memory] Plugin not initialized');
     return;
@@ -150,9 +165,14 @@ export async function onSessionStart(event: any) {
 }
 
 /**
+ * Handle session start (alias for backward compatibility)
+ */
+export const onSessionStart = session_start;
+
+/**
  * Handle session end
  */
-export async function onSessionEnd(event: any) {
+export async function session_end(event: any) {
   if (!pluginInstance) {
     console.warn('[brain-memory] Plugin not initialized');
     return;
@@ -166,9 +186,14 @@ export async function onSessionEnd(event: any) {
 }
 
 /**
+ * Handle session end (alias for backward compatibility)
+ */
+export const onSessionEnd = session_end;
+
+/**
  * Prepare message before sending
  */
-export async function beforeMessageSend(message: any) {
+export async function before_message_write(message: any) {
   if (!pluginInstance) {
     console.warn('[brain-memory] Plugin not initialized');
     return message;
@@ -181,6 +206,11 @@ export async function beforeMessageSend(message: any) {
     return message;
   }
 }
+
+/**
+ * Prepare message before sending (alias for backward compatibility)
+ */
+export const beforeMessageSend = before_message_write;
 
 /**
  * Get memory context
@@ -202,7 +232,7 @@ export async function getMemoryContext(message: any) {
 /**
  * Get plugin status
  */
-export async function getStatus() {
+export async function get_status() {
   if (!pluginInstance) {
     return { status: 'not initialized', enabled: false };
   }
@@ -214,6 +244,11 @@ export async function getStatus() {
     return { status: 'error', error: (error as Error).message };
   }
 }
+
+/**
+ * Get plugin status (alias for backward compatibility)
+ */
+export const getStatus = get_status;
 
 /**
  * Shutdown the plugin

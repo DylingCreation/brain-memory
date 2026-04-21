@@ -14,13 +14,19 @@ export {
   init, 
   activate, 
   deactivate,
+  message_received,
+  session_start,
+  session_end,
+  before_message_write,
+  getMemoryContext,
+  get_status,
+  shutdown,
+  // Backward compatibility aliases
   handleMessage,
   onSessionStart,
   onSessionEnd,
   beforeMessageSend,
-  getMemoryContext,
-  getStatus,
-  shutdown
+  getStatus
 } from './openclaw-wrapper';
 
 // Also export as default for compatibility
