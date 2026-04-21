@@ -27,6 +27,9 @@ interface SessionEvent {
 // Global plugin instance
 let pluginInstance: BrainMemoryPluginClass | null = null;
 
+// Store configuration globally for access in hooks
+let storedConfig: any = null;
+
 /**
  * Register the plugin with OpenClaw
  * 
@@ -47,8 +50,8 @@ export function register(api: any) {
     bmConfig.dbPath = bmConfig.dbPath.replace('~', process.env.HOME || '');
   }
   
-  // Store config but defer initialization until first use (lazy init)
-  const config = bmConfig;
+  // Store config globally for access in hook functions
+  storedConfig = bmConfig;
   
   // Register hooks using api.on() as per OpenClaw requirements
   if (api?.on) {
@@ -140,18 +143,13 @@ export async function message_received(event: any, ctx: any) {
     try {
       console.log('[brain-memory] Initializing plugin on first use');
       
-      // Extract configuration from OpenClaw's config structure
-      const fullConfig = (globalThis as any)?.openclawApi?.config || {};
-      const bmConfig = fullConfig?.plugins?.entries?.['brain-memory']?.config || {};
-      
-      // Expand ~ path if present
-      if (!bmConfig.dbPath) {
-        bmConfig.dbPath = `${process.env.HOME}/.openclaw/brain-memory.db`;
-      } else if (bmConfig.dbPath?.startsWith('~')) {
-        bmConfig.dbPath = bmConfig.dbPath.replace('~', process.env.HOME || '');
+      // Use the config stored during registration
+      if (!storedConfig) {
+        console.error('[brain-memory] No config available for initialization');
+        return null;
       }
       
-      pluginInstance = createBrainMemoryPlugin(bmConfig);
+      pluginInstance = createBrainMemoryPlugin(storedConfig);
       await pluginInstance.init();
       
       console.log('[brain-memory] Plugin initialized successfully');
@@ -192,18 +190,13 @@ export async function session_start(event: any, ctx: any) {
     try {
       console.log('[brain-memory] Initializing plugin on first use');
       
-      // Extract configuration from OpenClaw's config structure
-      const fullConfig = (globalThis as any)?.openclawApi?.config || {};
-      const bmConfig = fullConfig?.plugins?.entries?.['brain-memory']?.config || {};
-      
-      // Expand ~ path if present
-      if (!bmConfig.dbPath) {
-        bmConfig.dbPath = `${process.env.HOME}/.openclaw/brain-memory.db`;
-      } else if (bmConfig.dbPath?.startsWith('~')) {
-        bmConfig.dbPath = bmConfig.dbPath.replace('~', process.env.HOME || '');
+      // Use the config stored during registration
+      if (!storedConfig) {
+        console.error('[brain-memory] No config available for initialization');
+        return;
       }
       
-      pluginInstance = createBrainMemoryPlugin(bmConfig);
+      pluginInstance = createBrainMemoryPlugin(storedConfig);
       await pluginInstance.init();
       
       console.log('[brain-memory] Plugin initialized successfully');
@@ -242,18 +235,13 @@ export async function session_end(event: any, ctx: any) {
     try {
       console.log('[brain-memory] Initializing plugin on first use');
       
-      // Extract configuration from OpenClaw's config structure
-      const fullConfig = (globalThis as any)?.openclawApi?.config || {};
-      const bmConfig = fullConfig?.plugins?.entries?.['brain-memory']?.config || {};
-      
-      // Expand ~ path if present
-      if (!bmConfig.dbPath) {
-        bmConfig.dbPath = `${process.env.HOME}/.openclaw/brain-memory.db`;
-      } else if (bmConfig.dbPath?.startsWith('~')) {
-        bmConfig.dbPath = bmConfig.dbPath.replace('~', process.env.HOME || '');
+      // Use the config stored during registration
+      if (!storedConfig) {
+        console.error('[brain-memory] No config available for initialization');
+        return;
       }
       
-      pluginInstance = createBrainMemoryPlugin(bmConfig);
+      pluginInstance = createBrainMemoryPlugin(storedConfig);
       await pluginInstance.init();
       
       console.log('[brain-memory] Plugin initialized successfully');
@@ -292,18 +280,13 @@ export async function before_message_write(event: any, ctx: any) {
     try {
       console.log('[brain-memory] Initializing plugin on first use');
       
-      // Extract configuration from OpenClaw's config structure
-      const fullConfig = (globalThis as any)?.openclawApi?.config || {};
-      const bmConfig = fullConfig?.plugins?.entries?.['brain-memory']?.config || {};
-      
-      // Expand ~ path if present
-      if (!bmConfig.dbPath) {
-        bmConfig.dbPath = `${process.env.HOME}/.openclaw/brain-memory.db`;
-      } else if (bmConfig.dbPath?.startsWith('~')) {
-        bmConfig.dbPath = bmConfig.dbPath.replace('~', process.env.HOME || '');
+      // Use the config stored during registration
+      if (!storedConfig) {
+        console.error('[brain-memory] No config available for initialization');
+        return event;
       }
       
-      pluginInstance = createBrainMemoryPlugin(bmConfig);
+      pluginInstance = createBrainMemoryPlugin(storedConfig);
       await pluginInstance.init();
       
       console.log('[brain-memory] Plugin initialized successfully');
@@ -364,18 +347,13 @@ export async function get_status() {
     try {
       console.log('[brain-memory] Initializing plugin for status check');
       
-      // Extract configuration from OpenClaw's config structure
-      const fullConfig = (globalThis as any)?.openclawApi?.config || {};
-      const bmConfig = fullConfig?.plugins?.entries?.['brain-memory']?.config || {};
-      
-      // Expand ~ path if present
-      if (!bmConfig.dbPath) {
-        bmConfig.dbPath = `${process.env.HOME}/.openclaw/brain-memory.db`;
-      } else if (bmConfig.dbPath?.startsWith('~')) {
-        bmConfig.dbPath = bmConfig.dbPath.replace('~', process.env.HOME || '');
+      // Use the config stored during registration
+      if (!storedConfig) {
+        console.error('[brain-memory] No config available for initialization');
+        return { status: 'not initialized', enabled: false };
       }
       
-      pluginInstance = createBrainMemoryPlugin(bmConfig);
+      pluginInstance = createBrainMemoryPlugin(storedConfig);
       await pluginInstance.init();
       
       console.log('[brain-memory] Plugin initialized successfully for status check');
