@@ -41,8 +41,18 @@ const DEFAULT_CONFIG = {
   dbPath: `${process.env.HOME}/.openclaw/brain-memory.db`
 };
 
-// Cache for storing retrieved memories per session
+// Cache for storing retrieved memories.
+// Keyed by "agentId:workspaceId" (agent-level) to share memories across sessions.
+// Also keyed by sessionId for backward compatibility with existing cached data.
 const sessionMemoryCache = new Map<string, any>();
+
+/**
+ * Build a cache key for memory context.
+ * Uses agent-level key so new sessions can reuse memories from previous sessions.
+ */
+function memoryCacheKey(agentId: string, workspaceId: string): string {
+  return `mem:${agentId}:${workspaceId}`;
+}
 
 /**
  * Register the plugin with OpenClaw
@@ -187,14 +197,19 @@ export async function message_received(event: any, ctx: any) {
     // Process the message (extract memories, etc.)
     const result = await pluginInstance.handleMessage(message);
     
-    // Retrieve relevant memories for this session and cache them
+    // Retrieve relevant memories and cache at agent level (not session level)
+    // This allows memories to persist across sessions for the same agent
     try {
       const memoryContext = await pluginInstance.getMemoryContext(message);
       if (memoryContext && memoryContext.relatedNodes && memoryContext.relatedNodes.length > 0) {
+        // Cache at agent level so new sessions can find memories
+        const agentKey = memoryCacheKey(message.agentId || 'default-agent', message.workspaceId || 'default-workspace');
+        sessionMemoryCache.set(agentKey, memoryContext);
+        // Also cache at session level for backward compatibility
         sessionMemoryCache.set(message.sessionId, memoryContext);
-        console.log(`[brain-memory] Cached ${memoryContext.relatedNodes.length} memories for session ${message.sessionId}`);
+        console.log(`[brain-memory] Cached ${memoryContext.relatedNodes.length} memories for agent ${message.agentId}`);
       } else {
-        sessionMemoryCache.delete(message.sessionId); // Clear cache if no memories
+        sessionMemoryCache.delete(message.sessionId);
       }
     } catch (memoryError) {
       console.warn('[brain-memory] Memory retrieval failed:', memoryError);
@@ -247,6 +262,37 @@ export async function session_start(event: any, ctx: any) {
     };
     
     await pluginInstance.onSessionStart(sessionEvent);
+    
+    // Preload memories from previous sessions for this agent
+    // This ensures new sessions start with relevant memory context
+    if (storedConfig && pluginInstance) {
+      try {
+        const agentKey = memoryCacheKey(sessionEvent.agentId, sessionEvent.workspaceId);
+        const existingCache = sessionMemoryCache.get(agentKey);
+        if (existingCache) {
+          // Reuse existing agent-level cache
+          sessionMemoryCache.set(sessionEvent.sessionId, existingCache);
+          console.log(`[brain-memory] Preloaded ${existingCache.relatedNodes?.length || 0} memories for new session ${sessionEvent.sessionId}`);
+        } else {
+          // Query for any existing memories to warm up the cache
+          const warmupMsg = {
+            sessionId: sessionEvent.sessionId,
+            agentId: sessionEvent.agentId,
+            workspaceId: sessionEvent.workspaceId,
+            content: 'recent topics conversations',
+            role: 'user'
+          };
+          const memoryContext = await pluginInstance.getMemoryContext(warmupMsg);
+          if (memoryContext && memoryContext.relatedNodes?.length > 0) {
+            sessionMemoryCache.set(agentKey, memoryContext);
+            sessionMemoryCache.set(sessionEvent.sessionId, memoryContext);
+            console.log(`[brain-memory] Warmed up cache with ${memoryContext.relatedNodes.length} memories for new session`);
+          }
+        }
+      } catch (warmupError) {
+        console.warn('[brain-memory] Memory preload failed:', warmupError);
+      }
+    }
   } catch (error) {
     console.error('[brain-memory] Session start failed:', error);
   }
@@ -312,7 +358,18 @@ export const onSessionEnd = session_end;
 export function before_message_write(event: any, ctx: any) {
   // Check if we have cached memories for this session
   const sessionId = ctx?.conversationId || 'default-session';
-  const cachedMemoryContext = sessionMemoryCache.get(sessionId);
+  let cachedMemoryContext = sessionMemoryCache.get(sessionId);
+  
+  // Fallback: check agent-level cache if session cache is empty
+  if (!cachedMemoryContext) {
+    const agentId = ctx?.accountId || 'default-agent';
+    const workspaceId = 'default-workspace';
+    const agentKey = memoryCacheKey(agentId, workspaceId);
+    cachedMemoryContext = sessionMemoryCache.get(agentKey);
+    if (cachedMemoryContext) {
+      console.log(`[brain-memory] Using agent-level memory cache for session ${sessionId}`);
+    }
+  }
   
   if (cachedMemoryContext) {
     // Attach memory context to the event if available
