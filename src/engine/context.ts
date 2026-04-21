@@ -150,6 +150,15 @@ export class ContextEngine {
             "SELECT * FROM bm_nodes WHERE name = ? AND scope_session = ?"
           ).get(nodeData.name, params.sessionId) as BmNode | undefined;
           if (insertedNode) upsertedNodes.push(insertedNode);
+          
+          // Generate vector embeddings for the new node
+          if (insertedNode) {
+            try {
+              await this.recaller.syncEmbed(insertedNode);
+            } catch (embedError) {
+              console.warn(`[brain-memory] Failed to generate embeddings for node ${insertedNode.name}:`, embedError);
+            }
+          }
         } catch (error) {
           console.error(`[brain-memory] Failed to upsert node ${nodeData.name}:`, error);
           // Continue processing other nodes

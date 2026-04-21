@@ -201,6 +201,7 @@ export function searchNodes(db: DatabaseSyncInstance, query: string, limit = 6, 
 
   const { clause, params: scopeParams } = scopeFilter ? buildScopeFilterClause(scopeFilter) : { clause: "", params: [] };
 
+  // Try FTS5 search first
   try {
     const ftsQuery = terms.map(t => `"${t.replace(/"/g, "")}"`).join(" OR ");
     const rows = db.prepare(`
@@ -209,9 +210,13 @@ export function searchNodes(db: DatabaseSyncInstance, query: string, limit = 6, 
       WHERE bm_nodes_fts MATCH ? AND n.status = 'active'${clause}
       ORDER BY rank LIMIT ?
     `).all(ftsQuery, ...scopeParams, limit) as any[];
+    
+    // If FTS5 returns results, return them; otherwise, fall back to LIKE search
+    // This is especially important for Chinese text which FTS5 doesn't handle well
     if (rows.length > 0) return rows.map(toNode);
-  } catch { /* fallback */ }
+  } catch { /* fallback to LIKE search */ }
 
+  // Fallback to LIKE search (works better for Chinese characters)
   const where = terms.map(() => "(name LIKE ? OR description LIKE ? OR content LIKE ?)").join(" OR ");
   const likes = terms.flatMap(t => [`%${t}%`, `%${t}%`, `%${t}%`]);
   return (db.prepare(`
