@@ -29,8 +29,11 @@ let pluginInstance: BrainMemoryPluginClass | null = null;
 
 /**
  * Register the plugin with OpenClaw
+ * 
+ * NOTE: This must be a synchronous function because OpenClaw does not await promises
+ * returned from register(). Async code after the first await will be ignored.
  */
-export async function register(api: any) {
+export function register(api: any) {
   console.log('[brain-memory] Registering plugin with OpenClaw');
   
   // Extract configuration from OpenClaw's config structure
@@ -44,9 +47,8 @@ export async function register(api: any) {
     bmConfig.dbPath = bmConfig.dbPath.replace('~', process.env.HOME || '');
   }
   
-  // Initialize plugin with extracted config
-  pluginInstance = createBrainMemoryPlugin(bmConfig);
-  await pluginInstance.init();
+  // Store config but defer initialization until first use (lazy init)
+  const config = bmConfig;
   
   // Register hooks using api.on() as per OpenClaw requirements
   if (api?.on) {
@@ -128,14 +130,47 @@ export async function deactivate() {
 
 /**
  * Handle incoming messages
+ * 
+ * OpenClaw passes (event, ctx) format, but brain-memory expects Message format.
+ * Need to convert the parameters accordingly.
  */
-export async function message_received(message: any) {
+export async function message_received(event: any, ctx: any) {
+  // Lazy initialization - create and initialize plugin on first use
   if (!pluginInstance) {
-    console.warn('[brain-memory] Plugin not initialized');
-    return null;
+    try {
+      console.log('[brain-memory] Initializing plugin on first use');
+      
+      // Extract configuration from OpenClaw's config structure
+      const fullConfig = (globalThis as any)?.openclawApi?.config || {};
+      const bmConfig = fullConfig?.plugins?.entries?.['brain-memory']?.config || {};
+      
+      // Expand ~ path if present
+      if (!bmConfig.dbPath) {
+        bmConfig.dbPath = `${process.env.HOME}/.openclaw/brain-memory.db`;
+      } else if (bmConfig.dbPath?.startsWith('~')) {
+        bmConfig.dbPath = bmConfig.dbPath.replace('~', process.env.HOME || '');
+      }
+      
+      pluginInstance = createBrainMemoryPlugin(bmConfig);
+      await pluginInstance.init();
+      
+      console.log('[brain-memory] Plugin initialized successfully');
+    } catch (error) {
+      console.error('[brain-memory] Plugin initialization failed:', error);
+      return null;
+    }
   }
   
   try {
+    // Convert OpenClaw's (event, ctx) format to brain-memory's Message format
+    const message = {
+      sessionId: ctx?.conversationId || 'default-session',
+      agentId: ctx?.accountId || 'default-agent',
+      workspaceId: 'default-workspace',
+      content: event?.content || '',
+      role: 'user'
+    };
+    
     return await pluginInstance.handleMessage(message);
   } catch (error) {
     console.error('[brain-memory] Handle message failed:', error);
@@ -151,14 +186,43 @@ export const handleMessage = message_received;
 /**
  * Handle session start
  */
-export async function session_start(event: any) {
+export async function session_start(event: any, ctx: any) {
+  // Lazy initialization
   if (!pluginInstance) {
-    console.warn('[brain-memory] Plugin not initialized');
-    return;
+    try {
+      console.log('[brain-memory] Initializing plugin on first use');
+      
+      // Extract configuration from OpenClaw's config structure
+      const fullConfig = (globalThis as any)?.openclawApi?.config || {};
+      const bmConfig = fullConfig?.plugins?.entries?.['brain-memory']?.config || {};
+      
+      // Expand ~ path if present
+      if (!bmConfig.dbPath) {
+        bmConfig.dbPath = `${process.env.HOME}/.openclaw/brain-memory.db`;
+      } else if (bmConfig.dbPath?.startsWith('~')) {
+        bmConfig.dbPath = bmConfig.dbPath.replace('~', process.env.HOME || '');
+      }
+      
+      pluginInstance = createBrainMemoryPlugin(bmConfig);
+      await pluginInstance.init();
+      
+      console.log('[brain-memory] Plugin initialized successfully');
+    } catch (error) {
+      console.error('[brain-memory] Plugin initialization failed:', error);
+      return;
+    }
   }
   
   try {
-    await pluginInstance.onSessionStart(event);
+    // Convert OpenClaw's (event, ctx) format to brain-memory's SessionEvent format
+    const sessionEvent = {
+      sessionId: ctx?.conversationId || 'default-session',
+      agentId: ctx?.accountId || 'default-agent',
+      workspaceId: 'default-workspace',
+      messages: []
+    };
+    
+    await pluginInstance.onSessionStart(sessionEvent);
   } catch (error) {
     console.error('[brain-memory] Session start failed:', error);
   }
@@ -172,14 +236,43 @@ export const onSessionStart = session_start;
 /**
  * Handle session end
  */
-export async function session_end(event: any) {
+export async function session_end(event: any, ctx: any) {
+  // Lazy initialization
   if (!pluginInstance) {
-    console.warn('[brain-memory] Plugin not initialized');
-    return;
+    try {
+      console.log('[brain-memory] Initializing plugin on first use');
+      
+      // Extract configuration from OpenClaw's config structure
+      const fullConfig = (globalThis as any)?.openclawApi?.config || {};
+      const bmConfig = fullConfig?.plugins?.entries?.['brain-memory']?.config || {};
+      
+      // Expand ~ path if present
+      if (!bmConfig.dbPath) {
+        bmConfig.dbPath = `${process.env.HOME}/.openclaw/brain-memory.db`;
+      } else if (bmConfig.dbPath?.startsWith('~')) {
+        bmConfig.dbPath = bmConfig.dbPath.replace('~', process.env.HOME || '');
+      }
+      
+      pluginInstance = createBrainMemoryPlugin(bmConfig);
+      await pluginInstance.init();
+      
+      console.log('[brain-memory] Plugin initialized successfully');
+    } catch (error) {
+      console.error('[brain-memory] Plugin initialization failed:', error);
+      return;
+    }
   }
   
   try {
-    await pluginInstance.onSessionEnd(event);
+    // Convert OpenClaw's (event, ctx) format to brain-memory's SessionEvent format
+    const sessionEvent = {
+      sessionId: ctx?.conversationId || 'default-session',
+      agentId: ctx?.accountId || 'default-agent',
+      workspaceId: 'default-workspace',
+      messages: []
+    };
+    
+    await pluginInstance.onSessionEnd(sessionEvent);
   } catch (error) {
     console.error('[brain-memory] Session end failed:', error);
   }
@@ -193,17 +286,50 @@ export const onSessionEnd = session_end;
 /**
  * Prepare message before sending
  */
-export async function before_message_write(message: any) {
+export async function before_message_write(event: any, ctx: any) {
+  // Lazy initialization
   if (!pluginInstance) {
-    console.warn('[brain-memory] Plugin not initialized');
-    return message;
+    try {
+      console.log('[brain-memory] Initializing plugin on first use');
+      
+      // Extract configuration from OpenClaw's config structure
+      const fullConfig = (globalThis as any)?.openclawApi?.config || {};
+      const bmConfig = fullConfig?.plugins?.entries?.['brain-memory']?.config || {};
+      
+      // Expand ~ path if present
+      if (!bmConfig.dbPath) {
+        bmConfig.dbPath = `${process.env.HOME}/.openclaw/brain-memory.db`;
+      } else if (bmConfig.dbPath?.startsWith('~')) {
+        bmConfig.dbPath = bmConfig.dbPath.replace('~', process.env.HOME || '');
+      }
+      
+      pluginInstance = createBrainMemoryPlugin(bmConfig);
+      await pluginInstance.init();
+      
+      console.log('[brain-memory] Plugin initialized successfully');
+    } catch (error) {
+      console.error('[brain-memory] Plugin initialization failed:', error);
+      return event;
+    }
   }
   
   try {
-    return await pluginInstance.beforeMessageSend(message);
+    // Convert OpenClaw's (event, ctx) format to brain-memory's Message format
+    const message = {
+      sessionId: ctx?.conversationId || 'default-session',
+      agentId: ctx?.accountId || 'default-agent',
+      workspaceId: 'default-workspace',
+      content: event?.content || '',
+      role: 'assistant'
+    };
+    
+    const result = await pluginInstance.beforeMessageSend(message);
+    
+    // Convert result back to OpenClaw format if needed
+    return result || event;
   } catch (error) {
     console.error('[brain-memory] Before message send failed:', error);
-    return message;
+    return event;
   }
 }
 
@@ -234,7 +360,29 @@ export async function getMemoryContext(message: any) {
  */
 export async function get_status() {
   if (!pluginInstance) {
-    return { status: 'not initialized', enabled: false };
+    // Try lazy initialization for status check
+    try {
+      console.log('[brain-memory] Initializing plugin for status check');
+      
+      // Extract configuration from OpenClaw's config structure
+      const fullConfig = (globalThis as any)?.openclawApi?.config || {};
+      const bmConfig = fullConfig?.plugins?.entries?.['brain-memory']?.config || {};
+      
+      // Expand ~ path if present
+      if (!bmConfig.dbPath) {
+        bmConfig.dbPath = `${process.env.HOME}/.openclaw/brain-memory.db`;
+      } else if (bmConfig.dbPath?.startsWith('~')) {
+        bmConfig.dbPath = bmConfig.dbPath.replace('~', process.env.HOME || '');
+      }
+      
+      pluginInstance = createBrainMemoryPlugin(bmConfig);
+      await pluginInstance.init();
+      
+      console.log('[brain-memory] Plugin initialized successfully for status check');
+    } catch (error) {
+      console.error('[brain-memory] Plugin initialization failed for status check:', error);
+      return { status: 'not initialized', enabled: false };
+    }
   }
   
   try {
