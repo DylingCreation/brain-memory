@@ -1,172 +1,250 @@
 # Contributing to brain-memory
 
-Thank you for your interest in contributing to brain-memory! We welcome contributions from the community to help improve this unified knowledge management system for AI agents.
+Thank you for your interest in contributing to brain-memory! We welcome contributions from the community to help improve this unified knowledge graph + vector memory system for AI agents.
 
-## Table of Contents
+---
 
-- [Getting Started](#getting-started)
-- [Development Workflow](#development-workflow)
-- [Code Style](#code-style)
-- [Testing](#testing)
-- [Documentation](#documentation)
-- [Pull Request Process](#pull-request-process)
-- [Issues](#issues)
+## 环境要求
 
-## Getting Started
+| 依赖 | 版本 |
+|------|------|
+| **Node.js** | >= 18.0.0 |
+| **TypeScript** | >= 5.0.0 |
+| **npm** | 最新版 |
 
-1. Fork the repository
-2. Clone your fork:
+---
+
+## 安装
+
+### 方式一：npm 安装
+
 ```bash
-git clone https://github.com/YOUR_USERNAME/brain-memory.git
-cd brain-memory
+npm install memory-likehuman-pro
 ```
 
-3. Install dependencies:
+> npm 包仅包含编译后的 `dist/` 目录。如需开发，请使用以下方式。
+
+### 方式二：Git 克隆（开发推荐）
+
 ```bash
+git clone https://github.com/DylingCreation/brain-memory.git
+cd brain-memory
 npm install
 ```
 
-4. Create a new branch for your feature or bug fix:
+### 方式三：下载 ZIP
+
+1. 访问 [GitHub 仓库](https://github.com/DylingCreation/brain-memory)
+2. 点击 **Code → Download ZIP**
+3. 解压后安装依赖
+
+---
+
+## 开发流程
+
+### 创建分支
+
 ```bash
-git checkout -b feature/my-feature
-# or
-git checkout -b bugfix/issue-description
+# 功能开发
+git checkout -b feature/your-feature-name
+
+# 缺陷修复
+git checkout -b fix/issue-description
 ```
 
-## Development Workflow
+### 开发模式
 
-### Setting up the Environment
-
-1. Copy the example environment file:
 ```bash
-cp .env.example .env
-# Edit .env with your API keys and settings
-```
-
-2. Run the development server:
-```bash
+# 监听模式（文件变更自动重新编译）
 npm run dev
+
+# 或直接运行入口
+npm run start
 ```
 
-### Making Changes
+### 构建
 
-1. Ensure you're working on the correct branch
-2. Make your changes in the appropriate files
-3. Add or update tests as necessary
-4. Update documentation if needed
-5. Run tests to ensure everything works:
 ```bash
-npm test
+# 清理 + 编译主代码
+npm run build
+
+# 编译 OpenClaw 插件
+npm run build:plugin
+
+# 全部构建（清理 + 主代码 + 插件）
+npm run build:all
 ```
 
-## Code Style
+---
 
-### TypeScript Guidelines
+## 代码风格
 
-- Use TypeScript for all new code
-- Follow the existing code style and naming conventions
-- Use descriptive variable and function names
-- Add JSDoc comments to exported functions and classes
-- Use interfaces for object shapes rather than type aliases when possible
+### TypeScript 规范
 
-### File Organization
+- 所有源代码使用 TypeScript
+- 遵循现有代码风格和命名约定
+- 变量和函数名使用描述性名称
+- 导出的函数和类添加 JSDoc 注释
 
-- Place source files in the `src/` directory
-- Organize by feature/module in subdirectories
-- Keep related files together (e.g., types, utils, main implementation)
-- Use barrel exports (index.ts) to simplify imports
+### 文件组织
 
-### Naming Conventions
+- 源代码放在 `src/` 目录
+- 按功能模块组织子目录（如 `src/extractor/`、`src/recaller/`）
+- 相关文件放在一起（类型定义、工具函数、主实现）
+- 通过 `index.ts` 导出简化 import
 
-- Use PascalCase for class names and interfaces
-- Use camelCase for function names, variables, and methods
-- Use UPPER_SNAKE_CASE for constants
-- Use descriptive names that indicate purpose
+### 命名约定
 
-## Testing
+| 类型 | 约定 | 示例 |
+|------|------|------|
+| 类名 / 接口 | `PascalCase` | `ContextEngine`、`BmConfig` |
+| 函数 / 变量 / 方法 | `camelCase` | `processTurn`、`recallResult` |
+| 常量 | `UPPER_SNAKE_CASE` | `DEFAULT_CONFIG`、`MEMORY_CATEGORIES` |
 
-### Running Tests
+### 配置文件
+
+项目包含多个 TypeScript 配置文件：
+
+| 文件 | 用途 |
+|------|------|
+| `tsconfig.json` | 主开发配置 |
+| `tsconfig.build.json` | 构建配置 |
+| `tsconfig.plugin.json` | OpenClaw 插件构建配置 |
+| `tsconfig.test.json` | 测试配置 |
+
+---
+
+## 测试
+
+### 运行测试
 
 ```bash
-# Run all tests
+# 运行所有测试（vitest watch 模式）
 npm test
 
-# Run tests in watch mode
-npm run test:watch
+# 运行单元测试
+npm run test:unit
 
-# Run specific test suite
+# 运行集成测试
 npm run test:integration
+
+# 运行性能测试
 npm run test:performance
+
+# 运行端到端测试
+npm run test:e2e
+
+# CI 模式（无交互，junit + verbose 输出）
+npm run test:ci
 ```
 
-### Writing Tests
+### 测试目录结构
 
-- Write unit tests for new functions and classes
-- Add integration tests for new features
-- Use descriptive test names that explain the expected behavior
-- Follow the AAA pattern (Arrange, Act, Assert)
-- Test edge cases and error conditions
+```
+test/                    # 测试文件（主目录，vitest 默认扫描）
+├── *.test.ts            # 各模块单元测试（30+ 文件）
+├── helpers.ts           # 测试辅助函数
+├── integration.test.ts  # 集成测试
+└── ...
 
-## Documentation
+tests/                   # 额外测试分类
+├── unit/                # 单元测试（旧格式）
+├── integration/         # 集成测试（旧格式）
+├── e2e/                 # 端到端测试
+├── performance/         # 性能测试
+├── test_data/           # 测试数据文件
+└── setup.ts             # 测试环境配置
+```
 
-### Source Code Documentation
+### 编写测试
 
-- Add JSDoc comments to all exported functions, classes, and interfaces
-- Document parameters, return values, and potential errors
-- Provide examples where helpful
+- 为新函数和类编写单元测试
+- 为新功能添加集成测试
+- 使用描述性测试名称说明预期行为
+- 遵循 AAA 模式（Arrange / Act / Assert）
+- 测试边界条件和错误处理
 
-### External Documentation
+---
 
-- Update relevant files in the `docs/` directory
-- Add usage examples for new features
-- Update API references as needed
+## 文档
 
-## Pull Request Process
+### 源代码文档
 
-1. Ensure your code follows the style guidelines
-2. Update documentation as needed
-3. Add tests for new functionality
-4. Run all tests and ensure they pass
-5. Squash commits if necessary to create a clean history
-6. Submit a pull request to the `main` branch
-7. Fill out the pull request template with:
-   - Description of changes
-   - Related issues (if any)
-   - Testing performed
-8. Wait for review and address feedback
+- 所有导出的函数、类和接口添加 JSDoc 注释
+- 文档参数、返回值和潜在错误
+- 必要时提供使用示例
 
-### Pull Request Requirements
+### 外部文档
 
-- All tests must pass
-- Code coverage should not decrease significantly
-- Changes should be well-documented
-- Breaking changes should be clearly explained
+更新 `docs/` 目录中的相关文档：
+
+| 文档 | 内容 |
+|------|------|
+| `docs/overview.md` | 项目概述 |
+| `docs/architecture.md` | 架构设计 |
+| `docs/api.md` | API 快速参考 |
+| `docs/api-reference.md` | API 详细参考 |
+| `docs/usage.md` | 使用指南 |
+| `docs/user-guide.md` | 用户指南 |
+| `docs/deployment.md` | 部署指南 |
+| `docs/security.md` | 安全指南 |
+
+---
+
+## Pull Request 流程
+
+1. 确保代码遵循代码风格指南
+2. 根据需要更新文档
+3. 为新功能添加测试
+4. 运行所有测试并确保通过：`npm test`
+5. 提交 Pull Request 到 `main` 分支
+6. 在 PR 描述中填写：
+   - 变更描述
+   - 相关 Issue（如有）
+   - 测试执行情况
+
+### PR 要求
+
+- ✅ 所有测试必须通过
+- ✅ 变更应有充分的文档说明
+- ✅ 破坏性变更需要明确解释
+
+---
 
 ## Issues
 
-### Creating Issues
+### 创建 Issue
 
-When creating an issue, please:
+创建 Issue 时，请：
 
-- Use a clear and descriptive title
-- Provide a detailed description of the problem
-- Include steps to reproduce (for bugs)
-- Specify the expected vs. actual behavior
-- Add relevant labels (bug, enhancement, etc.)
+- 使用清晰的标题
+- 详细描述问题
+- 提供复现步骤（Bug 类）
+- 说明期望的行为与实际行为
+- 添加相关标签（bug / enhancement 等）
 
-### Issue Lifecycle
+### 提交安全问题
 
-- Issues will be reviewed by maintainers
-- Priority will be assigned based on impact
-- Volunteers may be assigned to work on issues
-- Progress will be tracked in the issue comments
+如果发现问题涉及安全（如 API Key 泄露、注入漏洞等），请通过 [GitHub Issues](https://github.com/DylingCreation/brain-memory/issues) 提交。
 
-## Questions?
+---
 
-If you have questions about contributing, feel free to:
+## CI / CD
 
-- Open an issue for discussion
-- Check the existing documentation in the `docs/` directory
-- Look at existing code for examples of patterns and practices
+项目使用 GitHub Actions 进行持续集成。
 
-Thank you for contributing to brain-memory!
+**配置文件：** [`.github/workflows/test.yml`](.github/workflows/test.yml)
+
+每次提交和 PR 都会自动运行测试。
+
+---
+
+## 有问题？
+
+- 在 [GitHub Issues](https://github.com/DylingCreation/brain-memory/issues) 中提问或讨论
+- 查阅 `docs/` 目录中的文档
+- 参考现有代码了解编码模式和最佳实践
+
+---
+
+Thank you for contributing to brain-memory! 🧠

@@ -1,39 +1,63 @@
 # API Reference
 
-This document provides detailed reference for all public APIs in brain-memory.
+> 详细的 API 参考文档。快速参考见 [API Quick Reference](api.md)。
+
+---
 
 ## ContextEngine
 
-The main orchestrator class that integrates all components.
+统一上下文引擎，所有功能的入口点。
 
-### Constructor
+**源码：** [src/engine/context.ts](../src/engine/context.ts)
+
+### 构造器
+
 ```typescript
 new ContextEngine(config: BmConfig)
 ```
 
-**Parameters:**
-- `config`: Configuration object with the following properties:
-  - `dbPath`: Path to SQLite database file
-  - `llm`: LLM configuration (apiKey, baseURL, model)
-  - `embedding`: Embedding configuration (apiKey, baseURL, model)
-  - `recallMaxNodes`: Maximum number of nodes to recall (default: 10)
-  - `recallStrategy`: Recall strategy ('graph', 'vector', or 'hybrid') (default: 'hybrid')
-  - `fusion`: Fusion configuration
-  - `decay`: Decay configuration
-  - `reflection`: Reflection configuration
-  - `workingMemory`: Working memory configuration
+**参数：**
 
-### Methods
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|:---:|------|
+| `config` | `BmConfig` | ✅ | 配置对象（见下方 BmConfig 类型定义） |
 
-#### processTurn
-Processes a conversation turn and extracts knowledge.
+**配置项说明：**
+
+`BmConfig` 包含以下字段（详见下方类型定义）：
+
+- `engine` — 引擎模式：`'graph'`（默认）/ `'vector'` / `'hybrid'`
+- `storage` — 存储后端：`'sqlite'`（默认）/ `'lancedb'`
+- `dbPath` — 数据库路径（默认 `~/.openclaw/brain-memory.db`）
+- `llm` — LLM 配置（`apiKey` / `baseURL` / `model`）
+- `embedding` — Embedding 配置（`apiKey` / `baseURL` / `model` / `dimensions`）
+- `recallMaxNodes` — 最大召回节点数（默认 `6`）
+- `recallMaxDepth` — 图遍历深度（默认 `2`）
+- `recallStrategy` — 召回策略：`'full'` / `'summary'` / `'adaptive'` / `'off'`（默认 `'full'`）
+- `dedupThreshold` — 去重阈值（默认 `0.90`）
+- `pagerankDamping` — PageRank 阻尼（默认 `0.85`）
+- `pagerankIterations` — PageRank 迭代次数（默认 `20`）
+- `decay` — 衰减配置
+- `noiseFilter` — 噪声过滤配置
+- `reflection` — 反思配置
+- `workingMemory` — 工作记忆配置
+- `fusion` — 知识融合配置
+- `reasoning` — 推理配置
+
+**初始化行为：** 创建数据库实例 → 初始化 LLM 客户端（无配置时使用 Mock） → 初始化 Embedding 客户端（无配置时优雅降级） → 初始化 Extractor / Recaller / WorkingMemory。
+
+---
+
+### processTurn
+
+处理对话轮次，提取知识。
 
 ```typescript
 async processTurn(params: {
   sessionId: string;
   agentId: string;
   workspaceId: string;
-  messages: Array<{ role: string; content: string; turn_index?: number }>;
+  messages: Array<{ role?: string; content: string; turn_index?: number }>;
 }): Promise<{
   extractedNodes: BmNode[];
   extractedEdges: BmEdge[];
@@ -42,357 +66,508 @@ async processTurn(params: {
 }>
 ```
 
-**Parameters:**
-- `sessionId`: Unique identifier for the session
-- `agentId`: Identifier for the agent
-- `workspaceId`: Identifier for the workspace
-- `messages`: Array of conversation messages
+**参数：**
 
-**Returns:**
-- `extractedNodes`: Knowledge nodes extracted from the turn
-- `extractedEdges`: Knowledge edges extracted from the turn
-- `reflections`: Reflection insights derived from the turn
-- `workingMemory`: Updated working memory state
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|:---:|------|
+| `sessionId` | `string` | ✅ | 会话 ID |
+| `agentId` | `string` | ✅ | Agent ID |
+| `workspaceId` | `string` | ✅ | 工作空间 ID |
+| `messages` | `Array` | ✅ | 对话消息数组 |
 
-#### recall
-Recalls relevant knowledge for a query.
+`messages` 中每个消息包含：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|:---:|------|
+| `role` | `string` | ❌ | 角色（`'user'` / `'assistant'`，默认 `'user'`） |
+| `content` | `string` | ✅ | 消息内容 |
+| `turn_index` | `number` | ❌ | 轮次索引 |
+
+**返回值：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `extractedNodes` | `BmNode[]` | 本次提取的记忆节点 |
+| `extractedEdges` | `BmEdge[]` | 本次提取的关系边 |
+| `reflections` | `ReflectionInsight[]` | 轮次反思洞察（如开启） |
+| `workingMemory` | `WorkingMemoryState` | 更新后的工作记忆状态 |
+
+**执行流程：** 获取已有节点名称（去重）→ LLM 知识提取 → 节点 upsert + 向量嵌入生成 → 边 upsert → 轮次反思（可选）→ 更新工作记忆。
+
+**错误处理：** 单个节点/边插入失败不阻断全局流程，仅记录错误日志继续处理。
+
+---
+
+### recall
+
+召回相关记忆。
 
 ```typescript
-async recall(query: string, sessionId?: string, agentId?: string, workspaceId?: string): Promise<RecallResult>
+async recall(
+  query: string,
+  sessionId?: string,
+  agentId?: string,
+  workspaceId?: string
+): Promise<RecallResult>
 ```
 
-**Parameters:**
-- `query`: Search query string
-- `sessionId`: Optional session ID for scope filtering
-- `agentId`: Optional agent ID for scope filtering
-- `workspaceId`: Optional workspace ID for scope filtering
+**参数：**
 
-**Returns:**
-- `nodes`: Array of relevant knowledge nodes
-- `edges`: Array of relevant knowledge edges
-- `tokenEstimate`: Estimated token count of results
-- `diagnostics`: Performance and diagnostic information
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|:---:|------|
+| `query` | `string` | ✅ | 查询文本 |
+| `sessionId` | `string` | ❌ | 会话 ID（用于范围过滤） |
+| `agentId` | `string` | ❌ | Agent ID（用于范围过滤） |
+| `workspaceId` | `string` | ❌ | 工作空间 ID（用于范围过滤） |
 
-#### performFusion
-Performs knowledge fusion to merge duplicate/related nodes.
+**返回值：** [`RecallResult`](#recallresult)
+
+**召回逻辑：** 先按 agent/workspace 范围召回 → 无结果时自动降级为跨会话全局召回。记忆属于 Agent/Workspace 级别，跨 Session 共享。
+
+---
+
+### performFusion
+
+知识融合（检测并合并重复节点）。
 
 ```typescript
 async performFusion(sessionId?: string): Promise<FusionResult>
 ```
 
-**Parameters:**
-- `sessionId`: Optional session ID to scope fusion to specific session
+**参数：**
 
-**Returns:**
-- `candidates`: Fusion candidates identified
-- `merged`: Number of nodes merged
-- `linked`: Number of new edges created
-- `durationMs`: Operation duration in milliseconds
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|:---:|:---:|------|
+| `sessionId` | `string` | ❌ | `"fusion"` | 会话 ID（用于边的 session 标记） |
 
-#### reflectOnSession
-Performs reflection on a completed session.
+**返回值：** [`FusionResult`](#fusionresult)
+
+**触发条件：** 需要图谱达到一定规模（默认：节点数 ≥ 20 且社区数 ≥ 3），否则直接返回空结果。
+
+---
+
+### reflectOnSession
+
+会话反思（在会话结束时提取深度洞察）。
 
 ```typescript
-async reflectOnSession(sessionId: string, messages: Array<{ role: string; content: string }>): Promise<ReflectionInsight[]>
+async reflectOnSession(
+  sessionId: string,
+  messages: Array<{ role?: string; content: string }>
+): Promise<ReflectionInsight[]>
 ```
 
-**Parameters:**
-- `sessionId`: Session ID to reflect on
-- `messages`: Complete session message history
+**参数：**
 
-**Returns:**
-- Array of reflection insights derived from the session
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|:---:|------|
+| `sessionId` | `string` | ✅ | 会话 ID |
+| `messages` | `Array` | ✅ | 会话完整消息历史 |
 
-#### performReasoning
-Runs reasoning to derive new insights from existing knowledge.
+**返回值：** `ReflectionInsight[]` — 反思洞察数组
+
+**洞察类型（`kind`）：** `'user-model'` / `'agent-model'` / `'lesson'` / `'decision'`
+
+---
+
+### performReasoning
+
+推理引擎（基于已有知识推导新结论）。
 
 ```typescript
 async performReasoning(query?: string): Promise<ReasoningConclusion[]>
 ```
 
-**Parameters:**
-- `query`: Optional query to guide reasoning
+**参数：**
 
-**Returns:**
-- Array of reasoning conclusions
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|:---:|------|
+| `query` | `string` | ❌ | 查询文本（引导推理方向） |
 
-#### runMaintenance
-Runs maintenance tasks (PageRank, community detection, etc.).
+**返回值：** `ReasoningConclusion[]` — 推理结论数组
+
+**触发条件：** 召回节点数 ≥ `minRecallNodes`（默认 `3`），否则返回空数组。
+
+**推理类型（`type`）：** `'path'` / `'implicit'` / `'pattern'` / `'contradiction'`
+
+---
+
+### runMaintenance
+
+图维护流水线（去重 → PageRank → 社区检测 → 社区摘要）。
 
 ```typescript
 async runMaintenance(): Promise<void>
 ```
 
-**Returns:**
-- Promise that resolves when maintenance is complete
+**执行内容：**
+1. 去重（LSH 桶化 + 余弦相似度）
+2. 全局 PageRank 计算
+3. 社区检测（LPA 算法）
+4. 社区摘要生成（LLM）
 
-#### getWorkingMemoryContext
-Gets the current working memory context.
+---
+
+### getWorkingMemoryContext
+
+获取工作记忆上下文（用于注入系统提示词）。
 
 ```typescript
 getWorkingMemoryContext(): string | null
 ```
 
-**Returns:**
-- Working memory context as a string, or null if empty
+**返回值：** XML 格式的工作记忆字符串，或 `null`（无内容时）
 
-#### close
-Closes the database connection.
+---
+
+### searchNodes
+
+直接搜索记忆节点。
+
+```typescript
+searchNodes(query: string, limit?: number): BmNode[]
+```
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|:---:|:---:|------|
+| `query` | `string` | ✅ | — | 搜索关键词 |
+| `limit` | `number` | ❌ | `10` | 最大返回数量 |
+
+**返回值：** `BmNode[]` — 匹配的节点数组
+
+---
+
+### getAllActiveNodes
+
+获取所有活跃节点。
+
+```typescript
+getAllActiveNodes(): BmNode[]
+```
+
+**返回值：** `BmNode[]` — 所有 `status='active'` 的节点
+
+---
+
+### getStats
+
+获取统计信息。
+
+```typescript
+getStats(): { nodeCount: number; edgeCount: number; sessionCount: number }
+```
+
+**返回值：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `nodeCount` | `number` | 节点总数（含已废弃） |
+| `edgeCount` | `number` | 边总数 |
+| `sessionCount` | `number` | 会话数（基于 bm_messages 表去重） |
+
+---
+
+### close
+
+关闭数据库连接。
 
 ```typescript
 close(): void
 ```
 
-## Types
+---
+
+## 类型定义
+
+所有类型定义在 [src/types.ts](../src/types.ts)。
 
 ### BmConfig
-Configuration interface for the brain-memory system.
+
+完整配置对象。
 
 ```typescript
 interface BmConfig {
-  dbPath: string;                    // Path to SQLite database
-  llm: {                             // LLM configuration
-    apiKey: string;
-    baseURL: string;
-    model: string;
-  };
-  embedding: {                       // Embedding configuration
-    apiKey: string;
-    baseURL: string;
-    model: string;
-  };
-  recallMaxNodes: number;            // Max nodes to recall (default: 10)
-  recallStrategy: 'graph' | 'vector' | 'hybrid'; // Recall strategy (default: 'hybrid')
-  fusion: FusionConfig;              // Fusion settings
-  decay: DecayConfig;                // Decay settings
-  reflection: ReflectionConfig;      // Reflection settings
-  workingMemory: WorkingMemoryConfig; // Working memory settings
+  engine: 'graph' | 'vector' | 'hybrid';
+  storage: 'sqlite' | 'lancedb';
+  dbPath: string;
+  compactTurnCount: number;
+  recallMaxNodes: number;
+  recallMaxDepth: number;
+  recallStrategy: 'full' | 'summary' | 'adaptive' | 'off';
+  embedding?: EmbeddingConfig;
+  llm?: { apiKey?: string; baseURL?: string; model?: string };
+  dedupThreshold: number;
+  pagerankDamping: number;
+  pagerankIterations: number;
+  decay: DecayConfig;
+  noiseFilter: NoiseFilterConfig;
+  rerank?: RerankConfig;
+  reflection: ReflectionConfig;
+  workingMemory: WorkingMemoryConfig;
+  fusion: FusionConfig;
+  reasoning: ReasoningConfig;
 }
 ```
 
 ### BmNode
-Represents a knowledge node in the graph.
+
+记忆节点。
 
 ```typescript
 interface BmNode {
-  id: string;                        // Unique identifier
-  type: GraphNodeType;               // Node type (TASK, SKILL, EVENT)
-  category: MemoryCategory;          // Memory category
-  name: string;                      // Display name
-  description: string;               // Brief description
-  content: string;                   // Full content
-  status: 'active' | 'deprecated';   // Node status
-  validatedCount: number;            // Validation count (affects importance)
-  sourceSessions: string[];          // Sessions that contributed to this node
-  communityId: string | null;        // Associated community ID
-  pagerank: number;                  // PageRank score
-  importance: number;                // Importance score (0-1)
-  accessCount: number;               // Access frequency count
-  lastAccessedAt: number;            // Timestamp of last access
-  temporalType: 'static' | 'dynamic'; // Temporal classification
-  scopeSession: string | null;       // Session scope
-  scopeAgent: string | null;         // Agent scope
-  scopeWorkspace: string | null;     // Workspace scope
-  createdAt: number;                 // Creation timestamp
-  updatedAt: number;                 // Last update timestamp
+  id: string;
+  type: GraphNodeType;              // 'TASK' | 'SKILL' | 'EVENT'
+  category: MemoryCategory;         // 8 类记忆分类之一
+  name: string;
+  description: string;
+  content: string;
+  status: NodeStatus;               // 'active' | 'deprecated'
+  validatedCount: number;
+  sourceSessions: string[];
+  communityId: string | null;
+  pagerank: number;
+  importance: number;
+  accessCount: number;
+  lastAccessedAt: number;
+  temporalType: 'static' | 'dynamic';
+  scopeSession: string | null;
+  scopeAgent: string | null;
+  scopeWorkspace: string | null;
+  createdAt: number;
+  updatedAt: number;
 }
 ```
 
 ### BmEdge
-Represents a relationship between nodes.
+
+知识边。
 
 ```typescript
 interface BmEdge {
-  id: string;                        // Unique identifier
-  fromId: string;                    // Source node ID
-  toId: string;                      // Target node ID
-  type: EdgeType;                    // Edge type
-  instruction: string;               // Relationship instruction
-  condition?: string;                // Conditional relationship
-  sessionId: string;                 // Session where edge was created
-  createdAt: number;                 // Creation timestamp
+  id: string;
+  fromId: string;
+  toId: string;
+  type: EdgeType;   // 'USED_SKILL' | 'SOLVED_BY' | 'REQUIRES' | 'PATCHES' | 'CONFLICTS_WITH'
+  instruction: string;
+  condition?: string;
+  sessionId: string;
+  createdAt: number;
 }
 ```
 
 ### RecallResult
-Result of a recall operation.
+
+召回结果。
 
 ```typescript
 interface RecallResult {
-  nodes: BmNode[];                   // Retrieved nodes
-  edges: BmEdge[];                   // Retrieved edges
-  tokenEstimate: number;             // Estimated token count
-  diagnostics?: {                    // Optional diagnostics
-    graphCount: number;              // Number of graph results
-    vectorCount: number;             // Number of vector results
-    fusedCount: number;              // Number of fused results
-    intent: string;                  // Detected intent
-  };
+  nodes: BmNode[];
+  edges: BmEdge[];
+  tokenEstimate: number;
 }
 ```
 
 ### FusionResult
-Result of a fusion operation.
+
+融合结果。
 
 ```typescript
 interface FusionResult {
-  candidates: FusionCandidate[];     // Identified fusion candidates
-  merged: number;                    // Number of nodes merged
-  linked: number;                    // Number of new links created
-  durationMs: number;                // Operation duration in ms
+  candidates: FusionCandidate[];
+  merged: number;
+  linked: number;
+  durationMs: number;
 }
 ```
 
 ### FusionCandidate
-A potential fusion opportunity.
+
+融合候选。
 
 ```typescript
 interface FusionCandidate {
-  nodeA: BmNode;                     // First node to merge
-  nodeB: BmNode;                     // Second node to merge
-  similarity: number;                // Similarity score (0-1)
-  decision: 'merge' | 'link' | 'none'; // Recommended action
-  reason: string;                    // Reason for recommendation
+  nodeA: BmNode;
+  nodeB: BmNode;
+  nameScore: number;
+  vectorScore: number;
+  combinedScore: number;
+  decision: 'merge' | 'link' | 'none';
+  reason: string;
 }
 ```
 
 ### ReflectionInsight
-An insight derived through reflection.
+
+反思洞察。
 
 ```typescript
 interface ReflectionInsight {
-  text: string;                      // Reflection text
-  kind: 'decision' | 'pattern' | 'preference' | 'fact'; // Insight type
-  reflectionKind: 'derived' | 'learned' | 'realized'; // Reflection subtype
-  confidence: number;                // Confidence score (0-1)
+  text: string;
+  kind: ReflectionInsightType;      // 'user-model' | 'agent-model' | 'lesson' | 'decision'
+  reflectionKind: ReflectionKind;   // 'invariant' | 'derived'
+  confidence: number;               // 0-1
 }
 ```
 
 ### WorkingMemoryState
-Current state of working memory.
+
+工作记忆状态。
 
 ```typescript
 interface WorkingMemoryState {
-  tasks: string[];                   // Active tasks
-  decisions: string[];               // Recent decisions
-  constraints: string[];             // Active constraints
-  attention: string;                 // Current attention focus
-  lastUpdate: number;                // Last update timestamp
+  currentTasks: string[];
+  recentDecisions: string[];
+  constraints: string[];
+  attention: string;
+  updatedAt: number;
 }
 ```
 
-## Constants
+### ReasoningConclusion
+
+推理结论。
+
+```typescript
+interface ReasoningConclusion {
+  text: string;
+  type: 'path' | 'implicit' | 'pattern' | 'contradiction';
+  confidence: number;
+}
+```
+
+### ReasoningResult
+
+推理结果。
+
+```typescript
+interface ReasoningResult {
+  conclusions: ReasoningConclusion[];
+  triggered: boolean;
+  rawOutput: string;
+}
+```
+
+---
+
+## 常量
 
 ### DEFAULT_CONFIG
-Default configuration object with sensible defaults for all settings.
+
+默认配置对象。
 
 ```typescript
 const DEFAULT_CONFIG: BmConfig;
 ```
 
+**关键默认值：**
+
+| 配置项 | 默认值 |
+|--------|--------|
+| `engine` | `'graph'` |
+| `storage` | `'sqlite'` |
+| `recallMaxNodes` | `6` |
+| `recallMaxDepth` | `2` |
+| `dedupThreshold` | `0.90` |
+| `pagerankDamping` | `0.85` |
+| `pagerankIterations` | `20` |
+| `decay.enabled` | `false` |
+| `reflection.enabled` | `true` |
+| `reflection.turnReflection` | `false` |
+| `reflection.sessionReflection` | `true` |
+| `workingMemory.enabled` | `true` |
+| `fusion.enabled` | `true` |
+| `reasoning.enabled` | `true` |
+
 ### MEMORY_CATEGORIES
-List of all supported memory categories.
+
+8 类记忆分类数组。
 
 ```typescript
-const MEMORY_CATEGORIES: MemoryCategory[];
+const MEMORY_CATEGORIES: readonly [
+  'profile', 'preferences', 'entities', 'events',
+  'tasks', 'skills', 'cases', 'patterns'
+];
 ```
 
-### VALID_NODE_TYPES
-List of all valid node types.
+---
+
+## OpenClaw 钩子
+
+brain-memory 作为 OpenClaw 插件注册的钩子函数。
+
+**源码：** [openclaw-wrapper.ts](../openclaw-wrapper.ts)
+
+### message_received
+
+用户发送消息后触发。
 
 ```typescript
-const VALID_NODE_TYPES: GraphNodeType[];
+async function message_received(event: any, ctx: any): Promise<any>
 ```
 
-## Utility Functions
+**执行：** 格式转换 → 提取知识 → 检索记忆 → 双层缓存（Agent 级 + Session 级）
 
-### createCompleteFn
-Creates a completion function for LLM calls.
+### message_sent
+
+AI 回复发送后触发。
 
 ```typescript
-function createCompleteFn(config: { apiKey: string; baseURL: string; model: string }): CompleteFn | null
+async function message_sent(event: any, ctx: any): Promise<void>
 ```
 
-### createEmbedFn
-Creates an embedding function for vector operations.
+**执行：** 内容过滤（<50 字符跳过）→ 标记 role='assistant' → 提取知识
+
+### before_message_write
+
+AI 回复发送前触发（同步钩子）。
 
 ```typescript
-function createEmbedFn(config: { apiKey: string; baseURL: string; model: string }): EmbedFn | null
+function before_message_write(event: any, ctx: any): any
 ```
 
-### initDb
-Initializes the database with required schema.
+**执行：** 从缓存获取记忆上下文 → 附加到事件对象
+
+### session_start
+
+新会话开始时触发。
 
 ```typescript
-function initDb(dbPath: string): DatabaseSyncInstance
+async function session_start(event: any, ctx: any): Promise<void>
 ```
 
-## Events
+**执行：** 会话初始化 + 记忆预加载/预热缓存
 
-The ContextEngine emits the following events:
+### session_end
 
-### 'knowledge-extracted'
-Emitted when knowledge is extracted from a conversation.
+会话结束时触发。
 
 ```typescript
-engine.on('knowledge-extracted', (data: {
-  sessionId: string;
-  nodes: BmNode[];
-  edges: BmEdge[];
-  durationMs: number;
-}) => {
-  console.log(`Extracted ${data.nodes.length} nodes in session ${data.sessionId}`);
-});
+async function session_end(event: any, ctx: any): Promise<void>
 ```
 
-### 'memory-recalled'
-Emitted when memory recall is performed.
+**执行：** 会话反思 + 图维护流水线
 
-```typescript
-engine.on('memory-recalled', (data: {
-  query: string;
-  count: number;
-  durationMs: number;
-}) => {
-  console.log(`Recalled ${data.count} memories for query: ${data.query}`);
-});
-```
+---
 
-### 'fusion-completed'
-Emitted when fusion is completed.
+## 错误处理
 
-```typescript
-engine.on('fusion-completed', (data: {
-  sessionId: string;
-  merged: number;
-  linked: number;
-  durationMs: number;
-}) => {
-  console.log(`Fusion completed: ${data.merged} merged, ${data.linked} linked`);
-});
-```
+所有异步方法使用 try-catch 模式：
 
-### 'reflection-generated'
-Emitted when reflection is performed.
+| 方法 | 错误行为 |
+|------|---------|
+| `processTurn` | 单个节点/边插入失败不阻断流程，记录错误日志继续处理 |
+| `recall` | Scoped 召回为空时自动降级为全局召回 |
+| `performFusion` | 图谱未达规模时返回空结果（非错误） |
+| `reflectOnSession` | LLM 调用失败抛出异常 |
+| `performReasoning` | 召回节点不足时返回空数组（非错误） |
+| `runMaintenance` | 任一子步骤失败抛出异常 |
 
-```typescript
-engine.on('reflection-generated', (data: {
-  kind: 'turn' | 'session';
-  sessionId: string;
-  insights: ReflectionInsight[];
-}) => {
-  console.log(`Generated ${data.insights.length} insights`);
-});
-```
+**常见错误场景：**
 
-## Error Handling
+- **LLM 未配置** — `createCompleteFn` 返回 null，ContextEngine 使用 Mock（仅日志警告）
+- **Embedding 未配置** — `createEmbedFn` 返回 null，向量相关功能跳过
+- **数据库初始化失败** — 构造器抛出异常，需调用方处理
 
-All asynchronous methods may throw errors in the following situations:
-
-- **DatabaseError**: Issues with database operations
-- **ValidationError**: Invalid input parameters
-- **LLMError**: Issues with LLM API calls
-- **NetworkError**: Network connectivity issues
-- **ConfigError**: Invalid configuration
-
-Errors are typically subclasses of Error with specific error codes and messages. Always wrap calls in try-catch blocks in production code.
+> ⚠️ 系统没有定义特定的错误类型（如 `DatabaseError` / `ValidationError`）。所有异常均为标准 `Error` 对象，通过错误消息区分。

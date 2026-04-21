@@ -150,6 +150,15 @@ export class ContextEngine {
             "SELECT * FROM bm_nodes WHERE name = ? AND scope_session = ?"
           ).get(nodeData.name, params.sessionId) as BmNode | undefined;
           if (insertedNode) upsertedNodes.push(insertedNode);
+          
+          // Generate vector embeddings for the new node
+          if (insertedNode) {
+            try {
+              await this.recaller.syncEmbed(insertedNode);
+            } catch (embedError) {
+              console.warn(`[brain-memory] Failed to generate embeddings for node ${insertedNode.name}:`, embedError);
+            }
+          }
         } catch (error) {
           console.error(`[brain-memory] Failed to upsert node ${nodeData.name}:`, error);
           // Continue processing other nodes
@@ -257,29 +266,54 @@ export class ContextEngine {
 
   /**
    * Recall relevant knowledge for a query
+   *
+   * Memory belongs to the Agent/Workspace, not to individual Sessions.
+   * This method first tries to recall within the current agent/workspace scope,
+   * then falls back to cross-session recall if no results are found.
    */
   async recall(query: string, sessionId?: string, agentId?: string, workspaceId?: string): Promise<RecallResult> {
     try {
-      // Build scope filter based on provided IDs
       const excludeScopes: any[] = [];
       const includeScopes: any[] = [];
-      
-      if (sessionId || agentId || workspaceId) {
+
+      // Fix: Build scope filter by agent/workspace, NOT by sessionId.
+      // Memory should be shared across sessions for the same agent.
+      if (agentId || workspaceId) {
         includeScopes.push({
-          sessionId: sessionId || null,
+          sessionId: null,           // ← do NOT restrict by session
           agentId: agentId || null,
           workspaceId: workspaceId || null,
-          allowCrossScope: false,
+          allowCrossScope: true,
         });
       }
-      
+
+      // First attempt: scoped recall (by agent/workspace if available)
       const scopeFilter = {
         excludeScopes,
         includeScopes,
-        allowCrossScope: false,
+        allowCrossScope: includeScopes.length === 0, // no restrictions → recall everything
       };
-      
-      return await this.recaller.recall(query, scopeFilter);
+
+      let result = await this.recaller.recall(query, scopeFilter);
+
+      // Fallback: if no results from scoped recall, try cross-session recall
+      if (result.nodes.length === 0 && includeScopes.length > 0) {
+        if (process.env.BM_DEBUG) {
+          console.log(`[brain-memory] Scoped recall returned 0 nodes, falling back to cross-session recall`);
+        }
+        const fallbackFilter = {
+          excludeScopes: [],
+          includeScopes: [],
+          allowCrossScope: true,
+        };
+        result = await this.recaller.recall(query, fallbackFilter);
+      }
+
+      if (process.env.BM_DEBUG) {
+        console.log(`[brain-memory] Recall for "${query.substring(0, 50)}": ${result.nodes.length} nodes`);
+      }
+
+      return result;
     } catch (error) {
       console.error("[brain-memory] Failed to recall information:", error);
       throw new Error(`Recall failed: ${(error as Error).message}`);

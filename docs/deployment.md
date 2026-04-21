@@ -1,266 +1,320 @@
 # Deployment Guide
 
-This document provides instructions for deploying brain-memory in various environments.
+> 面向运维人员的部署操作文档。
 
-## Prerequisites
+---
 
-- Node.js 18 or higher
-- npm or yarn package manager
-- SQLite3 (usually bundled with Node.js)
+## 环境要求
 
-## Installation
+| 依赖 | 版本 | 说明 |
+|------|------|------|
+| **Node.js** | >= 18.0.0 | 来自 `package.json` 的 `engines` 字段 |
+| **npm** | 最新版 | 包管理器 |
+| **SQLite3** | 内置 | 通过 `@photostructure/sqlite` 内置，无需额外安装 |
 
-### From NPM
+---
+
+## 安装
+
+### 方式一：npm 安装
+
 ```bash
-npm install brain-memory
+npm install memory-likehuman-pro
 ```
 
-### From Source
+> npm 包仅包含编译后的 `dist/` 目录。
+
+### 方式二：Git 克隆（含源码和配置脚本）
+
 ```bash
 git clone https://github.com/DylingCreation/brain-memory.git
 cd brain-memory
 npm install
-npm run build
 ```
 
-## Configuration
+### 方式三：下载 ZIP
 
-### Environment Variables
+1. 访问 [GitHub 仓库](https://github.com/DylingCreation/brain-memory)
+2. 点击 **Code → Download ZIP**
+3. 解压后安装依赖
+
+---
+
+## 构建
+
 ```bash
-# Required
-BM_DB_PATH=./brain-memory.db
-OPENAI_API_KEY=your_openai_api_key
+# 清理 + 编译主代码
+npm run build
 
-# Optional
-BM_LLM_BASE_URL=https://api.openai.com/v1
-BM_LLM_MODEL=gpt-4o-mini
-BM_EMBEDDING_MODEL=text-embedding-3-small
-BM_RECALL_MAX_NODES=10
-BM_DECAY_ENABLED=true
+# 编译 OpenClaw 插件
+npm run build:plugin
+
+# 全部构建（清理 + 主代码 + 插件）
+npm run build:all
 ```
 
-### Programmatic Configuration
+构建产物输出到 `dist/` 目录。
+
+---
+
+## 配置
+
+### OpenClaw 集成（主场景）
+
+brain-memory 设计为 OpenClaw 插件使用。运行交互式配置向导：
+
+```bash
+node scripts/setup.js
+```
+
+脚本会自动将配置写入 `~/.openclaw/openclaw.json`。
+
+或手动在 `~/.openclaw/openclaw.json` 中添加：
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "brain-memory": {
+        "enabled": true,
+        "config": {
+          "llm": {
+            "apiKey": "your-api-key-here",
+            "baseURL": "https://your-ll-api-endpoint/v1",
+            "model": "your-model-name"
+          },
+          "embedding": {
+            "apiKey": "your-api-key-here",
+            "baseURL": "https://your-embedding-api-endpoint/v1",
+            "model": "your-embedding-model"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### 独立库使用
+
 ```typescript
-import { ContextEngine, DEFAULT_CONFIG } from 'brain-memory';
+import { ContextEngine, DEFAULT_CONFIG } from 'memory-likehuman-pro';
 
 const config = {
   ...DEFAULT_CONFIG,
-  dbPath: process.env.BM_DB_PATH || './brain-memory.db',
+  dbPath: './brain-memory.db',
   llm: {
-    apiKey: process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY,
-    baseURL: process.env.BM_LLM_BASE_URL || 'https://api.openai.com/v1',
-    model: process.env.BM_LLM_MODEL || 'gpt-4o-mini'
+    apiKey: 'your-api-key-here',
+    baseURL: 'https://your-ll-api-endpoint/v1',
+    model: 'your-model-name'
   },
   embedding: {
-    apiKey: process.env.OPENAI_API_KEY,
-    baseURL: process.env.BM_EMBEDDING_BASE_URL || 'https://api.openai.com/v1',
-    model: process.env.BM_EMBEDDING_MODEL || 'text-embedding-3-small'
-  },
-  recallMaxNodes: parseInt(process.env.BM_RECALL_MAX_NODES || '10'),
-  decay: {
-    ...DEFAULT_CONFIG.decay,
-    enabled: process.env.BM_DECAY_ENABLED === 'true'
+    apiKey: 'your-api-key-here',
+    baseURL: 'https://your-embedding-api-endpoint/v1',
+    model: 'your-embedding-model'
   }
 };
 
 const engine = new ContextEngine(config);
 ```
 
-## Deployment Scenarios
+---
 
-### Standalone Application
-Deploy as a library within your application:
+## 数据库
 
-```typescript
-import { ContextEngine } from 'brain-memory';
+### 默认路径
 
-class MyApplication {
-  private memory: ContextEngine;
-  
-  constructor() {
-    this.memory = new ContextEngine({
-      dbPath: './app-memory.db',
-      llm: {
-        apiKey: process.env.LLM_API_KEY!,
-        baseURL: process.env.LLM_BASE_URL!,
-        model: 'gpt-4o-mini'
-      }
-    });
-  }
-  
-  async processUserInput(input: string) {
-    // Use memory for context enhancement
-    const context = await this.memory.recall(input);
-    // Process with enhanced context
-    return await this.processWithMemory(input, context);
+| 场景 | 默认路径 |
+|------|---------|
+| OpenClaw 插件 | `~/.openclaw/brain-memory.db` |
+| 独立库使用 | 需在配置中指定 `dbPath` |
+
+### 自定义路径
+
+在配置中修改 `dbPath` 字段：
+
+```json
+{
+  "brain-memory": {
+    "config": {
+      "dbPath": "/data/brain-memory.db"
+    }
   }
 }
 ```
 
-### Microservice
-Deploy as a dedicated microservice:
+支持 `~` 路径展开（自动替换为 HOME 目录）。
 
-```dockerfile
-FROM node:18-alpine
+### 数据库特性
 
-WORKDIR /app
+| 特性 | 说明 |
+|------|------|
+| **WAL 模式** | 已启用（`PRAGMA journal_mode=WAL`），支持并发读写 |
+| **外键约束** | 已启用（`PRAGMA foreign_keys=ON`） |
+| **FTS5 索引** | 自动同步（通过触发器） |
+| **6 张表 + 8 个索引** | 完整的图存储 + 向量存储 + 全文检索 |
 
-COPY package*.json ./
-RUN npm ci --only=production
+### 备份
 
-COPY . .
+直接复制 SQLite 数据库文件即可：
 
-EXPOSE 3000
-
-CMD ["npm", "start"]
-```
-
-### Containerized Deployment
-Create a Docker container:
-
-```dockerfile
-FROM node:18-alpine
-
-# Install dependencies
-RUN apk add --no-cache sqlite
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install dependencies
-RUN npm ci --only=production
-
-# Copy application code
-COPY . .
-
-# Create directory for database
-RUN mkdir -p /data
-
-# Set environment variables
-ENV BM_DB_PATH=/data/memory.db
-
-# Expose port
-EXPOSE 3000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node healthcheck.js
-
-CMD ["npm", "start"]
-```
-
-## Production Considerations
-
-### Database Management
-- Regular backups of the SQLite database file
-- Monitor disk space usage
-- Consider WAL mode for concurrent access
-- Implement connection pooling for high-load scenarios
-
-### Performance Tuning
-```typescript
-const productionConfig = {
-  ...DEFAULT_CONFIG,
-  dbPath: '/persistent-storage/brain-memory.db',
-  recallMaxNodes: 20,           // Increase for richer context
-  fusion: {
-    ...DEFAULT_CONFIG.fusion,
-    similarityThreshold: 0.85,  // Adjust based on precision needs
-    minNodes: 50,               // Lower threshold for smaller graphs
-    minCommunities: 5           // Lower threshold for smaller graphs
-  },
-  decay: {
-    ...DEFAULT_CONFIG.decay,
-    enabled: true,
-    timeDecayHalfLifeDays: 30,   // Adjust based on domain
-    recencyHalfLifeDays: 7      // Adjust based on activity patterns
-  }
-};
-```
-
-### Monitoring and Logging
-Enable detailed logging in production:
-
-```typescript
-// Enable debug logging
-process.env.BM_DEBUG = 'true';
-
-// Log key events
-engine.on('memory-extracted', (data) => {
-  console.log(`Extracted ${data.count} memories for session ${data.sessionId}`);
-});
-
-engine.on('recall-executed', (data) => {
-  console.log(`Recall took ${data.durationMs}ms, returned ${data.count} results`);
-});
-```
-
-### Security Best Practices
-- Store API keys securely using environment variables or secret managers
-- Implement proper access controls for the database file
-- Validate all inputs before processing
-- Use HTTPS for API communications
-- Implement rate limiting for API calls
-
-## Scaling Strategies
-
-### Horizontal Scaling
-- Use separate databases per tenant with scope isolation
-- Implement load balancing across multiple instances
-- Use CDN for cached responses
-
-### Vertical Scaling
-- Optimize database queries and indexes
-- Increase memory allocation for vector operations
-- Use faster storage (SSD) for database files
-
-## Troubleshooting
-
-### Common Issues
-1. **Database Locked Errors**: Usually caused by concurrent access; ensure proper connection handling
-2. **High Memory Usage**: Large vector operations; consider batching or increasing heap size
-3. **Slow Queries**: Missing indexes; verify database schema
-
-### Debugging
-Enable debug mode:
 ```bash
-BM_DEBUG=true npm start
-```
+# 完整备份
+cp ~/.openclaw/brain-memory.db /backup/brain-memory-$(date +%Y%m%d).db
 
-Monitor database performance:
-```sql
--- Check for slow queries
-SELECT name, tbl_name, sql FROM sqlite_master WHERE type='index';
-
--- Analyze database
-ANALYZE;
-```
-
-## Maintenance
-
-### Backup Strategy
-Regularly backup the database file:
-```bash
-# Daily backup
-cp /data/brain-memory.db /backup/brain-memory-$(date +%Y%m%d).db
-
-# Compressed backup
+# 压缩备份
 gzip /backup/brain-memory-$(date +%Y%m%d).db
 ```
 
-### Cleanup Procedures
-```typescript
-// Run maintenance regularly
-setInterval(async () => {
-  await engine.runMaintenance();
-}, 24 * 60 * 60 * 1000); // Once per day
+> WAL 模式下建议同时备份 `-wal` 和 `-shm` 文件（如果存在）。
+
+---
+
+## 日志
+
+### 启用调试日志
+
+设置环境变量：
+
+```bash
+BM_DEBUG=true node your-app.js
+# 或 OpenClaw 环境中配置
 ```
 
-### Upgrade Process
-1. Stop the application
-2. Backup the database
-3. Update the package
-4. Run any required migration scripts
-5. Restart the application
+### 正常启动日志
+
+brain-memory 启动时会输出以下信息：
+
+```
+[brain-memory] Registering plugin with OpenClaw
+[brain-memory] Plugin initialized successfully
+[brain-memory] ContextEngine initialized with N existing nodes
+```
+
+| 日志信息 | 含义 |
+|---------|------|
+| `Plugin initialized successfully` | 插件初始化成功 |
+| `ContextEngine initialized with N existing nodes` | 加载已有 N 个记忆节点 |
+| `LLM not configured, some features will be disabled` | 未配置 LLM，部分功能被禁用 |
+| `Plugin disabled by configuration` | 插件被配置禁用 |
+
+### 运行时日志
+
+| 日志信息 | 含义 |
+|---------|------|
+| `Extracted N nodes, M edges` | 本轮提取结果 |
+| `Cached N memories for agent X` | 记忆缓存更新 |
+| `Recall for "...": N nodes` | 召回结果数量（BM_DEBUG） |
+| `Session started: X` / `Session ended: X` | 会话生命周期 |
+| `Maintenance completed` | 图维护完成 |
+| `AI reply extracted: N nodes, M edges` | AI 回复提取结果 |
+
+---
+
+## 生产环境建议
+
+### 配置调优
+
+```json
+{
+  "brain-memory": {
+    "config": {
+      "recallMaxNodes": 10,
+      "recallMaxDepth": 3,
+      "recallStrategy": "adaptive",
+      "decay": {
+        "enabled": true,
+        "recencyHalfLifeDays": 30,
+        "timeDecayHalfLifeDays": 60
+      },
+      "reflection": {
+        "turnReflection": false,
+        "sessionReflection": true
+      }
+    }
+  }
+}
+```
+
+**说明：**
+
+| 参数 | 建议 | 原因 |
+|------|------|------|
+| `recallMaxNodes` | 10-15 | 值过大会增加 Token 消耗 |
+| `recallMaxDepth` | 2-3 | 过大会增加图遍历计算量 |
+| `recallStrategy` | `adaptive` | 节点少时用 full，多时用 summary |
+| `decay.enabled` | `true` | 让低价值记忆自然衰减 |
+| `reflection.turnReflection` | `false` | 每轮都调用 LLM 会增加开销 |
+| `reflection.sessionReflection` | `true` | 会话结束时执行，开销可控 |
+
+### 定期维护
+
+建议定期调用 `runMaintenance()` 保持图谱健康：
+
+```typescript
+// 每天执行一次维护
+setInterval(async () => {
+  await engine.runMaintenance();
+}, 24 * 60 * 60 * 1000);
+```
+
+维护内容：去重 → 全局 PageRank → 社区检测 → 社区摘要。
+
+### 数据库文件保护
+
+- 限制数据库文件读取权限（`chmod 600`）
+- 定期备份数据库文件
+- 监控磁盘空间使用
+
+---
+
+## 安全注意事项
+
+| 事项 | 说明 |
+|------|------|
+| **API Key 保管** | 使用环境变量或密钥管理器，不要硬编码 |
+| **数据库文件权限** | 限制读取权限，防止未授权访问 |
+| **HTTPS** | LLM / Embedding API 调用使用 HTTPS 端点 |
+| **输入验证** | 节点类型、边类型、记忆分类在代码中已校验 |
+| **SQL 注入防护** | 所有数据库操作使用参数化查询（`?` 占位符） |
+
+---
+
+## 常见问题
+
+### 数据库锁定
+
+**症状：** 运行时报错 `database is locked`
+
+**原因：** 多个进程同时写入数据库
+
+**解决：** 确保单实例运行，或使用 WAL 模式（已默认启用）
+
+### Embedding 不可用
+
+**症状：** 向量搜索不工作
+
+**原因：** 未配置 Embedding API
+
+**解决：** 系统自动降级为 FTS5 全文检索。如需向量搜索，配置 `embedding.apiKey` 和 `embedding.baseURL`。
+
+### LLM 不可用
+
+**症状：** 知识提取不工作
+
+**原因：** 未配置 LLM API
+
+**解决：** 配置 `llm.apiKey` 和 `llm.baseURL`。未配置时系统使用 Mock（仅日志警告）。
+
+### 召回结果为空
+
+**原因：** 图谱中无相关记忆节点
+
+**解决：** 确保已有对话经过 `processTurn` 提取知识。检查 `recallMaxNodes` 和 `recallMaxDepth` 配置是否过低。
+
+### 数据库文件过大
+
+**解决：**
+1. 运行 `runMaintenance()` 执行去重和社区检测
+2. 开启 `decay.enabled` 让低价值记忆衰减
+3. 定期备份后可考虑重置数据库（清空后重新开始）
