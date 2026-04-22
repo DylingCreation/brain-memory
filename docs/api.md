@@ -1,133 +1,119 @@
-# API Reference
+# API Quick Reference
 
-## Core Modules
+> 所有公开 API 的快速参考。详细参数说明见 [API Reference](api-reference.md)。
 
-### ContextEngine
+---
 
-The main entry point for the brain-memory system.
+## ContextEngine
 
-#### Constructor
+统一上下文引擎，所有功能的入口点。
+
+**源码：** [src/engine/context.ts](../src/engine/context.ts)
+
+### 构造器
+
 ```typescript
 new ContextEngine(config: BmConfig)
 ```
 
-Creates a new instance of the context engine with the specified configuration.
+### 方法速查
 
-#### Methods
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| **processTurn** | `processTurn(params): Promise<{ extractedNodes, extractedEdges, reflections, workingMemory }>` | 处理对话轮次，提取知识 |
+| **recall** | `recall(query, sessionId?, agentId?, workspaceId?): Promise<RecallResult>` | 召回相关记忆 |
+| **performFusion** | `performFusion(sessionId?): Promise<FusionResult>` | 知识融合（合并重复节点） |
+| **reflectOnSession** | `reflectOnSession(sessionId, messages): Promise<ReflectionInsight[]>` | 会话反思 |
+| **performReasoning** | `performReasoning(query?): Promise<ReasoningConclusion[]>` | 推理引擎 |
+| **runMaintenance** | `runMaintenance(): Promise<void>` | 图维护（去重 + PageRank + 社区检测） |
+| **getWorkingMemoryContext** | `getWorkingMemoryContext(): string \| null` | 获取工作记忆上下文 |
+| **searchNodes** | `searchNodes(query, limit?): BmNode[]` | 直接搜索节点 |
+| **getAllActiveNodes** | `getAllActiveNodes(): BmNode[]` | 获取所有活跃节点 |
+| **getStats** | `getStats(): { nodeCount, edgeCount, sessionCount }` | 获取统计信息 |
+| **close** | `close(): void` | 关闭数据库连接 |
 
-##### process(params)
-Processes conversation messages and updates the memory system.
+---
 
-```typescript
-async process(params: {
-  messages: Array<{ role: 'user' | 'assistant'; content: string; turn_index?: number }>;
-  sessionId: string;
-}): Promise<ProcessResult>
-```
+## 工具函数
 
-Parameters:
-- `messages`: Array of conversation messages
-- `sessionId`: Unique identifier for the session
+### JSON 提取
 
-Returns: Process result containing extracted knowledge and context.
+| 函数 | 签名 | 说明 |
+|------|------|------|
+| **extractJson** | `extractJson(raw: string): string` | 从 LLM 响应中提取首个 JSON 对象 |
 
-##### recall(query, options?)
-Retrieves relevant knowledge based on the query.
+**源码：** [src/utils/json.ts](../src/utils/json.ts)
 
-```typescript
-async recall(query: string, options?: RecallOptions): Promise<RecallResult>
-```
+### 相似度计算
 
-Parameters:
-- `query`: Search query
-- `options`: Optional recall configuration
+| 函数 | 签名 | 说明 |
+|------|------|------|
+| **cosineSimilarity** | `cosineSimilarity(a: number[], b: number[]): number` | number[] 向量余弦相似度 |
+| **cosineSimilarityF32** | `cosineSimilarityF32(a: Float32Array, b: Float32Array): number` | Float32Array 向量余弦相似度 |
 
-Returns: Recall result with relevant nodes and edges.
+**源码：** [src/utils/similarity.ts](../src/utils/similarity.ts)
 
-##### maintain()
-Runs maintenance tasks including compaction, decay calculation, and community detection.
+### 文本处理
 
-```typescript
-async maintain(): Promise<MaintenanceResult>
-```
+| 函数 | 签名 | 说明 |
+|------|------|------|
+| **tokenize** | `tokenize(text: string): Set<string>` | Unicode 感知分词（支持中文） |
+| **jaccardSimilarity** | `jaccardSimilarity(a: Set<string>, b: Set<string>): number` | Jaccard 集合相似度 |
 
-Returns: Result of maintenance operations.
+**源码：** [src/utils/text.ts](../src/utils/text.ts)
 
-### Store Functions
+### XML 转义
 
-#### upsertNode(db, nodeData, sessionId)
-Creates or updates a memory node.
+| 函数 | 签名 | 说明 |
+|------|------|------|
+| **escapeXml** | `escapeXml(s: string): string` | 转义 `& < > "` 四个特殊字符 |
 
-```typescript
-upsertNode(
-  db: DatabaseSyncInstance,
-  nodeData: {
-    type: GraphNodeType;
-    category: MemoryCategory;
-    name: string;
-    description: string;
-    content: string;
-    temporalType?: 'static' | 'dynamic';
-  },
-  sessionId: string
-): { node: BmNode; isNew: boolean }
-```
+**源码：** [src/utils/xml.ts](../src/utils/xml.ts)
 
-#### searchNodes(db, query, limit?, scopeFilter?)
-Searches for nodes using full-text search.
+---
 
-```typescript
-searchNodes(
-  db: DatabaseSyncInstance,
-  query: string,
-  limit?: number,
-  scopeFilter?: ScopeFilter
-): BmNode[]
-```
+## 类型定义
 
-### Recaller
+### 核心类型
 
-Handles knowledge retrieval with dual-path approach.
+| 类型 | 说明 | 源码 |
+|------|------|------|
+| **BmConfig** | 完整配置对象 | [src/types.ts](../src/types.ts) |
+| **BmNode** | 记忆节点 | [src/types.ts](../src/types.ts) |
+| **BmEdge** | 知识边 | [src/types.ts](../src/types.ts) |
+| **RecallResult** | 召回结果 | [src/types.ts](../src/types.ts) |
+| **ExtractionResult** | 提取结果 | [src/types.ts](../src/types.ts) |
+| **FusionResult** | 融合结果 | [src/types.ts](../src/types.ts) |
+| **ReflectionInsight** | 反思洞察 | [src/types.ts](../src/types.ts) |
+| **ReflectionResult** | 反思结果 | [src/types.ts](../src/types.ts) |
+| **WorkingMemoryState** | 工作记忆状态 | [src/types.ts](../src/types.ts) |
+| **ReasoningConclusion** | 推理结论 | [src/types.ts](../src/types.ts) |
+| **ReasoningResult** | 推理结果 | [src/types.ts](../src/types.ts) |
+| **ScopeFilter** | 范围过滤器 | [src/types.ts](../src/types.ts) |
 
-#### recall(query, scopeFilter?)
-Main retrieval method.
+### 枚举常量
 
-```typescript
-async recall(
-  query: string,
-  scopeFilter?: ScopeFilter
-): Promise<RecallResult>
-```
+| 常量 | 值 | 说明 |
+|------|---|------|
+| **MEMORY_CATEGORIES** | `['profile','preferences','entities','events','tasks','skills','cases','patterns']` | 8 类记忆分类 |
+| **DEFAULT_CONFIG** | `BmConfig` | 默认配置对象 |
 
-### Extractor
+---
 
-Extracts structured knowledge from conversation messages.
+## OpenClaw 钩子
 
-#### extract(params)
-Extracts nodes and edges from conversation messages.
+brain-memory 作为 OpenClaw 插件自动注册的钩子函数。
 
-```typescript
-async extract(params: {
-  messages: Array<any>;
-  existingNames: string[];
-}): Promise<ExtractionResult>
-```
+**源码：** [openclaw-wrapper.ts](../openclaw-wrapper.ts)
 
-## Configuration
+| 钩子 | 触发时机 | 说明 |
+|------|---------|------|
+| **message_received** | 用户发送消息后 | 提取用户消息中的知识 |
+| **message_sent** | AI 回复发送后 | 提取 AI 回复中的建议/代码/承诺 |
+| **before_message_write** | AI 回复发送前 | 注入相关记忆到上下文 |
+| **session_start** | 新会话开始 | 预热记忆缓存 |
+| **session_end** | 会话结束 | 执行反思 + 图维护 |
 
-### BmConfig
+---
 
-Main configuration object with the following properties:
-
-- `engine`: Engine mode ('graph', 'vector', 'hybrid')
-- `storage`: Storage backend ('sqlite', 'lancedb')
-- `dbPath`: Database file path
-- `recallMaxNodes`: Maximum number of nodes to recall
-- `recallMaxDepth`: Maximum graph traversal depth
-- `recallStrategy`: Strategy for recall ('full', 'summary', 'adaptive', 'off')
-- `decay`: Decay configuration object
-- `noiseFilter`: Noise filtering configuration
-- `reflection`: Reflection system configuration
-- `workingMemory`: Working memory configuration
-- `fusion`: Knowledge fusion configuration
-- `reasoning`: Reasoning engine configuration
+> 详细参数说明、返回值字段、使用示例请参考 [API Reference](api-reference.md)。
