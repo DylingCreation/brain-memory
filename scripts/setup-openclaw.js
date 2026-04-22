@@ -53,7 +53,7 @@ async function setupOpenClawIntegration() {
       },
       embedding: {
         model: 'bge-m3:latest',
-        baseUrl: 'http://localhost:11434',
+        baseURL: 'http://localhost:11434',
         dimensions: 1024
       },
       engine: 'hybrid',

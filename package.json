@@ -10,7 +10,6 @@
     "like-human-brain-memory-setup": "./scripts/setup.js"
   },
   "scripts": {
-    "start": "tsx index.ts",
     "dev": "tsx watch index.ts",
     "test": "vitest",
     "test:unit": "vitest run tests/unit",
