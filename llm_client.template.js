@@ -7,10 +7,10 @@
 import { LLM_CONFIG } from './config.js';
 
 export async function createLLMClient() {
-  const { baseUrl, apiKey, model } = LLM_CONFIG;
+  const { baseURL, apiKey, model } = LLM_CONFIG;
   
   const callLLM = async (sysPrompt, userPrompt) => {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await fetch(`${baseURL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -41,11 +41,11 @@ export async function createLLMClient() {
 }
 
 export async function createEmbeddingClient() {
-  const { baseUrl, model } = EMBEDDING_CONFIG;
+  const { baseURL, model } = EMBEDDING_CONFIG;
   
   return async (text) => {
     try {
-      const response = await fetch(`${baseUrl}/api/embeddings`, {
+      const response = await fetch(`${baseURL}/api/embeddings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

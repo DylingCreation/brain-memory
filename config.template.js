@@ -6,7 +6,7 @@
 
 export const LLM_CONFIG = {
   // 替换为您的实际API基础URL
-  baseUrl: 'YOUR_LLM_BASE_URL_HERE',
+  baseURL: 'YOUR_LLM_BASE_URL_HERE',
   // 替换为您的实际API密钥
   apiKey: 'YOUR_API_KEY_HERE',
   // 替换为您的实际模型名称
@@ -17,5 +17,5 @@ export const EMBEDDING_CONFIG = {
   // 替换为您的实际嵌入模型名称
   model: 'YOUR_EMBEDDING_MODEL_HERE',
   // 替换为您的实际嵌入服务基础URL
-  baseUrl: 'YOUR_EMBEDDING_BASE_URL_HERE'
+  baseURL: 'YOUR_EMBEDDING_BASE_URL_HERE'
 };

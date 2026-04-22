@@ -9,6 +9,24 @@ All notable changes to the brain-memory project.
 
 ## [Unreleased]
 
+### Fixed
+- **🔴 Critical: `DEFAULT_CONFIG` mismatch causing first-load crash** — `openclaw-wrapper.ts` 使用了只有 7 个扁平字段的本地 `DEFAULT_CONFIG`，而 `ContextEngine` 需要完整的嵌套结构（`decay`、`reflection`、`workingMemory`、`fusion`、`reasoning`）。修复：改为从 `src/types.ts` import 完整 `DEFAULT_CONFIG`，确保所有嵌套字段在初始化时可用 (`openclaw-wrapper.ts`)
+- **🔴 Critical: `baseUrl` vs `baseURL` field name inconsistency** — `config.js` 和 `config.template.js` 使用 `baseUrl`（小写 url），但 `src/engine/llm.ts` 和 `src/engine/embed.ts` 读取 `baseURL`（大写 URL），导致 LLM 请求永远 fallback 到 `api.openai.com`。修复：所有配置文件统一使用 `baseURL` (`config.js`, `config.template.js`, `llm_client.template.js`)
+- **🟡 `maxRecallNodes` vs `recallMaxNodes` field name mismatch** — `openclaw-wrapper.ts` 的本地 `DEFAULT_CONFIG` 使用 `maxRecallNodes`，但 `BmConfig` 类型和 `Recaller` 使用 `recallMaxNodes`。修复：随 `DEFAULT_CONFIG` 统一一并修复 (`openclaw-wrapper.ts`)
+- **🟡 Lazy-init race condition across multiple hooks** — `message_received`、`message_sent`、`session_start`、`get_status` 四个 hook 各自独立创建 `pluginInstance`，存在并发创建多个 `ContextEngine` 实例的竞态风险。修复：新增 `initPromise` 守卫和 `ensurePluginInitialized()` 函数，确保全局只初始化一次 (`openclaw-wrapper.ts`)
+- **🟡 `BrainMemoryPluginConfig` extends `BmConfig` but received partial config** — 类型继承承诺包含完整 `BmConfig` 字段，但实际传入的是缩水版对象。修复：随 `DEFAULT_CONFIG` 统一一并修复 (`openclaw-wrapper.ts`)
+
+### Changed
+- **`openclaw-wrapper.ts` 初始化重构** — 移除冗余的 7 字段 `DEFAULT_CONFIG`，改用 `src/types.ts` 的完整版本；4 个 hook 的懒初始化统一收口到 `ensurePluginInitialized()` 函数
+
+### Removed
+- **`src/plugin/handler.ts`** — 190 行死代码，没有任何模块引用，删除 (`src/plugin/handler.ts`)
+- **`src/graph/community.ts.bak`** — 149 行备份文件，不应存在于源码目录 (`src/graph/community.ts.bak`)
+- **`src/engine/context.ts.backup`** — 513 行备份文件，不应存在于源码目录 (`src/engine/context.ts.backup`)
+
+### Security
+- **Hardcoded API key removed from `config.js`** — `apiKey` 从真实值 `sk-sp-876d...` 替换为占位符 `YOUR_API_KEY_HERE`，防止密钥泄露 (`config.js`)
+
 ### Added
 - **Bidirectional knowledge extraction** — new `message_sent` hook extracts knowledge from AI replies alongside user messages (`openclaw-wrapper.ts`)
 - **AI reply smart filtering** — skips AI replies under 50 characters to focus on valuable content
