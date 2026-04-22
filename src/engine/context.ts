@@ -130,16 +130,38 @@ export class ContextEngine {
         existingNames: existingNames,
       });
 
+      // Determine the source for the extracted nodes
+      const userMessages = normalizedMessages.filter(m => m.role === 'user');
+      const assistantMessages = normalizedMessages.filter(m => m.role === 'assistant');
+      
       // Upsert extracted nodes and edges
       const upsertedNodes: BmNode[] = [];
       for (const nodeData of extractionResult.nodes) {
         try {
+          // Determine source based on the messages that triggered this extraction
+          // If there were user messages in this turn, nodes are likely from user input
+          // If there were assistant messages, nodes are likely from AI response
+          // Default to 'user' if both present or neither
+          let source: "user" | "assistant" = "user";
+          if (assistantMessages.length > 0 && userMessages.length === 0) {
+            // Only assistant messages in this turn
+            source = "assistant";
+          } else if (userMessages.length > 0 && assistantMessages.length === 0) {
+            // Only user messages in this turn
+            source = "user";
+          } else if (assistantMessages.length > 0 && userMessages.length > 0) {
+            // Both present - determine based on which message triggered extraction
+            // For now, default to user if both present
+            source = "user";
+          }
+          
           upsertNode(this.db, {
             type: nodeData.type,
             category: nodeData.category,
             name: nodeData.name,
             description: nodeData.description,
             content: nodeData.content,
+            source,
             temporalType: nodeData.temporalType || "static",
             scopeSession: params.sessionId,
             scopeAgent: params.agentId,
@@ -234,6 +256,9 @@ export class ContextEngine {
 
       // Update working memory
       try {
+        const userMessages = params.messages.filter(m => m.role === "user");
+        const assistantMessages = params.messages.filter(m => m.role === "assistant");
+        
         this.workingMemory = updateWorkingMemory(
           this.workingMemory,
           this.config.workingMemory,
@@ -244,7 +269,8 @@ export class ContextEngine {
               type: n.type,
               content: n.content,
             })),
-            userMessage: params.messages.filter(m => m.role === "user").pop()?.content || "",
+            userMessage: userMessages.pop()?.content || "",
+            assistantMessage: assistantMessages.pop()?.content || "",
           }
         );
       } catch (error) {

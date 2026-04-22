@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS bm_nodes (
   access_count    INTEGER NOT NULL DEFAULT 0,
   last_accessed   INTEGER NOT NULL DEFAULT 0,
   temporal_type   TEXT NOT NULL DEFAULT 'static' CHECK(temporal_type IN ('static','dynamic')),
+  source          TEXT NOT NULL DEFAULT 'user' CHECK(source IN ('user', 'assistant')),
   -- Scope isolation fields
   scope_session   TEXT,
   scope_agent     TEXT,

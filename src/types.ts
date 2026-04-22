@@ -73,6 +73,8 @@ export interface BmNode {
   lastAccessedAt: number;
   /** Temporal: static facts vs dynamic info */
   temporalType: "static" | "dynamic";
+  /** Knowledge source: "user"=user message, "assistant"=AI reply */
+  source: "user" | "assistant";
   /** Scope isolation fields */
   scopeSession: string | null;
   scopeAgent: string | null;
@@ -112,6 +114,8 @@ export interface WorkingMemoryState {
   constraints: string[];
   /** 当前关注点（最近用户消息摘要） */
   attention: string;
+  /** AI 最近的承诺和行动 */
+  recentCommitments: string[];
   /** 最后更新时间 */
   updatedAt: number;
 }

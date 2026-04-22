@@ -27,6 +27,7 @@ function toNode(r: any): BmNode {
     importance: r.importance ?? 0.5, accessCount: r.access_count ?? 0,
     lastAccessedAt: r.last_accessed ?? 0,
     temporalType: (r.temporal_type ?? "static") as "static" | "dynamic",
+    source: r.source as "user" | "assistant",
     scopeSession: r.scope_session ?? null,
     scopeAgent: r.scope_agent ?? null,
     scopeWorkspace: r.scope_workspace ?? null,
@@ -83,7 +84,7 @@ export function allEdges(db: DatabaseSyncInstance): BmEdge[] {
 
 export function upsertNode(
   db: DatabaseSyncInstance,
-  c: { type: GraphNodeType; category: MemoryCategory; name: string; description: string; content: string; temporalType?: "static" | "dynamic"; scopeSession?: string | null; scopeAgent?: string | null; scopeWorkspace?: string | null },
+  c: { type: GraphNodeType; category: MemoryCategory; name: string; description: string; content: string; source: "user" | "assistant"; temporalType?: "static" | "dynamic"; scopeSession?: string | null; scopeAgent?: string | null; scopeWorkspace?: string | null },
   sessionId: string,
 ): { node: BmNode; isNew: boolean } {
   const name = normalizeName(c.name);
@@ -99,9 +100,9 @@ export function upsertNode(
     const desc = c.description.length > ex.description.length ? c.description : ex.description;
     const count = ex.validatedCount + 1;
     db.prepare(`UPDATE bm_nodes SET content=?, description=?, validated_count=?,
-      source_sessions=?, updated_at=?, category=?, temporal_type=?, scope_session=?, scope_agent=?, scope_workspace=? WHERE id=?`)
-      .run(content, desc, count, sessions, Date.now(), c.category, temporalType, scopeSession, scopeAgent, scopeWorkspace, ex.id);
-    return { node: { ...ex, content, description: desc, validatedCount: count, category: c.category, temporalType, scopeSession, scopeAgent, scopeWorkspace }, isNew: false };
+      source_sessions=?, updated_at=?, category=?, temporal_type=?, source=?, scope_session=?, scope_agent=?, scope_workspace=? WHERE id=?`)
+      .run(content, desc, count, sessions, Date.now(), c.category, temporalType, c.source, scopeSession, scopeAgent, scopeWorkspace, ex.id);
+    return { node: { ...ex, content, description: desc, validatedCount: count, category: c.category, temporalType, source: c.source, scopeSession, scopeAgent, scopeWorkspace }, isNew: false };
   }
 
   const id = uid("n");
@@ -109,10 +110,10 @@ export function upsertNode(
   db.prepare(`INSERT INTO bm_nodes
     (id, type, category, name, description, content, status, validated_count,
      source_sessions, pagerank, importance, access_count, last_accessed,
-     temporal_type, scope_session, scope_agent, scope_workspace, created_at, updated_at)
-    VALUES (?,?,?,?,?,?,'active',1,?,0,0.5,0,0,?,?,?,?,?,?)`)
+     temporal_type, source, scope_session, scope_agent, scope_workspace, created_at, updated_at)
+    VALUES (?,?,?,?,?,?,'active',1,?,0,0.5,0,0,?,?,?,?,?,?,?)`)
     .run(id, c.type, c.category, name, c.description, c.content,
-         JSON.stringify([sessionId]), temporalType, scopeSession, scopeAgent, scopeWorkspace, now, now);
+         JSON.stringify([sessionId]), temporalType, c.source, scopeSession, scopeAgent, scopeWorkspace, now, now);
   return { node: findByName(db, name)!, isNew: true };
 }
 

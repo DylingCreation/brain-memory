@@ -278,8 +278,15 @@ export async function message_sent(event: any, ctx: any) {
       role: 'assistant' as const,
     };
 
-    const result = await pluginInstance.handleMessage(aiMessage) as any;
-    console.debug(`[brain-memory] AI reply extracted: ${result?.extractedNodes?.length || 0} nodes, ${result?.extractedEdges?.length || 0} edges`);
+    // Use process.nextTick to ensure non-blocking extraction
+    process.nextTick(async () => {
+      try {
+        const result = await pluginInstance.handleMessage(aiMessage) as any;
+        console.debug(`[brain-memory] AI reply extracted: ${result?.extractedNodes?.length || 0} nodes, ${result?.extractedEdges?.length || 0} edges`);
+      } catch (error) {
+        console.error('[brain-memory] AI reply extraction failed:', error);
+      }
+    });
   } catch (error) {
     console.error('[brain-memory] AI reply extraction failed:', error);
   }

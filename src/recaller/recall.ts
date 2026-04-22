@@ -29,10 +29,10 @@ export class Recaller {
 
   setEmbedFn(fn: EmbedFn): void { this.embed = fn; }
 
-  async recall(query: string, scopeFilter?: ScopeFilter): Promise<RecallResult> {
+  async recall(query: string, scopeFilter?: ScopeFilter, sourceFilter?: "user" | "assistant" | "both"): Promise<RecallResult> {
     const limit = this.cfg.recallMaxNodes;
-    const precise = await this.recallPrecise(query, limit, scopeFilter);
-    const generalized = await this.recallGeneralized(query, limit, scopeFilter);
+    const precise = await this.recallPrecise(query, limit, scopeFilter, sourceFilter);
+    const generalized = await this.recallGeneralized(query, limit, scopeFilter, sourceFilter);
     const merged = this.mergeResults(precise, generalized);
 
     if (process.env.BM_DEBUG) {
@@ -44,7 +44,7 @@ export class Recaller {
   }
 
   /** 精确召回：向量/FTS5 → 社区扩展 → 图遍历 → PPR 排序 */
-  private async recallPrecise(query: string, limit: number, scopeFilter?: ScopeFilter): Promise<RecallResult> {
+  private async recallPrecise(query: string, limit: number, scopeFilter?: ScopeFilter, sourceFilter?: "user" | "assistant" | "both"): Promise<RecallResult> {
     let seeds: BmNode[] = [];
 
     if (this.embed) {
@@ -53,13 +53,13 @@ export class Recaller {
         const scored = vectorSearchWithScore(this.db, vec, Math.ceil(limit / 2), scopeFilter);
         seeds = scored.map(s => s.node);
         if (seeds.length < 2) {
-          const fts = searchNodes(this.db, query, limit, scopeFilter);
+          const fts = this.searchNodesWithSourceFilter(query, limit, scopeFilter, sourceFilter);
           const seen = new Set(seeds.map(n => n.id));
           seeds.push(...fts.filter(n => !seen.has(n.id)));
         }
-      } catch { seeds = searchNodes(this.db, query, limit, scopeFilter); }
+      } catch { seeds = this.searchNodesWithSourceFilter(query, limit, scopeFilter, sourceFilter); }
     } else {
-      seeds = searchNodes(this.db, query, limit, scopeFilter);
+      seeds = this.searchNodesWithSourceFilter(query, limit, scopeFilter, sourceFilter);
     }
 
     if (!seeds.length) return { nodes: [], edges: [], tokenEstimate: 0 };
@@ -77,13 +77,18 @@ export class Recaller {
     const candidateIds = nodes.map(n => n.id);
     const { scores: pprScores } = personalizedPageRank(this.db, seedIds, candidateIds, this.cfg);
 
-    const filtered = nodes
+    let filtered = nodes
       .sort((a, b) => {
         const scoreA = this.cfg.decay.enabled ? applyTimeDecay(pprScores.get(a.id) || 0, a, this.cfg.decay) : (pprScores.get(a.id) || 0);
         const scoreB = this.cfg.decay.enabled ? applyTimeDecay(pprScores.get(b.id) || 0, b, this.cfg.decay) : (pprScores.get(b.id) || 0);
         return scoreB - scoreA || b.validatedCount - a.validatedCount || b.updatedAt - a.updatedAt;
       })
       .slice(0, limit);
+      
+    // Apply source filter to the final results
+    if (sourceFilter && sourceFilter !== "both") {
+      filtered = filtered.filter(n => n.source === sourceFilter);
+    }
 
     // Update access counts for decay tracking
     if (this.cfg.decay.enabled) {
@@ -99,7 +104,7 @@ export class Recaller {
   }
 
   /** 泛化召回：社区向量匹配 → 成员 → 图遍历 → PPR 排序 */
-  private async recallGeneralized(query: string, limit: number, scopeFilter?: ScopeFilter): Promise<RecallResult> {
+  private async recallGeneralized(query: string, limit: number, scopeFilter?: ScopeFilter, sourceFilter?: "user" | "assistant" | "both"): Promise<RecallResult> {
     let seeds: BmNode[] = [];
 
     if (this.embed) {
@@ -114,9 +119,12 @@ export class Recaller {
     }
 
     if (!seeds.length) seeds = communityRepresentatives(this.db, 2);
-    // Filter generalized seeds by scope if needed
+    // Filter generalized seeds by scope and source if needed
     if (scopeFilter) {
       seeds = seeds.filter(n => matchesScope(n, scopeFilter));
+    }
+    if (sourceFilter && sourceFilter !== "both") {
+      seeds = seeds.filter(n => n.source === sourceFilter);
     }
     if (!seeds.length) return { nodes: [], edges: [], tokenEstimate: 0 };
 
@@ -187,6 +195,15 @@ export class Recaller {
       const vec = await this.embed(text);
       if (vec.length) saveVector(this.db, node.id, node.content, vec);
     } catch { /* 不影响主流程 */ }
+  }
+  
+  /** Helper method to search nodes with source filter */
+  private searchNodesWithSourceFilter(query: string, limit: number, scopeFilter?: ScopeFilter, sourceFilter?: "user" | "assistant" | "both"): BmNode[] {
+    const nodes = searchNodes(this.db, query, limit, scopeFilter);
+    if (sourceFilter && sourceFilter !== "both") {
+      return nodes.filter(n => n.source === sourceFilter);
+    }
+    return nodes;
   }
 }
 
