@@ -94,6 +94,7 @@ export function storeReflectionInsights(
         name,
         description,
         content,
+        source: "assistant", // Reflections are AI-generated insights
         temporalType: "static", // Reflection insights are stable
       }, sessionId);
 

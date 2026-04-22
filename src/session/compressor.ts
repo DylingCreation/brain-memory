@@ -8,6 +8,7 @@
 import type { DatabaseSyncInstance } from "@photostructure/sqlite";
 import type { BmConfig } from "../types";
 import type { CompleteFn } from "../engine/llm";
+import { smartTruncate } from "../utils/truncate";
 
 export interface SessionValue {
   sessionId: string;
@@ -63,7 +64,7 @@ export function evaluateSessionValue(
   return {
     sessionId,
     messageCount: messages,
-    estimatedTokens: messages * 50, // Rough estimate
+    estimatedTokens: messages * 50, // Rough estimate — kept for backward compat (no message content available here)
     knowledgeNodes: nodes,
     knowledgeEdges: edges,
     valueScore,
@@ -106,7 +107,19 @@ export async function compressSession(
 返回简洁的结构化摘要，不超过 500 字。`;
 
   try {
-    const summary = await llm(sysPrompt, text.slice(0, 8000)); // Limit input size
+    // #16 fix: keep head + tail instead of just head (decisions are often at the end)
+    const MAX_CHARS = 12000;
+    let sessionText: string;
+    if (text.length > MAX_CHARS) {
+      const headSize = Math.floor(MAX_CHARS * 0.3);
+      const tailSize = MAX_CHARS - headSize;
+      sessionText = text.slice(0, headSize) +
+        `\n\n--- [${text.length - MAX_CHARS} characters omitted for brevity] ---\n\n` +
+        text.slice(-tailSize);
+    } else {
+      sessionText = text;
+    }
+    const summary = await llm(sysPrompt, sessionText);
 
     // Store the compressed summary as a special node
     // All values are bound via parameterized query (? placeholders) — safe from SQL injection

@@ -3,6 +3,12 @@
  * 
  * Simple wrapper that provides the register/activate functions required by OpenClaw
  * while delegating functionality to the main BrainMemoryPlugin implementation.
+ *
+ * #8 fix (2026-04-25):
+ *  - Race condition: pluginInstance was assigned BEFORE init() completed.
+ *    Now it's assigned AFTER init() finishes, inside the guarded promise.
+ *  - All async hooks check initPromise first, not pluginInstance.
+ *  - Session memory cache bounded to 200 entries to prevent memory leak.
  */
 
 // Import the plugin implementation
@@ -24,27 +30,41 @@ interface SessionEvent {
   messages?: Message[];
 }
 
+// Import the full DEFAULT_CONFIG from types (contains all nested BmConfig fields)
+import { DEFAULT_CONFIG as FULL_DEFAULT_CONFIG } from './src/types';
+
 // Global plugin instance
 let pluginInstance: BrainMemoryPluginClass | null = null;
 
 // Store configuration globally for access in hooks
 let storedConfig: any = null;
 
-// Default configuration values
-const DEFAULT_CONFIG = {
-  enabled: true,
-  injectMemories: true,
-  extractMemories: true,
-  autoMaintain: true,
-  maxRecallNodes: 6,
-  recallMaxDepth: 3,
-  dbPath: `${process.env.HOME}/.openclaw/brain-memory.db`
-};
+// Initialization guard (#8 fix):
+// - initPromise: tracks the active initialization promise
+// - initComplete: tracks whether init() has FINISHED (not just started)
+// The old code assigned pluginInstance BEFORE await init() completed,
+// causing concurrent hooks to see a non-null instance that wasn't ready.
+let initPromise: Promise<void> | null = null;
+let initComplete = false;
 
 // Cache for storing retrieved memories.
 // Keyed by "agentId:workspaceId" (agent-level) to share memories across sessions.
 // Also keyed by sessionId for backward compatibility with existing cached data.
+// #8 fix: bounded cache to prevent memory leak from unbounded sessionId accumulation.
+const MEMORY_CACHE_MAX_SIZE = 200;
 const sessionMemoryCache = new Map<string, any>();
+
+/**
+ * Evict oldest cache entry if cache exceeds size limit.
+ * #8 fix: prevents memory leak from accumulating session IDs.
+ */
+function evictCacheIfNeeded(): void {
+  while (sessionMemoryCache.size > MEMORY_CACHE_MAX_SIZE) {
+    const oldest = sessionMemoryCache.keys().next().value;
+    if (oldest !== undefined) sessionMemoryCache.delete(oldest);
+    else break;
+  }
+}
 
 /**
  * Build a cache key for memory context.
@@ -52,6 +72,23 @@ const sessionMemoryCache = new Map<string, any>();
  */
 function memoryCacheKey(agentId: string, workspaceId: string): string {
   return `mem:${agentId}:${workspaceId}`;
+}
+
+/**
+ * Shared initialization guard — prevents concurrent lazy-init races.
+ * Called by any hook when pluginInstance is null.
+ *
+ * #8 fix: pluginInstance is assigned INSIDE the promise, AFTER init() completes.
+ * This eliminates the race window where concurrent hooks see a non-null but
+ * uninitialized instance.
+ */
+async function ensurePluginInitialized(): Promise<void> {
+  console.log('[brain-memory] Initializing plugin on first use');
+  const instance = createBrainMemoryPlugin(storedConfig);
+  await instance.init(); // ← init completes FIRST
+  pluginInstance = instance; // ← THEN assign (no race window)
+  initComplete = true;
+  console.log('[brain-memory] Plugin initialized successfully');
 }
 
 /**
@@ -74,9 +111,11 @@ export function register(api: any) {
     bmConfig.dbPath = bmConfig.dbPath.replace('~', process.env.HOME || '');
   }
   
-  // Store config globally for access in hook functions
-  // Merge with default values to ensure all required config options exist
-  storedConfig = { ...DEFAULT_CONFIG, ...bmConfig };
+  // Store config globally for access in hook functions.
+  // Merge with the FULL_DEFAULT_CONFIG from src/types.ts to ensure all
+  // nested fields (decay, reflection, workingMemory, fusion, reasoning, etc.)
+  // are present and won't cause runtime crashes in ContextEngine.
+  storedConfig = { ...FULL_DEFAULT_CONFIG, ...bmConfig };
   
   // Register hooks using api.on() as per OpenClaw requirements
   if (api?.on) {
@@ -99,16 +138,28 @@ export function register(api: any) {
 
 /**
  * Initialize the plugin
+ * 
+ * The `config` parameter comes from OpenClaw (merged from configSchema defaults + user overrides).
+ * Merge it with FULL_DEFAULT_CONFIG to ensure all nested fields are present.
  */
 export async function init(config: any) {
   try {
     console.log('[brain-memory] Initializing plugin...');
     
+    // Merge incoming config with full defaults to guarantee complete BmConfig structure.
+    // storedConfig from register() may differ if OpenClaw's configSchema is incomplete.
+    const mergedConfig = { ...FULL_DEFAULT_CONFIG, ...(config || {}) };
+    
+    // If register() already populated storedConfig, prefer it for consistency
+    // (register() has already merged full defaults with user overrides)
+    const effectiveConfig = storedConfig || mergedConfig;
+    
     // Create plugin instance
-    pluginInstance = createBrainMemoryPlugin(config);
+    pluginInstance = createBrainMemoryPlugin(effectiveConfig);
     
     // Initialize the plugin
     await pluginInstance.init();
+    initComplete = true;
     
     console.log('[brain-memory] Plugin initialized successfully');
     return { success: true, message: 'Plugin initialized successfully' };
@@ -147,6 +198,7 @@ export async function deactivate() {
     if (pluginInstance) {
       await pluginInstance.shutdown();
       pluginInstance = null;
+      initComplete = false;
     }
     
     console.log('[brain-memory] Plugin deactivated successfully');
@@ -164,25 +216,18 @@ export async function deactivate() {
  * Need to convert the parameters accordingly.
  */
 export async function message_received(event: any, ctx: any) {
-  // Lazy initialization - create and initialize plugin on first use
-  if (!pluginInstance) {
-    try {
-      console.log('[brain-memory] Initializing plugin on first use');
-      
-      // Use the config stored during registration
-      if (!storedConfig) {
-        console.error('[brain-memory] No config available for initialization');
-        return null;
-      }
-      
-      pluginInstance = createBrainMemoryPlugin(storedConfig);
-      await pluginInstance.init();
-      
-      console.log('[brain-memory] Plugin initialized successfully');
-    } catch (error) {
-      console.error('[brain-memory] Plugin initialization failed:', error);
+  // #8 fix: check initPromise first, not pluginInstance.
+  // Old code checked pluginInstance which was assigned BEFORE init() completed,
+  // creating a race window where concurrent hooks saw a ready-but-not-ready instance.
+  if (initPromise) {
+    await initPromise;
+  } else if (!pluginInstance) {
+    if (!storedConfig) {
+      console.error('[brain-memory] No config available for initialization');
       return null;
     }
+    initPromise = ensurePluginInitialized();
+    await initPromise;
   }
   
   try {
@@ -206,8 +251,10 @@ export async function message_received(event: any, ctx: any) {
         // Cache at agent level so new sessions can find memories
         const agentKey = memoryCacheKey(message.agentId || 'default-agent', message.workspaceId || 'default-workspace');
         sessionMemoryCache.set(agentKey, memoryContext);
+        evictCacheIfNeeded();
         // Also cache at session level for backward compatibility
         sessionMemoryCache.set(message.sessionId, memoryContext);
+        evictCacheIfNeeded();
         console.log(`[brain-memory] Cached ${memoryContext.relatedNodes.length} memories for agent ${message.agentId}`);
       } else {
         sessionMemoryCache.delete(message.sessionId);
@@ -240,18 +287,16 @@ export const handleMessage = message_received;
  * recommended, or committed to.
  */
 export async function message_sent(event: any, ctx: any) {
-  if (!pluginInstance) {
-    try {
-      if (!storedConfig) {
-        console.error('[brain-memory] No config for message_sent hook');
-        return;
-      }
-      pluginInstance = createBrainMemoryPlugin(storedConfig);
-      await pluginInstance.init();
-    } catch (error) {
-      console.error('[brain-memory] Plugin init failed in message_sent:', error);
+  // #8 fix: check initPromise first (same race condition guard as message_received)
+  if (initPromise) {
+    await initPromise;
+  } else if (!pluginInstance) {
+    if (!storedConfig) {
+      console.error('[brain-memory] No config for message_sent hook');
       return;
     }
+    initPromise = ensurePluginInitialized();
+    await initPromise;
   }
 
   if (!pluginInstance || !storedConfig?.extractMemories) return;
@@ -278,8 +323,15 @@ export async function message_sent(event: any, ctx: any) {
       role: 'assistant' as const,
     };
 
-    const result = await pluginInstance.handleMessage(aiMessage);
-    console.log(`[brain-memory] AI reply extracted: ${result?.extractedNodes?.length || 0} nodes, ${result?.extractedEdges?.length || 0} edges`);
+    // Use process.nextTick to ensure non-blocking extraction
+    process.nextTick(async () => {
+      try {
+        const result = await pluginInstance.handleMessage(aiMessage) as any;
+        console.debug(`[brain-memory] AI reply extracted: ${result?.extractedNodes?.length || 0} nodes, ${result?.extractedEdges?.length || 0} edges`);
+      } catch (error) {
+        console.error('[brain-memory] AI reply extraction failed:', error);
+      }
+    });
   } catch (error) {
     console.error('[brain-memory] AI reply extraction failed:', error);
   }
@@ -289,25 +341,16 @@ export async function message_sent(event: any, ctx: any) {
  * Handle session start
  */
 export async function session_start(event: any, ctx: any) {
-  // Lazy initialization
-  if (!pluginInstance) {
-    try {
-      console.log('[brain-memory] Initializing plugin on first use');
-      
-      // Use the config stored during registration
-      if (!storedConfig) {
-        console.error('[brain-memory] No config available for initialization');
-        return;
-      }
-      
-      pluginInstance = createBrainMemoryPlugin(storedConfig);
-      await pluginInstance.init();
-      
-      console.log('[brain-memory] Plugin initialized successfully');
-    } catch (error) {
-      console.error('[brain-memory] Plugin initialization failed:', error);
+  // #8 fix: check initPromise first
+  if (initPromise) {
+    await initPromise;
+  } else if (!pluginInstance) {
+    if (!storedConfig) {
+      console.error('[brain-memory] No config available for initialization');
       return;
     }
+    initPromise = ensurePluginInitialized();
+    await initPromise;
   }
   
   try {
@@ -330,6 +373,7 @@ export async function session_start(event: any, ctx: any) {
         if (existingCache) {
           // Reuse existing agent-level cache
           sessionMemoryCache.set(sessionEvent.sessionId, existingCache);
+          evictCacheIfNeeded();
           console.log(`[brain-memory] Preloaded ${existingCache.relatedNodes?.length || 0} memories for new session ${sessionEvent.sessionId}`);
         } else {
           // Query for any existing memories to warm up the cache
@@ -343,7 +387,9 @@ export async function session_start(event: any, ctx: any) {
           const memoryContext = await pluginInstance.getMemoryContext(warmupMsg);
           if (memoryContext && memoryContext.relatedNodes?.length > 0) {
             sessionMemoryCache.set(agentKey, memoryContext);
+            evictCacheIfNeeded();
             sessionMemoryCache.set(sessionEvent.sessionId, memoryContext);
+            evictCacheIfNeeded();
             console.log(`[brain-memory] Warmed up cache with ${memoryContext.relatedNodes.length} memories for new session`);
           }
         }
@@ -365,25 +411,16 @@ export const onSessionStart = session_start;
  * Handle session end
  */
 export async function session_end(event: any, ctx: any) {
-  // Lazy initialization
-  if (!pluginInstance) {
-    try {
-      console.log('[brain-memory] Initializing plugin on first use');
-      
-      // Use the config stored during registration
-      if (!storedConfig) {
-        console.error('[brain-memory] No config available for initialization');
-        return;
-      }
-      
-      pluginInstance = createBrainMemoryPlugin(storedConfig);
-      await pluginInstance.init();
-      
-      console.log('[brain-memory] Plugin initialized successfully');
-    } catch (error) {
-      console.error('[brain-memory] Plugin initialization failed:', error);
+  // #8 fix: check initPromise first
+  if (initPromise) {
+    await initPromise;
+  } else if (!pluginInstance) {
+    if (!storedConfig) {
+      console.error('[brain-memory] No config available for initialization');
       return;
     }
+    initPromise = ensurePluginInitialized();
+    await initPromise;
   }
   
   try {
@@ -414,6 +451,15 @@ export const onSessionEnd = session_end;
  * However, we can attach cached memories if available.
  */
 export function before_message_write(event: any, ctx: any) {
+  // Synchronous hook — cannot await initialization.
+  // #8 fix: only use cache if plugin is fully initialized (initComplete guard).
+  // This prevents reading stale/empty cache during the init race window.
+  if (!initComplete) {
+    // Plugin not yet initialized — just pass through without memory injection.
+    // This is safe: the hook is non-critical and will fire again on subsequent messages.
+    return event;
+  }
+  
   // Check if we have cached memories for this session
   const sessionId = ctx?.conversationId || 'default-session';
   let cachedMemoryContext = sessionMemoryCache.get(sessionId);
@@ -469,25 +515,17 @@ export async function getMemoryContext(message: any) {
  * Get plugin status
  */
 export async function get_status() {
-  if (!pluginInstance) {
+  // #8 fix: check initPromise first
+  if (initPromise) {
+    await initPromise;
+  } else if (!pluginInstance) {
     // Try lazy initialization for status check
-    try {
-      console.log('[brain-memory] Initializing plugin for status check');
-      
-      // Use the config stored during registration
-      if (!storedConfig) {
-        console.error('[brain-memory] No config available for initialization');
-        return { status: 'not initialized', enabled: false };
-      }
-      
-      pluginInstance = createBrainMemoryPlugin(storedConfig);
-      await pluginInstance.init();
-      
-      console.log('[brain-memory] Plugin initialized successfully for status check');
-    } catch (error) {
-      console.error('[brain-memory] Plugin initialization failed for status check:', error);
+    if (!storedConfig) {
+      console.error('[brain-memory] No config available for initialization');
       return { status: 'not initialized', enabled: false };
     }
+    initPromise = ensurePluginInitialized();
+    await initPromise;
   }
   
   try {
@@ -515,6 +553,8 @@ export async function shutdown() {
   try {
     await pluginInstance.shutdown();
     pluginInstance = null;
+    initComplete = false;
+    initPromise = null;
     return { success: true, message: 'Plugin shut down successfully' };
   } catch (error) {
     console.error('[brain-memory] Shutdown failed:', error);

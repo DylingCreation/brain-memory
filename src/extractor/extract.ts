@@ -11,7 +11,8 @@ import type { CompleteFn } from "../engine/llm";
 import { isNoise } from "../noise/filter";
 import { classifyTemporal } from "../temporal/classifier";
 import { normalizeName } from "../store/store";
-import { extractJson } from "../utils/json";
+import { extractJson, extractJsonTolerant } from "../utils/json";
+import { truncate } from "../utils/truncate";
 
 const VALID_NODE_TYPES = new Set(["TASK", "SKILL", "EVENT"]);
 const VALID_EDGE_TYPES = new Set(["USED_SKILL", "SOLVED_BY", "REQUIRES", "PATCHES", "CONFLICTS_WITH"]);
@@ -35,6 +36,10 @@ const EDGE_TO_CONSTRAINT: Record<string, Set<string>> = {
 
 const EXTRACT_SYS = `你是 brain-memory 知识提取引擎，从 AI Agent 对话中提取结构化知识。
 输出严格 JSON：{"nodes":[...],"edges":[...]}，不包含任何额外文字。
+## 格式要求（重要）
+- 使用双引号，不要使用单引号
+- 不要有尾随逗号（如 {"a":1,} 是错误的）
+- 所有字符串值必须用双引号包裹
 
 ## 节点提取（3 种图节点类型 × 8 类记忆分类）
 
@@ -97,32 +102,51 @@ export class Extractor {
   constructor(private cfg: BmConfig, private llm: CompleteFn) {}
 
   async extract(params: { messages: any[]; existingNames: string[] }): Promise<ExtractionResult> {
-    try {
-      // Noise filter: skip low-quality messages before extraction
-      const noiseCfg = this.cfg.noiseFilter;
-      const filtered = noiseCfg.enabled
-        ? params.messages.filter(m => {
-            const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
-            return !isNoise(text, noiseCfg);
-          })
-        : params.messages;
+    const maxRetries = 2;
+    const noiseCfg = this.cfg.noiseFilter;
+    const filtered = noiseCfg.enabled
+      ? params.messages.filter(m => {
+          const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+          return !isNoise(text, noiseCfg);
+        })
+      : params.messages;
 
-      if (filtered.length === 0) return { nodes: [], edges: [] };
+    if (filtered.length === 0) return { nodes: [], edges: [] };
 
-      const msgs = filtered
+    const userPrompt = `<Existing Nodes>\n${params.existingNames.join(", ") || "（无）"}\n\n<Conversation>\n${
+      filtered
         .map(m => `[${(m.role ?? "?").toUpperCase()} t=${m.turn_index ?? 0}]\n${
-          String(typeof m.content === "string" ? m.content : JSON.stringify(m.content)).slice(0, 800)
-        }`).join("\n\n---\n\n");
+          truncate(String(typeof m.content === "string" ? m.content : JSON.stringify(m.content)), 1200, "extract")
+        }`).join("\n\n---\n\n")
+    }`;
 
-      const raw = await this.llm(
-        EXTRACT_SYS,
-        `<Existing Nodes>\n${params.existingNames.join(", ") || "（无）"}\n\n<Conversation>\n${msgs}`,
-      );
-      return this.parseExtract(raw);
-    } catch (error) {
-      console.error("[brain-memory] Failed to extract knowledge:", error);
-      return { nodes: [], edges: [] }; // Return empty result on failure
+    let raw = "";
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        if (attempt === 0) {
+          raw = await this.llm(EXTRACT_SYS, userPrompt);
+        } else {
+          const fixPrompt = `上次输出 JSON 解析失败。请修正格式错误（确保双引号、无尾随逗号、完整闭合）并重新输出。原始对话：\n\n${userPrompt}`;
+          raw = await this.llm(EXTRACT_SYS, fixPrompt);
+        }
+        const result = this.parseExtract(raw);
+        if (result.nodes.length > 0 || result.edges.length > 0) {
+          return result;
+        }
+        return result;
+      } catch (error) {
+        if (attempt < maxRetries) {
+          console.warn(`[brain-memory] Extraction parse failed (attempt ${attempt + 1}/${maxRetries}), retrying...`);
+          continue;
+        }
+        console.warn("[brain-memory] All retries failed, attempting tolerant extraction...");
+        const tolerantResult = this.parseExtractTolerant(raw);
+        if (tolerantResult) return tolerantResult;
+        console.error("[brain-memory] Failed to extract knowledge after all attempts:", error);
+        return { nodes: [], edges: [] };
+      }
     }
+    return { nodes: [], edges: [] };
   }
 
   async finalize(params: { sessionNodes: any[]; graphSummary: string }): Promise<FinalizeResult> {
@@ -177,6 +201,45 @@ export class Extractor {
       return { nodes, edges };
     } catch (err) {
       throw new Error(`brain-memory extraction parse failed: ${err}\nraw: ${raw.slice(0, 200)}`);
+    }
+  }
+
+  /**
+   * #2 fix: Tolerant extraction using balanced-brace + auto-fix parser.
+   * Last-resort fallback when all retries fail.
+   */
+  private parseExtractTolerant(raw: string): ExtractionResult | null {
+    const json = extractJsonTolerant(raw);
+    if (!json) return null;
+    try {
+      const p = JSON.parse(json);
+      const nodes = (p.nodes ?? []).filter((n: any) => {
+        if (!n.name || !n.type || !n.content) return false;
+        if (!VALID_NODE_TYPES.has(n.type)) return false;
+        if (!n.description) n.description = "";
+        n.name = normalizeName(n.name);
+        if (!n.category || !VALID_CATEGORIES.has(n.category)) {
+          n.category = DEFAULT_CATEGORY[n.type] || "tasks";
+        }
+        return true;
+      });
+      for (const n of nodes) {
+        n.temporalType = classifyTemporal(n.content, n.description);
+      }
+      const nameToType = new Map<string, string>();
+      for (const n of nodes) nameToType.set(n.name, n.type);
+      const edges = (p.edges ?? [])
+        .filter((e: any) => e.from && e.to && e.type && e.instruction)
+        .map((e: any) => {
+          e.from = normalizeName(e.from);
+          e.to = normalizeName(e.to);
+          return correctEdgeType(e, nameToType);
+        })
+        .filter((e: any) => e !== null);
+      console.log(`[brain-memory] Tolerant extraction succeeded: ${nodes.length} nodes, ${edges.length} edges`);
+      return { nodes, edges };
+    } catch {
+      return null;
     }
   }
 

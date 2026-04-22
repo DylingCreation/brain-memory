@@ -560,6 +560,17 @@ Temporary Items
 # Database files
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 
 # Test artifacts
 test-results/
+
+# Internal working documents (methodology, decision logs, etc.)
+METHODOLOGY.md
+.devdocs/
+*.methodology.md
+DECISION_LOG.md
+QUALITY_REDLINE.md
+WORKFLOW.md
+llm-cost-analysis.md

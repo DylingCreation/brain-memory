@@ -27,6 +27,7 @@ function toNode(r: any): BmNode {
     importance: r.importance ?? 0.5, accessCount: r.access_count ?? 0,
     lastAccessedAt: r.last_accessed ?? 0,
     temporalType: (r.temporal_type ?? "static") as "static" | "dynamic",
+    source: r.source as "user" | "assistant",
     scopeSession: r.scope_session ?? null,
     scopeAgent: r.scope_agent ?? null,
     scopeWorkspace: r.scope_workspace ?? null,
@@ -83,11 +84,12 @@ export function allEdges(db: DatabaseSyncInstance): BmEdge[] {
 
 export function upsertNode(
   db: DatabaseSyncInstance,
-  c: { type: GraphNodeType; category: MemoryCategory; name: string; description: string; content: string; temporalType?: "static" | "dynamic"; scopeSession?: string | null; scopeAgent?: string | null; scopeWorkspace?: string | null },
+  c: { type: GraphNodeType; category: MemoryCategory; name: string; description: string; content: string; source: "user" | "assistant"; temporalType?: "static" | "dynamic"; scopeSession?: string | null; scopeAgent?: string | null; scopeWorkspace?: string | null },
   sessionId: string,
 ): { node: BmNode; isNew: boolean } {
   const name = normalizeName(c.name);
   const temporalType = c.temporalType ?? "static";
+  const source = c.source ?? "user";
   const scopeSession = c.scopeSession ?? sessionId;
   const scopeAgent = c.scopeAgent ?? null;
   const scopeWorkspace = c.scopeWorkspace ?? null;
@@ -99,9 +101,9 @@ export function upsertNode(
     const desc = c.description.length > ex.description.length ? c.description : ex.description;
     const count = ex.validatedCount + 1;
     db.prepare(`UPDATE bm_nodes SET content=?, description=?, validated_count=?,
-      source_sessions=?, updated_at=?, category=?, temporal_type=?, scope_session=?, scope_agent=?, scope_workspace=? WHERE id=?`)
-      .run(content, desc, count, sessions, Date.now(), c.category, temporalType, scopeSession, scopeAgent, scopeWorkspace, ex.id);
-    return { node: { ...ex, content, description: desc, validatedCount: count, category: c.category, temporalType, scopeSession, scopeAgent, scopeWorkspace }, isNew: false };
+      source_sessions=?, updated_at=?, category=?, temporal_type=?, source=?, scope_session=?, scope_agent=?, scope_workspace=? WHERE id=?`)
+      .run(content, desc, count, sessions, Date.now(), c.category, temporalType, source, scopeSession, scopeAgent, scopeWorkspace, ex.id);
+    return { node: { ...ex, content, description: desc, validatedCount: count, category: c.category, temporalType, source, scopeSession, scopeAgent, scopeWorkspace }, isNew: false };
   }
 
   const id = uid("n");
@@ -109,10 +111,10 @@ export function upsertNode(
   db.prepare(`INSERT INTO bm_nodes
     (id, type, category, name, description, content, status, validated_count,
      source_sessions, pagerank, importance, access_count, last_accessed,
-     temporal_type, scope_session, scope_agent, scope_workspace, created_at, updated_at)
-    VALUES (?,?,?,?,?,?,'active',1,?,0,0.5,0,0,?,?,?,?,?,?)`)
+     temporal_type, source, scope_session, scope_agent, scope_workspace, created_at, updated_at)
+    VALUES (?,?,?,?,?,?,'active',1,?,0,0.5,0,0,?,?,?,?,?,?,?)`)
     .run(id, c.type, c.category, name, c.description, c.content,
-         JSON.stringify([sessionId]), temporalType, scopeSession, scopeAgent, scopeWorkspace, now, now);
+         JSON.stringify([sessionId]), temporalType, source, scopeSession, scopeAgent, scopeWorkspace, now, now);
   return { node: findByName(db, name)!, isNew: true };
 }
 
@@ -173,16 +175,20 @@ export function updateAccess(db: DatabaseSyncInstance, nodeId: string): void {
 export function upsertEdge(
   db: DatabaseSyncInstance,
   e: { fromId: string; toId: string; type: EdgeType; instruction: string; condition?: string; sessionId: string },
-): void {
+): BmEdge {
   const ex = db.prepare("SELECT id FROM bm_edges WHERE from_id=? AND to_id=? AND type=?")
     .get(e.fromId, e.toId, e.type) as any;
+  const now = Date.now();
   if (ex) {
     db.prepare("UPDATE bm_edges SET instruction=? WHERE id=?").run(e.instruction, ex.id);
-    return;
+    return { ...toEdge(db.prepare("SELECT * FROM bm_edges WHERE id=?").get(ex.id) as any), isNew: false } as any;
   }
+  const id = uid("e");
   db.prepare(`INSERT INTO bm_edges (id, from_id, to_id, type, instruction, condition, session_id, created_at)
     VALUES (?,?,?,?,?,?,?,?)`)
-    .run(uid("e"), e.fromId, e.toId, e.type, e.instruction, e.condition ?? null, e.sessionId, Date.now());
+    .run(id, e.fromId, e.toId, e.type, e.instruction, e.condition ?? null, e.sessionId, now);
+  // Construct edge from known data — no SELECT roundtrip needed
+  return { id, fromId: e.fromId, toId: e.toId, type: e.type, instruction: e.instruction, condition: e.condition, sessionId: e.sessionId, createdAt: now } as BmEdge;
 }
 
 export function edgesFrom(db: DatabaseSyncInstance, id: string): BmEdge[] {
@@ -359,6 +365,16 @@ export function getCommunitySummary(db: DatabaseSyncInstance, id: string): Commu
   const r = db.prepare("SELECT * FROM bm_communities WHERE id=?").get(id) as any;
   if (!r) return null;
   return { id: r.id, summary: r.summary, nodeCount: r.node_count, createdAt: r.created_at, updatedAt: r.updated_at };
+}
+
+/** #10 fix: Batch fetch all community summaries in a single query */
+export function getAllCommunitySummaries(db: DatabaseSyncInstance): Map<string, CommunitySummary> {
+  const rows = db.prepare("SELECT * FROM bm_communities").all() as any[];
+  const map = new Map<string, CommunitySummary>();
+  for (const r of rows) {
+    map.set(r.id, { id: r.id, summary: r.summary, nodeCount: r.node_count, createdAt: r.created_at, updatedAt: r.updated_at });
+  }
+  return map;
 }
 
 export function pruneCommunitySummaries(db: DatabaseSyncInstance): number {

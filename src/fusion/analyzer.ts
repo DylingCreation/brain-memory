@@ -75,7 +75,10 @@ export function findFusionCandidates(
   const nodes = allActiveNodes(db);
   if (nodes.length < 10) return []; // Need enough nodes for meaningful pairs
 
-  const threshold = (cfg as any).fusion?.similarityThreshold ?? 0.75;
+  const threshold = cfg.fusion?.similarityThreshold ?? 0.75;
+  const namePreFilter = cfg.fusion?.namePreFilterThreshold ?? 0.2;  // #25
+  const nameWeight = cfg.fusion?.nameWeight ?? 0.6;                  // #25
+  const vectorWeight = cfg.fusion?.vectorWeight ?? 0.4;              // #25
   const candidates: FusionCandidate[] = [];
 
   // Phase 1: Name token overlap (cheap, no LLM)
@@ -83,14 +86,14 @@ export function findFusionCandidates(
     for (let j = i + 1; j < nodes.length; j++) {
       const a = nodes[i];
       const b = nodes[j];
-      
+
       if (!a || !b) continue;
 
       // Skip same-type check — different types shouldn't merge
       if (a.type !== b.type) continue;
 
       const nameScore = computeNameSimilarity(a?.name ?? "", b?.name ?? "");
-      if (nameScore < 0.2) continue; // Too dissimilar in name
+      if (nameScore < namePreFilter) continue; // #25 configurable pre-filter
 
       // Phase 2: Vector similarity (if embeddings available)
       let vectorScore = 0;
@@ -102,9 +105,9 @@ export function findFusionCandidates(
         }
       }
 
-      // Combined score: 60% name + 40% vector (if available)
+      // Combined score: configurable weights (#25)
       const combinedScore = vectorScore > 0
-        ? nameScore * 0.6 + vectorScore * 0.4
+        ? nameScore * nameWeight + vectorScore * vectorWeight
         : nameScore; // Fallback to name-only if no vectors
 
       if (combinedScore >= threshold) {
@@ -130,6 +133,7 @@ export async function decideFusion(
   llm: CompleteFn,
   candidates: FusionCandidate[],
   maxCandidates: number = 20,
+  autoMergeThreshold: number = 0.9,  // #25 configurable
 ): Promise<FusionCandidate[]> {
   const topCandidates = candidates.slice(0, maxCandidates);
 
@@ -144,8 +148,8 @@ export async function decideFusion(
       candidate.decision = decision.decision;
       candidate.reason = decision.reason;
     } catch {
-      // If LLM fails, default to merge for high-similarity pairs
-      candidate.decision = candidate.combinedScore > 0.9 ? "merge" : "none";
+      // If LLM fails, default to merge for high-similarity pairs (#25 configurable)
+      candidate.decision = candidate.combinedScore > autoMergeThreshold ? "merge" : "none";
       candidate.reason = "LLM unavailable, heuristic fallback";
     }
   }
@@ -218,7 +222,8 @@ export async function runFusion(
     return { candidates: [], merged: 0, linked: 0, durationMs: Date.now() - start };
   }
 
-  const decided = await decideFusion(llm, candidates);
+  const autoMergeThreshold = cfg.fusion?.autoMergeThreshold ?? 0.9;  // #25
+  const decided = await decideFusion(llm, candidates, 20, autoMergeThreshold);
   const { merged, linked } = executeFusion(db, decided, sessionId);
 
   return { candidates: decided, merged, linked, durationMs: Date.now() - start };

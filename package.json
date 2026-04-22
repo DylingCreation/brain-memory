@@ -1,6 +1,6 @@
 {
   "name": "memory-likehuman-pro",
-  "version": "0.1.3",
+  "version": "0.1.9",
   "description": "Unified knowledge graph + vector memory system for AI agents",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,7 +10,6 @@
     "like-human-brain-memory-setup": "./scripts/setup.js"
   },
   "scripts": {
-    "start": "tsx index.ts",
     "dev": "tsx watch index.ts",
     "test": "vitest",
     "test:unit": "vitest run tests/unit",
@@ -35,23 +34,27 @@
     "ai",
     "memory",
     "knowledge-graph",
-    "vector-database",
+    "vector-embedding",
     "context-management",
     "llm",
-    "typescript"
+    "openclaw-plugin",
+    "typescript",
+    "knowledge-extraction",
+    "working-memory"
   ],
   "author": "OpenClaw Team",
   "license": "MIT",
   "dependencies": {
     "@photostructure/sqlite": "^1.0.0",
-    "tsx": "^4.7.0"
+    "tsx": "^4.21.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "vitest": "^1.0.0",
-    "typescript": "^5.0.0",
+    "dotenv": "^17.4.2",
     "eslint": "^8.0.0",
-    "typedoc": "^0.25.0"
+    "typedoc": "^0.25.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -1,5 +1,5 @@
 /**
- * brain-memory — Working Memory Manager
+ * brain-memory - Working Memory Manager
  *
  * Tracks the current state of conversation focus without extra LLM calls.
  * Derived entirely from extraction results and user messages.
@@ -18,6 +18,7 @@ export function createWorkingMemory(): WorkingMemoryState {
     recentDecisions: [],
     constraints: [],
     attention: "",
+    recentCommitments: [],
     updatedAt: Date.now(),
   };
 }
@@ -26,14 +27,15 @@ export function createWorkingMemory(): WorkingMemoryState {
 
 /**
  * Update working memory state based on turn extraction results.
- * No LLM needed — derived entirely from structured extraction output.
+ * No LLM needed - derived entirely from structured extraction output.
  */
 export function updateWorkingMemory(
   state: WorkingMemoryState,
   cfg: WorkingMemoryConfig,
   params: {
-    extractedNodes: Array<{ name: string; category: string; type: string; content: string }>;
+    extractedNodes: Array<{ name: string; category: string; type: string; content: string }>;  
     userMessage: string;
+    assistantMessage?: string;
   },
 ): WorkingMemoryState {
   if (!cfg.enabled) return state;
@@ -50,8 +52,11 @@ export function updateWorkingMemory(
   }
 
   // 2. Update recent decisions from newly extracted nodes
-  // All extracted nodes represent recent decisions/learnings
-  const allNames = params.extractedNodes.map(n => n.name);
+  // #20 fix: only TASK and SKILL nodes represent decisions/learnings (not events, preferences, etc.)
+  const decisionNodes = params.extractedNodes.filter(n =>
+    n.type === "TASK" || n.type === "SKILL"
+  );
+  const allNames = decisionNodes.map(n => n.name);
   const newDecisions = allNames.filter(n => !state.recentDecisions.includes(n));
   state.recentDecisions = [...newDecisions, ...state.recentDecisions]
     .filter((v, i, a) => a.indexOf(v) === i)
@@ -68,9 +73,22 @@ export function updateWorkingMemory(
       .slice(0, cfg.maxConstraints);
   }
 
-  // 4. Update attention from user message (lightweight cleanup)
+  // 4. Update recent commitments from assistant messages
+  if (params.assistantMessage) {
+    // Extract potential commitments from assistant message
+    const commitments = extractCommitments(params.assistantMessage);
+    if (commitments.length > 0) {
+      const newCommitments = commitments.filter(c => !state.recentCommitments.includes(c));
+      state.recentCommitments = [...newCommitments, ...state.recentCommitments]
+        .filter((v, i, a) => a.indexOf(v) === i)
+        .slice(0, cfg.maxDecisions); // reuse maxDecisions for max commitments
+    }
+  }
+
+  // 5. Update attention from user message (lightweight cleanup)
+  // #17 fix: increase from 200 to 500 and truncate at sentence boundary
   if (params.userMessage) {
-    state.attention = cleanUserMessage(params.userMessage, 200);
+    state.attention = cleanUserMessage(params.userMessage, 500);
   }
 
   state.updatedAt = now;
@@ -94,6 +112,10 @@ export function buildWorkingMemoryContext(state: WorkingMemoryState): string | n
     parts.push(`## Constraints & Preferences\n${state.constraints.map(c => `- ${c}`).join("\n")}`);
   }
 
+  if (state.recentCommitments.length > 0) {
+    parts.push(`## Recent Commitments\n${state.recentCommitments.map(c => `- ${c}`).join("\n")}`);
+  }
+
   if (state.attention) {
     parts.push(`## Current Focus\n${state.attention}`);
   }
@@ -113,16 +135,56 @@ function cleanUserMessage(raw: string, maxLen: number): string {
   text = text.replace(/^\/\w+\s+/, "").trim();
   text = text.replace(/^\[[\w\s\-:]+\]\s*/, "").trim();
 
-  // Remove code blocks (keep the intent, not the code)
-  const fenceStart = text.indexOf("```");
-  if (fenceStart >= 0) {
-    text = text.slice(0, fenceStart).trim();
-  }
+  // Remove code blocks but KEEP text after them (the intent might be after the code)
+  const fenceRegex = /```[\s\S]*?```/g;
+  text = text.replace(fenceRegex, '[CODE]').trim();
 
-  // Truncate
+  // #17 fix: truncate at sentence boundary instead of hard cut
   if (text.length > maxLen) {
-    text = text.slice(0, maxLen - 3) + "...";
+    let cutPoint = maxLen;
+    // Try sentence boundary
+    for (let i = cutPoint; i > maxLen * 0.5; i--) {
+      if (/[.!?。！？]/.test(text[i]) && (i + 1 >= text.length || /\s/.test(text[i + 1]))) {
+        cutPoint = i + 1;
+        break;
+      }
+    }
+    text = text.slice(0, cutPoint).trim() + '...';
   }
 
   return text;
+}
+
+/**
+ * Extract potential commitments from assistant messages
+ * Looks for keywords that indicate promises, recommendations, or future actions
+ */
+function extractCommitments(text: string): string[] {
+  const lowerText = text.toLowerCase();
+  const commitments: string[] = [];
+  
+  // Keywords that often precede commitments
+  const commitmentKeywords = [
+    "i will", "i'll", "i would", "should", "recommend", "suggest", "propose", 
+    "plan to", "going to", "intend to", "promise", "guarantee", "assure",
+    "let me", "let's", "help you", "assist with", "take care of",
+    "look into", "investigate", "check", "find", "search"
+  ];
+  
+  for (const keyword of commitmentKeywords) {
+    if (lowerText.includes(keyword)) {
+      // Extract the sentence containing the keyword
+      const sentences = text.split(/[.!?]+/);
+      for (const sentence of sentences) {
+        if (sentence.toLowerCase().includes(keyword) && sentence.trim().length > 0) {
+          const cleaned = sentence.trim();
+          if (!commitments.includes(cleaned)) {
+            commitments.push(cleaned);
+          }
+        }
+      }
+    }
+  }
+  
+  return commitments;
 }

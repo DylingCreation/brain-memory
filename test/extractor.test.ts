@@ -45,9 +45,12 @@ describe("parseExtract — JSON parsing", () => {
     expect(result.nodes).toEqual([]);
   });
 
-  it("throws on invalid JSON", async () => {
+  it("returns empty result on invalid JSON (graceful degradation — #2 fix)", async () => {
     const ex = new Extractor(DEFAULT_CONFIG, mockLlm("not json at all"));
-    await expect(ex.extract({ messages: [userMsg], existingNames: [] })).rejects.toThrow();
+    const result = await ex.extract({ messages: [userMsg], existingNames: [] });
+    // With #2 retry + tolerant extraction, invalid JSON no longer throws.
+    // Instead, it gracefully degrades to empty results.
+    expect(result).toEqual({ nodes: [], edges: [] });
   });
 });
 

@@ -7,10 +7,12 @@
 
 import { type DatabaseSyncInstance } from "@photostructure/sqlite";
 import type { BmNode, BmEdge } from "../types";
-import { getCommunitySummary, getEpisodicMessages } from "../store/store";
+import { getCommunitySummary, getAllCommunitySummaries, getEpisodicMessages } from "../store/store";
 import { escapeXml } from "../utils/xml";
+import { truncate } from "../utils/truncate";
+import { estimateNodeTokens } from "../utils/tokens";
 
-const CHARS_PER_TOKEN = 3;
+const CHARS_PER_TOKEN = 3; // kept for backward compat; use estimateNodeTokens for new code
 
 export function buildSystemPromptAddition(params: {
   selectedNodes: Array<{ type: string; src: "active" | "recalled" }>;
@@ -83,9 +85,8 @@ export function assembleContext(
     let usedTokens = 0;
     const budget = params.tokenBudget;
     for (const n of sorted) {
-      const nodeTokens = Math.ceil(
-        (n.name.length + n.description.length + n.content.length) / CHARS_PER_TOKEN,
-      );
+      // #21 fix: use language-aware token estimation
+      const nodeTokens = estimateNodeTokens(n);
       if (usedTokens + nodeTokens > budget && selected.length > 0) break;
       selected.push(n);
       usedTokens += nodeTokens;
@@ -117,16 +118,19 @@ export function assembleContext(
     }
   }
 
+  // #10 fix: Batch fetch all community summaries in one query instead of N separate queries
+  const communitySummaries = getAllCommunitySummaries(db);
+
   const xmlParts: string[] = [];
   for (const [cid, members] of byCommunity) {
-    const summary = getCommunitySummary(db, cid);
+    const summary = communitySummaries.get(cid);
     const label = summary ? escapeXml(summary.summary) : cid;
     xmlParts.push(`  <community id="${cid}" desc="${label}">`);
     for (const n of members) {
       const tag = n.type.toLowerCase();
       const srcAttr = n.src === "recalled" ? ` source="recalled"` : "";
       const timeAttr = ` updated="${new Date(n.updatedAt).toISOString().slice(0, 10)}"`;
-      xmlParts.push(`    <${tag} name="${n.name}" desc="${escapeXml(n.description)}"${srcAttr}${timeAttr}>\n${n.content.trim()}\n    </${tag}>`);
+      xmlParts.push(`    <${tag} name="${escapeXml(n.name)}" desc="${escapeXml(n.description)}"${srcAttr}${timeAttr}>\n${escapeXml(n.content.trim())}\n    </${tag}>`);
     }
     xmlParts.push(`  </community>`);
   }
@@ -135,7 +139,7 @@ export function assembleContext(
     const tag = n.type.toLowerCase();
     const srcAttr = n.src === "recalled" ? ` source="recalled"` : "";
     const timeAttr = ` updated="${new Date(n.updatedAt).toISOString().slice(0, 10)}"`;
-    xmlParts.push(`  <${tag} name="${n.name}" desc="${escapeXml(n.description)}"${srcAttr}${timeAttr}>\n${n.content.trim()}\n  </${tag}>`);
+    xmlParts.push(`  <${tag} name="${escapeXml(n.name)}" desc="${escapeXml(n.description)}"${srcAttr}${timeAttr}>\n${escapeXml(n.content.trim())}\n  </${tag}>`);
   }
 
   const nodesXml = xmlParts.join("\n");
@@ -188,8 +192,9 @@ export function assembleContext(
     const recentSessions = node.sourceSessions.slice(-2);
     const msgs = getEpisodicMessages(db, recentSessions, node.updatedAt, 500);
     if (!msgs.length) continue;
+    // #30 fix: use smart truncation instead of hard .slice(0, 200)
     const lines = msgs.map(m =>
-      `    [${m.role.toUpperCase()}] ${escapeXml(m.text.slice(0, 200))}`
+      `    [${m.role.toUpperCase()}] ${escapeXml(truncate(m.text, 400, "episodic"))}`
     ).join("\n");
     episodicParts.push(`  <trace node="${node.name}">\n${lines}\n  </trace>`);
   }
