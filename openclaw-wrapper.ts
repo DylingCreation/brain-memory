@@ -81,6 +81,7 @@ export function register(api: any) {
   // Register hooks using api.on() as per OpenClaw requirements
   if (api?.on) {
     api.on('message_received', message_received);
+    api.on('message_sent', message_sent);
     api.on('before_message_write', before_message_write);
     api.on('session_start', session_start);
     api.on('session_end', session_end);
@@ -226,6 +227,63 @@ export async function message_received(event: any, ctx: any) {
  * Handle incoming messages (alias for backward compatibility)
  */
 export const handleMessage = message_received;
+
+/**
+ * Handle outgoing (AI) messages — fires after AI sends a reply.
+ *
+ * OpenClaw's message_sent hook provides:
+ *   event: { to, content, success }
+ *   ctx:   { accountId, conversationId, channelId, ... }
+ *
+ * We extract knowledge from AI replies so the memory system knows
+ * not just what the user asked, but also what the AI answered,
+ * recommended, or committed to.
+ */
+export async function message_sent(event: any, ctx: any) {
+  if (!pluginInstance) {
+    try {
+      if (!storedConfig) {
+        console.error('[brain-memory] No config for message_sent hook');
+        return;
+      }
+      pluginInstance = createBrainMemoryPlugin(storedConfig);
+      await pluginInstance.init();
+    } catch (error) {
+      console.error('[brain-memory] Plugin init failed in message_sent:', error);
+      return;
+    }
+  }
+
+  if (!pluginInstance || !storedConfig?.extractMemories) return;
+
+  const content = event?.content;
+  if (!content || typeof content !== 'string') return;
+
+  // Skip very short replies (acknowledgments, emojis, etc.)
+  const trimmed = content.trim();
+  if (trimmed.length < 50) return;
+
+  const sessionId = ctx?.conversationId || 'default-session';
+  const agentId = ctx?.accountId || 'default-agent';
+  const workspaceId = 'default-workspace';
+
+  try {
+    // Process the AI reply with role='assistant' so the extractor
+    // knows this is AI-generated content (not user input)
+    const aiMessage = {
+      sessionId,
+      agentId,
+      workspaceId,
+      content: trimmed,
+      role: 'assistant' as const,
+    };
+
+    const result = await pluginInstance.handleMessage(aiMessage);
+    console.log(`[brain-memory] AI reply extracted: ${result?.extractedNodes?.length || 0} nodes, ${result?.extractedEdges?.length || 0} edges`);
+  } catch (error) {
+    console.error('[brain-memory] AI reply extraction failed:', error);
+  }
+}
 
 /**
  * Handle session start

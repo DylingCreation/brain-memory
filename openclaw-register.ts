@@ -15,6 +15,7 @@ export {
   activate, 
   deactivate,
   message_received,
+  message_sent,
   session_start,
   session_end,
   before_message_write,
