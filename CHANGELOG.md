@@ -9,99 +9,104 @@ All notable changes to the brain-memory project.
 
 ## [Unreleased]
 
+### Changed
+- **美化 `scripts/configure.js` 交互式配置向导** — 新增分步进度提示（Step 1/3）、4 种 LLM 预设（DashScope/OpenAI/Ollama/自定义）、彩色终端输出、配置预览卡片（API Key 脱敏）、写入前确认流程
+
+### Removed
+- **移除 `npm start` 命令** — OpenClaw 插件无需独立运行，保留 `npm run dev` 用于开发调试
+
 ### Fixed
-- **🔴 Critical: `init(config)` uses raw `config` parameter instead of merged defaults** — `init()` 直接使用 OpenClaw 传入的 `config` 参数，而不与 `storedConfig` 或 `FULL_DEFAULT_CONFIG` 合并。如果 OpenClaw 的 configSchema 不完整（确实如此），传入的 config 缺少 `decay`、`reflection`、`workingMemory` 等嵌套字段，导致初始化崩溃。修复：`init()` 现在将传入的 config 与 `FULL_DEFAULT_CONFIG` 合并，并优先使用 `register()` 阶段已合并的 `storedConfig` (`openclaw-wrapper.ts`)
-- **🔴 Critical: `DEFAULT_CONFIG` mismatch causing first-load crash** — `openclaw-wrapper.ts` 使用了只有 7 个扁平字段的本地 `DEFAULT_CONFIG`，而 `ContextEngine` 需要完整的嵌套结构（`decay`、`reflection`、`workingMemory`、`fusion`、`reasoning`）。修复：改为从 `src/types.ts` import 完整 `DEFAULT_CONFIG`，确保所有嵌套字段在初始化时可用 (`openclaw-wrapper.ts`)
-- **🔴 Critical: `baseUrl` vs `baseURL` field name inconsistency** — `config.js` 和 `config.template.js` 使用 `baseUrl`（小写 url），但 `src/engine/llm.ts` 和 `src/engine/embed.ts` 读取 `baseURL`（大写 URL），导致 LLM 请求永远 fallback 到 `api.openai.com`。修复：所有配置文件统一使用 `baseURL` (`config.js`, `config.template.js`, `llm_client.template.js`, `scripts/configure.js`)
-- **🟡 `openclaw.plugin.json` configSchema incomplete** — 缺少 `workingMemory`、`fusion`、`reasoning`、`noiseFilter`、`recallMaxNodes`、`recallMaxDepth` 等字段的默认值定义。修复：补全 configSchema，使其与 `src/types.ts` 的 `DEFAULT_CONFIG` 完全一致 (`openclaw.plugin.json`)
-- **🟡 `maxRecallNodes` vs `recallMaxNodes` field name mismatch** — `openclaw-wrapper.ts` 的本地 `DEFAULT_CONFIG` 使用 `maxRecallNodes`，但 `BmConfig` 类型和 `Recaller` 使用 `recallMaxNodes`。修复：随 `DEFAULT_CONFIG` 统一一并修复 (`openclaw-wrapper.ts`)
-- **🟡 Lazy-init race condition across multiple hooks** — `message_received`、`message_sent`、`session_start`、`get_status` 四个 hook 各自独立创建 `pluginInstance`，存在并发创建多个 `ContextEngine` 实例的竞态风险。修复：新增 `initPromise` 守卫和 `ensurePluginInitialized()` 函数，确保全局只初始化一次 (`openclaw-wrapper.ts`)
-- **🟡 `BrainMemoryPluginConfig` extends `BmConfig` but received partial config** — 类型继承承诺包含完整 `BmConfig` 字段，但实际传入的是缩水版对象。修复：随 `DEFAULT_CONFIG` 统一一并修复 (`openclaw-wrapper.ts`)
+- **`scripts/setup-openclaw.js`** — embedding 配置中 `baseUrl` → `baseURL`
+
+---
+
+## [0.1.7] — 2026-04-22
+
+### Fixed
+- **🔴 Critical: `init(config)` uses raw `config` instead of merged defaults** — `init()` 直接使用 OpenClaw 传入的 `config` 参数，而不与 `storedConfig` 或 `FULL_DEFAULT_CONFIG` 合并。如果 OpenClaw 的 configSchema 不完整，传入的 config 缺少 `decay`、`reflection`、`workingMemory` 等嵌套字段，导致初始化崩溃。修复：`init()` 现在将传入的 config 与 `FULL_DEFAULT_CONFIG` 合并，并优先使用 `register()` 阶段已合并的 `storedConfig` (`openclaw-wrapper.ts`)
+- **🔴 Critical: `DEFAULT_CONFIG` mismatch causing first-load crash** — `openclaw-wrapper.ts` 使用了只有 7 个扁平字段的本地 `DEFAULT_CONFIG`，而 `ContextEngine` 需要完整的嵌套结构。修复：改为从 `src/types.ts` import 完整 `DEFAULT_CONFIG` (`openclaw-wrapper.ts`)
+- **🔴 Critical: `baseUrl` vs `baseURL` field name inconsistency** — 配置文件使用 `baseUrl`（小写），但 `src/engine/llm.ts` 和 `src/engine/embed.ts` 读取 `baseURL`（大写），导致 LLM 请求永远 fallback 到 `api.openai.com`。修复：所有配置文件统一使用 `baseURL` (`config.js`, `config.template.js`, `llm_client.template.js`, `scripts/configure.js`)
+- **🟡 `openclaw.plugin.json` configSchema incomplete** — 缺少 `workingMemory`、`fusion`、`reasoning`、`noiseFilter`、`recallMaxNodes` 等字段的默认值。修复：补全 configSchema (`openclaw.plugin.json`)
+- **🟡 `maxRecallNodes` vs `recallMaxNodes` field name mismatch** — 修复字段名不一致 (`openclaw-wrapper.ts`)
+- **🟡 Lazy-init race condition** — 4 个 hook 各自独立创建 `pluginInstance`，存在并发创建多个 `ContextEngine` 实例的风险。修复：新增 `initPromise` 守卫和 `ensurePluginInitialized()` (`openclaw-wrapper.ts`)
+- **🟡 `BrainMemoryPluginConfig` extends `BmConfig` but received partial config** — 随 `DEFAULT_CONFIG` 统一一并修复 (`openclaw-wrapper.ts`)
 
 ### Changed
 - **`openclaw-wrapper.ts` 初始化重构** — 移除冗余的 7 字段 `DEFAULT_CONFIG`，改用 `src/types.ts` 的完整版本；`init()` 增加 config 合并逻辑；4 个 hook 的懒初始化统一收口到 `ensurePluginInitialized()` 函数
 - **`openclaw.plugin.json` configSchema 补全** — 新增 `workingMemory`、`fusion`、`reasoning`、`noiseFilter`、`recallMaxNodes`、`recallMaxDepth`、`recallStrategy`、`dedupThreshold`、`pagerankDamping`、`pagerankIterations`、`compactTurnCount`、`rerank` 等字段的默认值定义
 
 ### Removed
-- **`src/plugin/handler.ts`** — 190 行死代码，没有任何模块引用，删除 (`src/plugin/handler.ts`)
-- **`src/graph/community.ts.bak`** — 149 行备份文件，不应存在于源码目录 (`src/graph/community.ts.bak`)
-- **`src/engine/context.ts.backup`** — 513 行备份文件，不应存在于源码目录 (`src/engine/context.ts.backup`)
+- **`src/plugin/handler.ts`** — 190 行死代码，没有任何模块引用，删除
+- **`src/graph/community.ts.bak`** — 149 行备份文件，删除
+- **`src/engine/context.ts.backup`** — 513 行备份文件，删除
 
 ### Security
-- **Hardcoded API key removed from `config.js`** — `apiKey` 从真实值 `sk-sp-876d...` 替换为占位符 `YOUR_API_KEY_HERE`，防止密钥泄露 (`config.js`)
+- **Hardcoded API key removed from `config.js`** — `apiKey` 从真实值替换为占位符 `YOUR_API_KEY_HERE`
 
-### Added
-- **Bidirectional knowledge extraction** — new `message_sent` hook extracts knowledge from AI replies alongside user messages (`openclaw-wrapper.ts`)
-- **AI reply smart filtering** — skips AI replies under 50 characters to focus on valuable content
-- **Role-differentiated processing** — user messages extract intent/preferences, AI replies extract suggestions/code/tools (`src/extractor/extract.ts`)
-- **Cross-session memory sharing** — agent-level cache allows new sessions to reuse historical memory (`openclaw-wrapper.ts`)
-- **Session warm-up** — preloads relevant memories on session start
+---
+
+## [0.1.6] — 2026-04-22
+
+### Fixed
+- **🔴 Critical: `DEFAULT_CONFIG` mismatch** — 首次加载崩溃，修复 register 阶段默认配置不完整
+- **🔴 Critical: `baseUrl` vs `baseURL`** — 配置文件字段名与读取端不一致
+- **🟡 `maxRecallNodes` vs `recallMaxNodes`** — 字段名不一致
+- **🟡 Lazy-init race condition** — 多 hook 并发初始化竞态
+- **🟡 Partial config type mismatch** — 类型继承与实际传入不一致
+
+### Changed
+- **`openclaw-wrapper.ts` 初始化重构** — 使用完整 `DEFAULT_CONFIG`，新增 `initPromise` 守卫
+
+### Removed
+- **死代码和备份文件** — `handler.ts` (190行)、`community.ts.bak` (149行)、`context.ts.backup` (513行)
+
+### Security
+- **Hardcoded API key removed** — `config.js` 中的真实 API Key 替换为占位符
 
 ---
 
 ## [0.1.3] — 2026-04-21
 
 ### Added
-- **OpenClaw plugin compatibility** — full plugin entry design with register/activate lifecycle (`openclaw-register.ts`, `openclaw-wrapper.ts`, `openclaw-plugin.ts`)
-- **Plugin hooks** — `message_received`, `before_message_write`, `session_start`, `session_end` registered via `api.on()` (`openclaw-wrapper.ts`)
+- **OpenClaw plugin compatibility** — full plugin entry design with register/activate lifecycle
+- **Plugin hooks** — `message_received`, `before_message_write`, `session_start`, `session_end`
 - **Plugin exports** — all OpenClaw plugin functions exported from `index.ts`
-- **Build config** — `tsconfig.plugin.json` added for plugin-specific compilation
+- **Build config** — `tsconfig.plugin.json`
 
 ### Changed
-- Plugin entry redesigned for OpenClaw compatibility — synchronous `register()` function required
-- Plugin hooks updated to match OpenClaw `api.on()` event system requirements
+- Plugin entry redesigned for OpenClaw compatibility
+- Plugin hooks updated to match OpenClaw `api.on()` event system
 
 ### Fixed
-- Critical OpenClaw plugin integration issues — config access in hook functions, vector embeddings, FTS5 search
-- Config defaults and sync hook issues
-- Cross-session memory recall broken for new sessions — fixed scope filter to use agent/workspace instead of session ID
-- Memory caching mechanism for session-based retrieval
+- Critical OpenClaw plugin integration issues
+- Cross-session memory recall broken for new sessions
+- Memory caching mechanism
 
 ---
 
 ## [0.1.2] — 2026-04-21
 
 ### Changed
-- Package renamed to `memory-likehuman-pro` v0.1.0 (`package.json`)
-- README updated with correct package name and configuration instructions
+- Package renamed to `memory-likehuman-pro` v0.1.0
 
 ---
 
 ## [0.1.1] — 2026-04-21
 
 ### Added
-- Interactive configuration script (`scripts/configure.js`) — generates `config.js`, `.env`, `llm_client.js`
-- OpenClaw integration script (`scripts/setup-openclaw.js`) — writes brain-memory config into `~/.openclaw/openclaw.json`
-- Configuration npm scripts: `npm run configure`, `npm run setup-openclaw`
-- Comprehensive documentation: `docs/architecture.md`, `docs/deployment.md`, `docs/security.md`, `docs/user-guide.md`, `docs/api-reference.md`
-- Performance benchmarking suite for vector search optimization
-- Test coverage for core modules
+- Interactive configuration script
+- OpenClaw integration script
+- Comprehensive documentation
+- Performance benchmarking suite
 
 ### Changed
 - Configuration system with better defaults
 - Memory decay and forgetting mechanisms refined
-- Knowledge extraction and recall algorithms improved
-- Database query efficiency enhanced with proper parameterization
-- TypeScript type safety improved across all modules
 
 ### Fixed
-- TypeScript compilation errors throughout the codebase
+- TypeScript compilation errors
 - Critical syntax errors in ContextEngine class
-- Vector search performance issues with large datasets
-- Database connection handling and resource management
-- Import statement issues causing build failures
-- Test configuration and dependency issues
-- Error handling in LLM and embedding integrations
-- PageRank implementation to properly handle config parameters
-- Duplicate function declarations in multiple modules
-- Undefined variable issues in several modules
-
-### Security
-- SQL injection prevention with parameterized queries
-- Input validation and sanitization
-- Scope-based data isolation
-- Credential handling and storage improvements
-- Hardcoded API key removed from LLM integration tests
+- Vector search performance issues
 
 ---
 
@@ -109,22 +114,21 @@ All notable changes to the brain-memory project.
 
 ### Added
 - Initial release of brain-memory unified knowledge system
-- **8-Category Memory System**: Profile, Preferences, Entities, Events, Tasks, Skills, Cases, Patterns
-- **Dual-Path Recall**: Combines graph traversal and vector similarity
-- **Memory Decay**: Weibull model for intelligent forgetting
-- **Scope Isolation**: Session/agent/workspace level data separation
-- **Knowledge Fusion**: Automatic duplicate detection and merging
-- **Reflection System**: Insight derivation from conversation history
-- **Working Memory**: Short-term context management
-- **Community Detection**: Label Propagation Algorithm for clustering
-- **Personalized PageRank**: Context-aware node ranking
-- Graph-based memory with 3 node types (TASK/SKILL/EVENT) and 5 edge types
-- Vector-based semantic search capabilities
-- Knowledge extraction from conversations with noise filtering
+- 8-Category Memory System
+- Dual-Path Recall
+- Memory Decay
+- Scope Isolation
+- Knowledge Fusion
+- Reflection System
+- Working Memory
+- Community Detection
+- Personalized PageRank
 
 ---
 
-[Unreleased]: https://github.com/DylingCreation/brain-memory/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/DylingCreation/brain-memory/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/DylingCreation/brain-memory/compare/v0.1.6...v0.1.7
+[0.1.6]: https://github.com/DylingCreation/brain-memory/compare/v0.1.5...v0.1.6
 [0.1.3]: https://github.com/DylingCreation/brain-memory/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/DylingCreation/brain-memory/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/DylingCreation/brain-memory/compare/v0.1.0...v0.1.1
