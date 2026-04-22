@@ -27,7 +27,7 @@ async function configureProject() {
   if (useDashScope.toLowerCase() === 'y') {
     console.log('\n请输入 DashScope 配置信息：');
     const apiKey = await askQuestion('API Key (sk-开头): ');
-    const baseUrl = await askQuestion('Base URL (默认: https://coding.dashscope.aliyuncs.com/v1): ') || 'https://coding.dashscope.aliyuncs.com/v1';
+    const baseURL = await askQuestion('Base URL (默认: https://coding.dashscope.aliyuncs.com/v1): ') || 'https://coding.dashscope.aliyuncs.com/v1';
     const model = await askQuestion('模型名称 (默认: qwen3.6-plus): ') || 'qwen3.6-plus';
     
     configContent = `/**
@@ -36,23 +36,23 @@ async function configureProject() {
  */
 
 export const LLM_CONFIG = {
-  baseUrl: '${baseUrl}',
+  baseURL: '${baseURL}',
   apiKey: '${apiKey}',
   model: '${model}'
 };
 
 export const EMBEDDING_CONFIG = {
   model: 'bge-m3:latest',
-  baseUrl: 'http://localhost:11434'
+  baseURL: 'http://localhost:11434'
 };
 `;
   } else {
     console.log('\n请输入自定义配置信息：');
-    const baseUrl = await askQuestion('LLM Base URL: ');
+    const baseURL = await askQuestion('LLM Base URL: ');
     const apiKey = await askQuestion('LLM API Key: ');
     const model = await askQuestion('LLM Model: ');
     const embedModel = await askQuestion('Embedding Model (默认: bge-m3:latest): ') || 'bge-m3:latest';
-    const embedBaseUrl = await askQuestion('Embedding Base URL (默认: http://localhost:11434): ') || 'http://localhost:11434';
+    const embedBaseURL = await askQuestion('Embedding Base URL (默认: http://localhost:11434): ') || 'http://localhost:11434';
     
     configContent = `/**
  * brain-memory 配置文件
@@ -60,14 +60,14 @@ export const EMBEDDING_CONFIG = {
  */
 
 export const LLM_CONFIG = {
-  baseUrl: '${baseUrl}',
+  baseURL: '${baseURL}',
   apiKey: '${apiKey}',
   model: '${model}'
 };
 
 export const EMBEDDING_CONFIG = {
   model: '${embedModel}',
-  baseUrl: '${embedBaseUrl}'
+  baseURL: '${embedBaseURL}'
 };
 `;
   }
@@ -95,10 +95,10 @@ DASHSCOPE_MODEL=${useDashScope.toLowerCase() === 'y' ? 'qwen3.6-plus' : await as
 import { LLM_CONFIG, EMBEDDING_CONFIG } from './config.js';
 
 export async function createLLMClient() {
-  const { baseUrl, apiKey, model } = LLM_CONFIG;
+  const { baseURL, apiKey, model } = LLM_CONFIG;
   
   const callLLM = async (sysPrompt, userPrompt) => {
-    const response = await fetch(\`\${baseUrl}/chat/completions\`, {
+    const response = await fetch(\`\${baseURL}/chat/completions\`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -129,11 +129,11 @@ export async function createLLMClient() {
 }
 
 export async function createEmbeddingClient() {
-  const { baseUrl, model } = EMBEDDING_CONFIG;
+  const { baseURL, model } = EMBEDDING_CONFIG;
   
   return async (text) => {
     try {
-      const response = await fetch(\`\${baseUrl}/api/embeddings\`, {
+      const response = await fetch(\`\${baseURL}/api/embeddings\`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

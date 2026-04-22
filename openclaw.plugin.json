@@ -94,6 +94,99 @@
           }
         }
       },
+      "reflection": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "turnReflection": {
+            "type": "boolean",
+            "default": false
+          },
+          "sessionReflection": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "noiseFilter": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "minContentLength": {
+            "type": "number",
+            "default": 10
+          }
+        }
+      },
+      "workingMemory": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "maxTasks": {
+            "type": "number",
+            "default": 3
+          },
+          "maxDecisions": {
+            "type": "number",
+            "default": 5
+          },
+          "maxConstraints": {
+            "type": "number",
+            "default": 5
+          }
+        }
+      },
+      "fusion": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "similarityThreshold": {
+            "type": "number",
+            "default": 0.75
+          },
+          "minNodes": {
+            "type": "number",
+            "default": 20
+          },
+          "minCommunities": {
+            "type": "number",
+            "default": 3
+          }
+        }
+      },
+      "reasoning": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "maxHops": {
+            "type": "number",
+            "default": 2
+          },
+          "maxConclusions": {
+            "type": "number",
+            "default": 3
+          },
+          "minRecallNodes": {
+            "type": "number",
+            "default": 3
+          }
+        }
+      },
       "decay": {
         "type": "object",
         "properties": {
@@ -111,22 +204,43 @@
           }
         }
       },
-      "reflection": {
+      "rerank": {
         "type": "object",
         "properties": {
           "enabled": {
             "type": "boolean",
-            "default": true
-          },
-          "turnReflection": {
-            "type": "boolean",
             "default": false
-          },
-          "sessionReflection": {
-            "type": "boolean",
-            "default": true
           }
         }
+      },
+      "compactTurnCount": {
+        "type": "number",
+        "default": 6
+      },
+      "recallMaxNodes": {
+        "type": "number",
+        "default": 6
+      },
+      "recallMaxDepth": {
+        "type": "number",
+        "default": 2
+      },
+      "recallStrategy": {
+        "type": "string",
+        "enum": ["full", "summary", "adaptive", "off"],
+        "default": "full"
+      },
+      "dedupThreshold": {
+        "type": "number",
+        "default": 0.9
+      },
+      "pagerankDamping": {
+        "type": "number",
+        "default": 0.85
+      },
+      "pagerankIterations": {
+        "type": "number",
+        "default": 20
       }
     },
     "required": ["enabled"]

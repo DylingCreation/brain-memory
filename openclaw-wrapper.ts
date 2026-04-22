@@ -107,13 +107,24 @@ export function register(api: any) {
 
 /**
  * Initialize the plugin
+ * 
+ * The `config` parameter comes from OpenClaw (merged from configSchema defaults + user overrides).
+ * Merge it with FULL_DEFAULT_CONFIG to ensure all nested fields are present.
  */
 export async function init(config: any) {
   try {
     console.log('[brain-memory] Initializing plugin...');
     
+    // Merge incoming config with full defaults to guarantee complete BmConfig structure.
+    // storedConfig from register() may differ if OpenClaw's configSchema is incomplete.
+    const mergedConfig = { ...FULL_DEFAULT_CONFIG, ...(config || {}) };
+    
+    // If register() already populated storedConfig, prefer it for consistency
+    // (register() has already merged full defaults with user overrides)
+    const effectiveConfig = storedConfig || mergedConfig;
+    
     // Create plugin instance
-    pluginInstance = createBrainMemoryPlugin(config);
+    pluginInstance = createBrainMemoryPlugin(effectiveConfig);
     
     // Initialize the plugin
     await pluginInstance.init();

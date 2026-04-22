@@ -10,14 +10,17 @@ All notable changes to the brain-memory project.
 ## [Unreleased]
 
 ### Fixed
+- **🔴 Critical: `init(config)` uses raw `config` parameter instead of merged defaults** — `init()` 直接使用 OpenClaw 传入的 `config` 参数，而不与 `storedConfig` 或 `FULL_DEFAULT_CONFIG` 合并。如果 OpenClaw 的 configSchema 不完整（确实如此），传入的 config 缺少 `decay`、`reflection`、`workingMemory` 等嵌套字段，导致初始化崩溃。修复：`init()` 现在将传入的 config 与 `FULL_DEFAULT_CONFIG` 合并，并优先使用 `register()` 阶段已合并的 `storedConfig` (`openclaw-wrapper.ts`)
 - **🔴 Critical: `DEFAULT_CONFIG` mismatch causing first-load crash** — `openclaw-wrapper.ts` 使用了只有 7 个扁平字段的本地 `DEFAULT_CONFIG`，而 `ContextEngine` 需要完整的嵌套结构（`decay`、`reflection`、`workingMemory`、`fusion`、`reasoning`）。修复：改为从 `src/types.ts` import 完整 `DEFAULT_CONFIG`，确保所有嵌套字段在初始化时可用 (`openclaw-wrapper.ts`)
-- **🔴 Critical: `baseUrl` vs `baseURL` field name inconsistency** — `config.js` 和 `config.template.js` 使用 `baseUrl`（小写 url），但 `src/engine/llm.ts` 和 `src/engine/embed.ts` 读取 `baseURL`（大写 URL），导致 LLM 请求永远 fallback 到 `api.openai.com`。修复：所有配置文件统一使用 `baseURL` (`config.js`, `config.template.js`, `llm_client.template.js`)
+- **🔴 Critical: `baseUrl` vs `baseURL` field name inconsistency** — `config.js` 和 `config.template.js` 使用 `baseUrl`（小写 url），但 `src/engine/llm.ts` 和 `src/engine/embed.ts` 读取 `baseURL`（大写 URL），导致 LLM 请求永远 fallback 到 `api.openai.com`。修复：所有配置文件统一使用 `baseURL` (`config.js`, `config.template.js`, `llm_client.template.js`, `scripts/configure.js`)
+- **🟡 `openclaw.plugin.json` configSchema incomplete** — 缺少 `workingMemory`、`fusion`、`reasoning`、`noiseFilter`、`recallMaxNodes`、`recallMaxDepth` 等字段的默认值定义。修复：补全 configSchema，使其与 `src/types.ts` 的 `DEFAULT_CONFIG` 完全一致 (`openclaw.plugin.json`)
 - **🟡 `maxRecallNodes` vs `recallMaxNodes` field name mismatch** — `openclaw-wrapper.ts` 的本地 `DEFAULT_CONFIG` 使用 `maxRecallNodes`，但 `BmConfig` 类型和 `Recaller` 使用 `recallMaxNodes`。修复：随 `DEFAULT_CONFIG` 统一一并修复 (`openclaw-wrapper.ts`)
 - **🟡 Lazy-init race condition across multiple hooks** — `message_received`、`message_sent`、`session_start`、`get_status` 四个 hook 各自独立创建 `pluginInstance`，存在并发创建多个 `ContextEngine` 实例的竞态风险。修复：新增 `initPromise` 守卫和 `ensurePluginInitialized()` 函数，确保全局只初始化一次 (`openclaw-wrapper.ts`)
 - **🟡 `BrainMemoryPluginConfig` extends `BmConfig` but received partial config** — 类型继承承诺包含完整 `BmConfig` 字段，但实际传入的是缩水版对象。修复：随 `DEFAULT_CONFIG` 统一一并修复 (`openclaw-wrapper.ts`)
 
 ### Changed
-- **`openclaw-wrapper.ts` 初始化重构** — 移除冗余的 7 字段 `DEFAULT_CONFIG`，改用 `src/types.ts` 的完整版本；4 个 hook 的懒初始化统一收口到 `ensurePluginInitialized()` 函数
+- **`openclaw-wrapper.ts` 初始化重构** — 移除冗余的 7 字段 `DEFAULT_CONFIG`，改用 `src/types.ts` 的完整版本；`init()` 增加 config 合并逻辑；4 个 hook 的懒初始化统一收口到 `ensurePluginInitialized()` 函数
+- **`openclaw.plugin.json` configSchema 补全** — 新增 `workingMemory`、`fusion`、`reasoning`、`noiseFilter`、`recallMaxNodes`、`recallMaxDepth`、`recallStrategy`、`dedupThreshold`、`pagerankDamping`、`pagerankIterations`、`compactTurnCount`、`rerank` 等字段的默认值定义
 
 ### Removed
 - **`src/plugin/handler.ts`** — 190 行死代码，没有任何模块引用，删除 (`src/plugin/handler.ts`)
