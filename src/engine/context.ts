@@ -23,11 +23,11 @@ import { initDb } from "../store/db";
 import { Extractor } from "../extractor/extract";
 import { Recaller } from "../recaller/recall";
 import { createCompleteFn } from "./llm";
-import { createEmbedFn } from "./embed";
+import { createEmbedFn, createBatchEmbedFn } from "./embed";
 import { runFusion } from "../fusion/analyzer";
 import { reflectOnTurn, reflectOnSession } from "../reflection/extractor";
 import { createWorkingMemory, updateWorkingMemory, buildWorkingMemoryContext } from "../working-memory/manager";
-import { upsertNode, upsertEdge, allActiveNodes, searchNodes } from "../store/store";
+import { upsertNode, upsertEdge, allActiveNodes, allEdges, searchNodes } from "../store/store";
 import { detectCommunities } from "../graph/community";
 import { computeGlobalPageRank } from "../graph/pagerank";
 import { runReasoning } from "../reasoning/engine";
@@ -69,11 +69,14 @@ export class ContextEngine {
     }
     
     let embed: any;
+    let batchEmbed: any;
     try {
       embed = createEmbedFn(config.embedding);
+      batchEmbed = createBatchEmbedFn(config.embedding);  // #12: batch embedding
     } catch (error) {
       console.error("[brain-memory] Failed to initialize embedding client:", error);
-      embed = null; // Allow graceful degradation
+      embed = null;
+      batchEmbed = null;
     }
     
     // Initialize components
@@ -82,6 +85,7 @@ export class ContextEngine {
       this.recaller = new Recaller(this.db, config);
       if (embed) {
         this.recaller.setEmbedFn(embed);
+        if (batchEmbed) this.recaller.setBatchEmbedFn(batchEmbed);  // #12
       }
     } catch (error) {
       console.error("[brain-memory] Failed to initialize components:", error);
@@ -173,17 +177,19 @@ export class ContextEngine {
           ).get(nodeData.name, params.sessionId) as BmNode | undefined;
           if (insertedNode) upsertedNodes.push(insertedNode);
           
-          // Generate vector embeddings for the new node
-          if (insertedNode) {
-            try {
-              await this.recaller.syncEmbed(insertedNode);
-            } catch (embedError) {
-              console.warn(`[brain-memory] Failed to generate embeddings for node ${insertedNode.name}:`, embedError);
-            }
-          }
+          // Embeddings deferred — batch embed after all nodes are upserted (#12)
         } catch (error) {
           console.error(`[brain-memory] Failed to upsert node ${nodeData.name}:`, error);
           // Continue processing other nodes
+        }
+      }
+
+      // #12: Batch embed all new nodes at once (reduces API calls)
+      if (upsertedNodes.length > 0) {
+        try {
+          await this.recaller.batchSyncEmbed(upsertedNodes);
+        } catch (embedError) {
+          console.warn(`[brain-memory] Batch embedding failed:`, embedError);
         }
       }
 
@@ -197,17 +203,14 @@ export class ContextEngine {
                         upsertedNodes.find(n => n.name === edgeData.to);
           
           if (fromNode && toNode) {
-            await upsertEdge(this.db, {
+            // #7 fix: upsertEdge now returns the edge directly, no SELECT roundtrip needed
+            const insertedEdge = upsertEdge(this.db, {
               fromId: fromNode.id,
               toId: toNode.id,
               type: edgeData.type,
               instruction: edgeData.instruction,
               sessionId: params.sessionId,
             });
-            // Get the edge back from the DB after upsert
-            const insertedEdge = await this.db.prepare(
-              "SELECT * FROM bm_edges WHERE from_id = ? AND to_id = ? AND type = ? AND session_id = ?"
-            ).get(fromNode.id, toNode.id, edgeData.type, params.sessionId) as BmEdge | undefined;
             if (insertedEdge) upsertedEdges.push(insertedEdge);
           }
         } catch (error) {
@@ -410,13 +413,14 @@ export class ContextEngine {
     }
     
     try {
-      // Get all active nodes for reasoning context
+      // Get all active nodes and edges for reasoning context
       const nodes = allActiveNodes(this.db);
+      const edges = allEdges(this.db);
       
       const reasoningResult = await runReasoning(
         createCompleteFn(this.config.llm)!,
         nodes,
-        [], // edges
+        edges, // #1 fix: pass actual edges instead of empty array
         query || "",
         this.config
       );

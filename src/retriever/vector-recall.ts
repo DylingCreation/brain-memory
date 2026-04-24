@@ -167,7 +167,11 @@ export class VectorRecaller {
     return results.sort((a, b) => b.fusedScore - a.fusedScore);
   }
 
+  // #21 fix: use language-aware token estimation
   private estimateTokens(nodes: BmNode[]): number {
-    return Math.ceil(nodes.reduce((s, n) => s + n.content.length + n.description.length, 0) / 3);
+    const chineseRatio = nodes.reduce((s, n) => s + (n.content.match(/[\u4e00-\u9fff]/g) || []).length, 0) /
+      nodes.reduce((s, n) => s + n.content.length, 1);
+    const charsPerToken = chineseRatio > 0.5 ? 1.8 : chineseRatio > 0.2 ? 2.5 : 3.5;
+    return Math.ceil(nodes.reduce((s, n) => s + n.content.length + n.description.length + n.name.length, 0) / charsPerToken) + nodes.length * 20;
   }
 }

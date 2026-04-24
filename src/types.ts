@@ -127,6 +127,11 @@ export interface FusionConfig {
   similarityThreshold: number;
   minNodes: number;
   minCommunities: number;
+  // #25: configurable fusion parameters
+  namePreFilterThreshold?: number;    // default 0.2
+  nameWeight?: number;                 // default 0.6
+  vectorWeight?: number;               // default 0.4
+  autoMergeThreshold?: number;         // default 0.9
 }
 
 // ─── 推理检索配置 ─────────────────────────────────────────────

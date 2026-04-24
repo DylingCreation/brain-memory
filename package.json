@@ -1,6 +1,6 @@
 {
   "name": "memory-likehuman-pro",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Unified knowledge graph + vector memory system for AI agents",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -34,10 +34,13 @@
     "ai",
     "memory",
     "knowledge-graph",
-    "vector-database",
+    "vector-embedding",
     "context-management",
     "llm",
-    "typescript"
+    "openclaw-plugin",
+    "typescript",
+    "knowledge-extraction",
+    "working-memory"
   ],
   "author": "OpenClaw Team",
   "license": "MIT",

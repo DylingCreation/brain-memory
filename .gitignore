@@ -560,6 +560,8 @@ Temporary Items
 # Database files
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 
 # Test artifacts
 test-results/

@@ -63,7 +63,7 @@ export function buildScopeFilterClause(filter: ScopeFilter): { clause: string; p
       if (s.sessionId) { parts.push(`scope_session = ?`); params.push(s.sessionId); }
       if (s.agentId) { parts.push(`scope_agent = ?`); params.push(s.agentId); }
       if (s.workspaceId) { parts.push(`scope_workspace = ?`); params.push(s.workspaceId); }
-      return parts.length > 0 ? `(${parts.join(" OR ")})` : "1=1";
+      return parts.length > 0 ? `(${parts.join(" AND ")})` : "1=1";  // #18 fix: AND for includeScopes (was OR, too permissive)
     });
     conditions.push(`(${includeClauses.join(" OR ")})`);
   }

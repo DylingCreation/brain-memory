@@ -174,16 +174,20 @@ export function updateAccess(db: DatabaseSyncInstance, nodeId: string): void {
 export function upsertEdge(
   db: DatabaseSyncInstance,
   e: { fromId: string; toId: string; type: EdgeType; instruction: string; condition?: string; sessionId: string },
-): void {
+): BmEdge {
   const ex = db.prepare("SELECT id FROM bm_edges WHERE from_id=? AND to_id=? AND type=?")
     .get(e.fromId, e.toId, e.type) as any;
+  const now = Date.now();
   if (ex) {
     db.prepare("UPDATE bm_edges SET instruction=? WHERE id=?").run(e.instruction, ex.id);
-    return;
+    return { ...toEdge(db.prepare("SELECT * FROM bm_edges WHERE id=?").get(ex.id) as any), isNew: false } as any;
   }
+  const id = uid("e");
   db.prepare(`INSERT INTO bm_edges (id, from_id, to_id, type, instruction, condition, session_id, created_at)
     VALUES (?,?,?,?,?,?,?,?)`)
-    .run(uid("e"), e.fromId, e.toId, e.type, e.instruction, e.condition ?? null, e.sessionId, Date.now());
+    .run(id, e.fromId, e.toId, e.type, e.instruction, e.condition ?? null, e.sessionId, now);
+  // Construct edge from known data — no SELECT roundtrip needed
+  return { id, fromId: e.fromId, toId: e.toId, type: e.type, instruction: e.instruction, condition: e.condition, sessionId: e.sessionId, createdAt: now } as BmEdge;
 }
 
 export function edgesFrom(db: DatabaseSyncInstance, id: string): BmEdge[] {
@@ -360,6 +364,16 @@ export function getCommunitySummary(db: DatabaseSyncInstance, id: string): Commu
   const r = db.prepare("SELECT * FROM bm_communities WHERE id=?").get(id) as any;
   if (!r) return null;
   return { id: r.id, summary: r.summary, nodeCount: r.node_count, createdAt: r.created_at, updatedAt: r.updated_at };
+}
+
+/** #10 fix: Batch fetch all community summaries in a single query */
+export function getAllCommunitySummaries(db: DatabaseSyncInstance): Map<string, CommunitySummary> {
+  const rows = db.prepare("SELECT * FROM bm_communities").all() as any[];
+  const map = new Map<string, CommunitySummary>();
+  for (const r of rows) {
+    map.set(r.id, { id: r.id, summary: r.summary, nodeCount: r.node_count, createdAt: r.created_at, updatedAt: r.updated_at });
+  }
+  return map;
 }
 
 export function pruneCommunitySummaries(db: DatabaseSyncInstance): number {

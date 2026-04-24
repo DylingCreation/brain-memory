@@ -1,67 +1,28 @@
 /**
  * brain-memory — Preference slots tests
+ *
+ * ⚠️ Tests removed along with dead code (#22, 2026-04-25).
+ * The regex-based preference extraction (extractPreferences, formatPreferencesForStorage)
+ * was never wired into the pipeline and has been removed.
+ *
+ * Preference extraction is now handled by the LLM-based extractor in
+ * src/extractor/extract.ts (EXTRACT_SYS prompt).
+ *
+ * If you revive the regex-based fallback, restore these tests.
  */
 
 import { describe, it, expect } from "vitest";
-import { extractPreferences, formatPreferencesForStorage } from "../src/preferences/slots.ts";
+import type { PreferenceSlot } from "../src/preferences/slots.ts";
 
-describe("extractPreferences", () => {
-  it("detects language preference (positive)", () => {
-    const result = extractPreferences("我喜欢用中文回复");
-    expect(result.slots.length).toBeGreaterThan(0);
-    expect(result.category).toBe("preferences");
-  });
-
-  it("detects language preference (English)", () => {
-    const result = extractPreferences("I prefer English responses");
-    expect(result.slots.length).toBeGreaterThan(0);
-  });
-
-  it("detects language preference (negative)", () => {
-    const result = extractPreferences("不要中文");
-    expect(result.slots.length).toBeGreaterThan(0);
-  });
-
-  it("detects communication style", () => {
-    const result = extractPreferences("简短回复");
-    expect(result.slots.length).toBeGreaterThan(0);
-    const slot = result.slots.find(s => s.key === "response_detail");
-    expect(slot?.value).toBe("concise");
-  });
-
-  it("detects detailed communication style", () => {
-    const result = extractPreferences("请详细解释");
-    expect(result.slots.length).toBeGreaterThan(0);
-    const slot = result.slots.find(s => s.key === "response_detail");
-    expect(slot?.value).toBe("detailed");
-  });
-
-  it("detects code style preference", () => {
-    const result = extractPreferences("用 Prettier");
-    expect(result.slots.length).toBeGreaterThan(0);
-  });
-
-  it("detects tool preference", () => {
-    const result = extractPreferences("我喜欢用 VS Code");
-    expect(result.slots.length).toBeGreaterThan(0);
-  });
-
-  it("returns empty for non-preference text", () => {
-    const result = extractPreferences("Docker 部署成功了");
-    expect(result.slots.length).toBe(0);
-  });
-});
-
-describe("formatPreferencesForStorage", () => {
-  it("formats slots by category", () => {
-    const result = extractPreferences("我喜欢用中文，简短回复");
-    const formatted = formatPreferencesForStorage(result.slots);
-    expect(formatted.length).toBeGreaterThan(0);
-    expect(formatted).toContain("[");
-    expect(formatted).toContain(":");
-  });
-
-  it("returns empty string for no slots", () => {
-    expect(formatPreferencesForStorage([])).toBe("");
+describe("PreferenceSlot interface (kept as reference)", () => {
+  it("type-checks correctly", () => {
+    const slot: PreferenceSlot = {
+      category: "language",
+      key: "response_language",
+      value: "Chinese",
+      confidence: 0.8,
+    };
+    expect(slot.category).toBe("language");
+    expect(slot.confidence).toBe(0.8);
   });
 });

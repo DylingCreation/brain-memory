@@ -52,8 +52,11 @@ export function updateWorkingMemory(
   }
 
   // 2. Update recent decisions from newly extracted nodes
-  // All extracted nodes represent recent decisions/learnings
-  const allNames = params.extractedNodes.map(n => n.name);
+  // #20 fix: only TASK and SKILL nodes represent decisions/learnings (not events, preferences, etc.)
+  const decisionNodes = params.extractedNodes.filter(n =>
+    n.type === "TASK" || n.type === "SKILL"
+  );
+  const allNames = decisionNodes.map(n => n.name);
   const newDecisions = allNames.filter(n => !state.recentDecisions.includes(n));
   state.recentDecisions = [...newDecisions, ...state.recentDecisions]
     .filter((v, i, a) => a.indexOf(v) === i)
@@ -83,8 +86,9 @@ export function updateWorkingMemory(
   }
 
   // 5. Update attention from user message (lightweight cleanup)
+  // #17 fix: increase from 200 to 500 and truncate at sentence boundary
   if (params.userMessage) {
-    state.attention = cleanUserMessage(params.userMessage, 200);
+    state.attention = cleanUserMessage(params.userMessage, 500);
   }
 
   state.updatedAt = now;
@@ -131,15 +135,21 @@ function cleanUserMessage(raw: string, maxLen: number): string {
   text = text.replace(/^\/\w+\s+/, "").trim();
   text = text.replace(/^\[[\w\s\-:]+\]\s*/, "").trim();
 
-  // Remove code blocks (keep the intent, not the code)
-  const fenceStart = text.indexOf("```");
-  if (fenceStart >= 0) {
-    text = text.slice(0, fenceStart).trim();
-  }
+  // Remove code blocks but KEEP text after them (the intent might be after the code)
+  const fenceRegex = /```[\s\S]*?```/g;
+  text = text.replace(fenceRegex, '[CODE]').trim();
 
-  // Truncate
+  // #17 fix: truncate at sentence boundary instead of hard cut
   if (text.length > maxLen) {
-    text = text.slice(0, maxLen - 3) + "...";
+    let cutPoint = maxLen;
+    // Try sentence boundary
+    for (let i = cutPoint; i > maxLen * 0.5; i--) {
+      if (/[.!?。！？]/.test(text[i]) && (i + 1 >= text.length || /\s/.test(text[i + 1]))) {
+        cutPoint = i + 1;
+        break;
+      }
+    }
+    text = text.slice(0, cutPoint).trim() + '...';
   }
 
   return text;
