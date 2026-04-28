@@ -89,6 +89,7 @@ export function upsertNode(
 ): { node: BmNode; isNew: boolean } {
   const name = normalizeName(c.name);
   const temporalType = c.temporalType ?? "static";
+  const source = c.source ?? "user";
   const scopeSession = c.scopeSession ?? sessionId;
   const scopeAgent = c.scopeAgent ?? null;
   const scopeWorkspace = c.scopeWorkspace ?? null;
@@ -101,8 +102,8 @@ export function upsertNode(
     const count = ex.validatedCount + 1;
     db.prepare(`UPDATE bm_nodes SET content=?, description=?, validated_count=?,
       source_sessions=?, updated_at=?, category=?, temporal_type=?, source=?, scope_session=?, scope_agent=?, scope_workspace=? WHERE id=?`)
-      .run(content, desc, count, sessions, Date.now(), c.category, temporalType, c.source, scopeSession, scopeAgent, scopeWorkspace, ex.id);
-    return { node: { ...ex, content, description: desc, validatedCount: count, category: c.category, temporalType, source: c.source, scopeSession, scopeAgent, scopeWorkspace }, isNew: false };
+      .run(content, desc, count, sessions, Date.now(), c.category, temporalType, source, scopeSession, scopeAgent, scopeWorkspace, ex.id);
+    return { node: { ...ex, content, description: desc, validatedCount: count, category: c.category, temporalType, source, scopeSession, scopeAgent, scopeWorkspace }, isNew: false };
   }
 
   const id = uid("n");
@@ -113,7 +114,7 @@ export function upsertNode(
      temporal_type, source, scope_session, scope_agent, scope_workspace, created_at, updated_at)
     VALUES (?,?,?,?,?,?,'active',1,?,0,0.5,0,0,?,?,?,?,?,?,?)`)
     .run(id, c.type, c.category, name, c.description, c.content,
-         JSON.stringify([sessionId]), temporalType, c.source, scopeSession, scopeAgent, scopeWorkspace, now, now);
+         JSON.stringify([sessionId]), temporalType, source, scopeSession, scopeAgent, scopeWorkspace, now, now);
   return { node: findByName(db, name)!, isNew: true };
 }
 

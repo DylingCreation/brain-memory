@@ -149,9 +149,10 @@ describe.skipIf(!LLM_ENABLED)("Reasoning (LLM)", () => {
 
 // ─── Fusion Integration Tests ──────────────────────────────────
 
-describe.skipIf(!LLM_ENABLED)("Fusion (LLM)", () => {
-  it("decides merge for highly similar nodes", async () => {
-    // Create an in-memory DB with similar nodes
+// This test does NOT call LLM — it only tests vector similarity detection.
+// Moved outside skipIf so it always runs.
+describe("Fusion Candidate Detection", () => {
+  it("finds similar node pairs from vector DB", () => {
     const db = new DatabaseSync(":memory:");
     const SCHEMA = `
       CREATE TABLE bm_nodes (
@@ -180,7 +181,7 @@ describe.skipIf(!LLM_ENABLED)("Fusion (LLM)", () => {
       INSERT INTO bm_nodes VALUES ('n2','TASK','tasks','docker-port-fix-solution','Docker port fix solution','Change container port from 8080 to 8081','active',1,'[]',null,0,0.5,0,0,'static',null,null,null,${now},${now});
     `);
 
-    // Add 8 filler nodes to meet the 10-node minimum
+    // Add 8 filler nodes
     for (let i = 3; i <= 10; i++) {
       db.exec(`
         INSERT INTO bm_nodes VALUES ('n${i}','TASK','tasks','filler-node-${i}','Filler node ${i}','Unrelated content for node ${i}','active',1,'[]',null,0,0.5,0,0,'static',null,null,null,${now},${now});
@@ -199,11 +200,13 @@ describe.skipIf(!LLM_ENABLED)("Fusion (LLM)", () => {
 
     const candidates = findFusionCandidates(db, cfg, null);
 
-    // Should find at least one candidate (same content → high similarity)
     expect(candidates.length).toBeGreaterThan(0);
     expect(candidates[0].nameScore).toBeGreaterThan(0);
-  }, { timeout: 10000 });
+  });
+});
 
+// Tests below require LLM API — skipped unless BM_LLM_TEST=1
+describe.skipIf(!LLM_ENABLED)("Fusion (LLM)", () => {
   it("LLM correctly decides merge for duplicate nodes", async () => {
     const nodeA = makeNode({ name: "docker-port-fix", type: "TASK", content: "Change container port from 8080 to 8081" });
     const nodeB = makeNode({ name: "docker-port-fix-solution", type: "TASK", content: "Change container port from 8080 to 8081" });

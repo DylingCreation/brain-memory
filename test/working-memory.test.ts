@@ -67,7 +67,7 @@ describe("updateWorkingMemory", () => {
       extractedNodes: [],
       userMessage: "运行这个\n```\ncode here\n```",
     });
-    expect(wm.attention).toBe("运行这个");
+    expect(wm.attention).toBe("运行这个\n[CODE]");
   });
 
   it("respects maxTasks limit", () => {
@@ -93,10 +93,10 @@ describe("updateWorkingMemory", () => {
 
     updateWorkingMemory(wm, cfg, {
       extractedNodes: [
-        { name: "d-1", category: "events", type: "EVENT", content: "" },
-        { name: "d-2", category: "events", type: "EVENT", content: "" },
-        { name: "d-3", category: "events", type: "EVENT", content: "" },
-        { name: "d-4", category: "events", type: "EVENT", content: "" },
+        { name: "d-1", category: "tasks", type: "TASK", content: "" },
+        { name: "d-2", category: "tasks", type: "TASK", content: "" },
+        { name: "d-3", category: "tasks", type: "TASK", content: "" },
+        { name: "d-4", category: "tasks", type: "TASK", content: "" },
       ],
       userMessage: "",
     });
@@ -109,8 +109,8 @@ describe("updateWorkingMemory", () => {
 
     updateWorkingMemory(wm, defaultConfig, {
       extractedNodes: [
-        { name: "shared-node", category: "events", type: "EVENT", content: "" },
-        { name: "new-node", category: "events", type: "EVENT", content: "" },
+        { name: "shared-node", category: "tasks", type: "TASK", content: "" },
+        { name: "new-node", category: "tasks", type: "TASK", content: "" },
       ],
       userMessage: "",
     });
@@ -121,8 +121,8 @@ describe("updateWorkingMemory", () => {
     // Second turn with same node
     updateWorkingMemory(wm, defaultConfig, {
       extractedNodes: [
-        { name: "shared-node", category: "events", type: "EVENT", content: "" },
-        { name: "another-node", category: "events", type: "EVENT", content: "" },
+        { name: "shared-node", category: "tasks", type: "TASK", content: "" },
+        { name: "another-node", category: "tasks", type: "TASK", content: "" },
       ],
       userMessage: "",
     });

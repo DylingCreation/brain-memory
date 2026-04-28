@@ -29,6 +29,7 @@ export function createTestDb(): DatabaseSyncInstance {
       access_count    INTEGER NOT NULL DEFAULT 0,
       last_accessed   INTEGER NOT NULL DEFAULT 0,
       temporal_type   TEXT NOT NULL DEFAULT 'static' CHECK(temporal_type IN ('static','dynamic')),
+      source          TEXT NOT NULL DEFAULT 'user' CHECK(source IN ('user', 'assistant')),
       scope_session   TEXT,
       scope_agent     TEXT,
       scope_workspace TEXT,
@@ -134,8 +135,8 @@ export function insertNode(
   db.prepare(`
     INSERT INTO bm_nodes (id, type, category, name, description, content, status,
       validated_count, source_sessions, community_id, pagerank, importance,
-      access_count, last_accessed, temporal_type, scope_session, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?)
+      access_count, last_accessed, temporal_type, source, scope_session, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?)
   `).run(
     id,
     opts.type ?? "TASK",
@@ -150,6 +151,7 @@ export function insertNode(
     opts.pagerank ?? 0,
     opts.importance ?? 0.5,
     opts.temporalType ?? "static",
+    "user",
     opts.sessions?.[0] ?? "test-session",
     opts.createdAt ?? now,
     now,
