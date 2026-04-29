@@ -207,7 +207,7 @@ export function executeFusion(
 export async function runFusion(
   db: DatabaseSyncInstance,
   cfg: BmConfig,
-  llm: CompleteFn,
+  llm: CompleteFn | null,
   embedFn?: EmbedFn | null,
   sessionId: string = "fusion",
 ): Promise<FusionResult> {
@@ -223,7 +223,20 @@ export async function runFusion(
   }
 
   const autoMergeThreshold = cfg.fusion?.autoMergeThreshold ?? 0.9;  // #25
-  const decided = await decideFusion(llm, candidates, 20, autoMergeThreshold);
+
+  // Graceful degradation: when LLM is unavailable, auto-merge only very high-confidence pairs
+  let decided: FusionCandidate[];
+  if (llm) {
+    decided = await decideFusion(llm, candidates, 20, autoMergeThreshold);
+  } else {
+    // No LLM: auto-merge pairs above 0.95, link pairs between 0.85-0.95, skip the rest
+    decided = candidates.map(c => {
+      if (c.combinedScore >= 0.95) return { ...c, decision: "merge" as const, reason: "Auto-merged (high confidence, no LLM)" };
+      if (c.combinedScore >= 0.85) return { ...c, decision: "link" as const, reason: "Auto-linked (no LLM)" };
+      return { ...c, decision: "none" as const, reason: "Below threshold (no LLM)" };
+    });
+  }
+
   const { merged, linked } = executeFusion(db, decided, sessionId);
 
   return { candidates: decided, merged, linked, durationMs: Date.now() - start };

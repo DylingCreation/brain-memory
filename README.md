@@ -262,6 +262,17 @@ npm run setup-openclaw
 
 > **Important:** The interactive config scripts only set up **core API credentials** (LLM endpoint, API key, model name, embedding settings). They do **not** configure advanced brain-memory features such as decay parameters, reflection settings, fusion thresholds, or working memory limits. Those must be configured manually in your OpenClaw config file or programmatically via `BmConfig`.
 
+### 🩺 CLI Diagnostic Tool (new in v0.2.0)
+
+Quickly check your environment, dependencies, configuration, and database status:
+
+```bash
+npm run doctor
+# or: npx brain-memory-doctor
+```
+
+Checks: Node.js version, dependency installation, LLM/Embedding config, database file/schema version/table stats, WAL/SHM residual files.
+
 ---
 
 ## 📋 Memory Categories
@@ -460,8 +471,11 @@ class ContextEngine {
   // 🔎 Node search
   searchNodes(query: string, limit?: number): BmNode[];
 
-  // 📊 Statistics
-  getStats(): { nodeCount: number; edgeCount: number; sessionCount: number };
+  // 📊 Statistics (enhanced in v0.2.0)
+  getStats(): EngineStats; // nodes by type/status/source, communities, vectors, dbSizeBytes, schemaVersion, uptimeMs, embedCache, queryTimeMs
+
+  // 🩺 Health check (new in v0.2.0)
+  healthCheck(): HealthStatus; // overall status, component status (db/llm/embedding), stats, uptime, schemaVersion
 
   // ❌ Close database
   close(): void;

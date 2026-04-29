@@ -13,6 +13,7 @@ import { classifyTemporal } from "../temporal/classifier";
 import { normalizeName } from "../store/store";
 import { extractJson, extractJsonTolerant } from "../utils/json";
 import { truncate } from "../utils/truncate";
+import { logger } from "../utils/logger";
 
 const VALID_NODE_TYPES = new Set(["TASK", "SKILL", "EVENT"]);
 const VALID_EDGE_TYPES = new Set(["USED_SKILL", "SOLVED_BY", "REQUIRES", "PATCHES", "CONFLICTS_WITH"]);
@@ -99,9 +100,15 @@ const DEFAULT_CATEGORY: Record<string, MemoryCategory> = {
 };
 
 export class Extractor {
-  constructor(private cfg: BmConfig, private llm: CompleteFn) {}
+  constructor(private cfg: BmConfig, private llm: CompleteFn | null) {}
 
   async extract(params: { messages: any[]; existingNames: string[] }): Promise<ExtractionResult> {
+    // Graceful degradation: skip extraction when LLM is not available
+    if (!this.llm) {
+      logger.warn("extract", "Extraction skipped — LLM not configured");
+      return { nodes: [], edges: [] };
+    }
+
     const maxRetries = 2;
     const noiseCfg = this.cfg.noiseFilter;
     const filtered = noiseCfg.enabled
@@ -136,13 +143,13 @@ export class Extractor {
         return result;
       } catch (error) {
         if (attempt < maxRetries) {
-          console.warn(`[brain-memory] Extraction parse failed (attempt ${attempt + 1}/${maxRetries}), retrying...`);
+          logger.warn("extract", `Extraction parse failed (attempt ${attempt + 1}/${maxRetries}), retrying...`);
           continue;
         }
-        console.warn("[brain-memory] All retries failed, attempting tolerant extraction...");
+        logger.warn("extract", "All retries failed, attempting tolerant extraction...");
         const tolerantResult = this.parseExtractTolerant(raw);
         if (tolerantResult) return tolerantResult;
-        console.error("[brain-memory] Failed to extract knowledge after all attempts:", error);
+        logger.error("extract", "Failed to extract knowledge after all attempts:", error);
         return { nodes: [], edges: [] };
       }
     }
@@ -159,7 +166,7 @@ export class Extractor {
       );
       return this.parseFinalize(raw, params.sessionNodes);
     } catch (error) {
-      console.error("[brain-memory] Failed to finalize extraction:", error);
+      logger.error("extract", "Failed to finalize extraction:", error);
       return { newEdges: [], promotedSkills: [], invalidations: [] };
     }
   }
@@ -236,7 +243,7 @@ export class Extractor {
           return correctEdgeType(e, nameToType);
         })
         .filter((e: any) => e !== null);
-      console.log(`[brain-memory] Tolerant extraction succeeded: ${nodes.length} nodes, ${edges.length} edges`);
+      logger.info("extract", `Tolerant extraction succeeded: ${nodes.length} nodes, ${edges.length} edges`);
       return { nodes, edges };
     } catch {
       return null;

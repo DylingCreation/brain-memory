@@ -19,6 +19,11 @@ import type {
   WorkingMemoryState,
 } from "../types";
 import type { FusionResult } from "../fusion/analyzer";
+import { getEmbedCacheStats, type EmbedCacheStats } from "../engine/embed";
+import { getSchemaVersion } from "../store/migrate";
+import { existsSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { logger } from "../utils/logger";
 import { initDb } from "../store/db";
 import { Extractor } from "../extractor/extract";
 import { Recaller } from "../recaller/recall";
@@ -39,46 +44,40 @@ export class ContextEngine {
   private extractor: Extractor;
   private recaller: Recaller;
   private workingMemory: WorkingMemoryState;
+  /** Whether LLM is available for extraction, reflection, fusion, and reasoning. */
+  private llmEnabled: boolean;
+  /** Whether Embedding is available for vector operations. */
+  private embedEnabled: boolean;
+  /** Engine creation timestamp (for uptime tracking). */
+  private readonly createdAt: number;
 
   constructor(config: BmConfig) {
     this.config = config;
     try {
       this.db = initDb(config.dbPath);
     } catch (error) {
-      console.error(`[brain-memory] Failed to initialize database at ${config.dbPath}:`, error);
+      logger.error("context", `Failed to initialize database at ${config.dbPath}:`, error);
       throw new Error(`Database initialization failed: ${(error as Error).message}`);
     }
-    
-    // Initialize LLM and embedding clients
-    let llm: any;
-    try {
-      llm = createCompleteFn(config.llm);
-      if (!llm) {
-        console.warn("[brain-memory] Warning: LLM not configured, some features will be disabled");
-        
-        // Create a mock LLM function for when no configuration is provided
-        const mockLlm = async (_sys: string, _user: string): Promise<string> => {
-          console.warn("[brain-memory] Mock LLM called - please configure LLM settings");
-          return "Mock response - LLM not configured";
-        };
-        llm = mockLlm; // Use the mock if no real LLM is configured
-      }
-    } catch (error) {
-      console.error("[brain-memory] Failed to initialize LLM client:", error);
-      throw new Error(`LLM client initialization failed: ${(error as Error).message}`);
+
+    // Initialize LLM client — gracefully accept unconfigured LLM
+    const llm = createCompleteFn(config.llm);
+    this.llmEnabled = llm !== null;
+    if (!this.llmEnabled) {
+      logger.warn("context", "LLM not configured — extraction, reflection, fusion, reasoning will be skipped. Recall and working memory remain functional.");
     }
-    
+
     let embed: any;
     let batchEmbed: any;
     try {
       embed = createEmbedFn(config.embedding);
       batchEmbed = createBatchEmbedFn(config.embedding);  // #12: batch embedding
     } catch (error) {
-      console.error("[brain-memory] Failed to initialize embedding client:", error);
+      logger.error("context", "Failed to initialize embedding client:", error);
       embed = null;
       batchEmbed = null;
     }
-    
+
     // Initialize components
     try {
       this.extractor = new Extractor(config, llm);
@@ -88,19 +87,22 @@ export class ContextEngine {
         if (batchEmbed) this.recaller.setBatchEmbedFn(batchEmbed);  // #12
       }
     } catch (error) {
-      console.error("[brain-memory] Failed to initialize components:", error);
+      logger.error("context", "Failed to initialize components:", error);
       throw new Error(`Component initialization failed: ${(error as Error).message}`);
     }
-    
+
+    this.embedEnabled = embed !== null;
+    this.createdAt = Date.now();
+
     // Initialize working memory
     try {
       this.workingMemory = createWorkingMemory();
     } catch (error) {
-      console.error("[brain-memory] Failed to initialize working memory:", error);
+      logger.error("context", "Failed to initialize working memory:", error);
       throw new Error(`Working memory initialization failed: ${(error as Error).message}`);
     }
-    
-    console.log(`[brain-memory] ContextEngine initialized with ${this.getAllActiveNodes().length} existing nodes`);
+
+    logger.info("context", `Initialized with ${this.getAllActiveNodes().length} existing nodes`);
   }
 
   /**
@@ -179,7 +181,7 @@ export class ContextEngine {
           
           // Embeddings deferred — batch embed after all nodes are upserted (#12)
         } catch (error) {
-          console.error(`[brain-memory] Failed to upsert node ${nodeData.name}:`, error);
+          logger.error("context", `Failed to upsert node ${nodeData.name}:`, error);
           // Continue processing other nodes
         }
       }
@@ -189,7 +191,7 @@ export class ContextEngine {
         try {
           await this.recaller.batchSyncEmbed(upsertedNodes);
         } catch (embedError) {
-          console.warn(`[brain-memory] Batch embedding failed:`, embedError);
+          logger.warn("context", "Batch embedding failed:", embedError);
         }
       }
 
@@ -214,14 +216,14 @@ export class ContextEngine {
             if (insertedEdge) upsertedEdges.push(insertedEdge);
           }
         } catch (error) {
-          console.error(`[brain-memory] Failed to upsert edge from ${edgeData.from} to ${edgeData.to}:`, error);
+          logger.error("context", `Failed to upsert edge from ${edgeData.from} to ${edgeData.to}:`, error);
           // Continue processing other edges
         }
       }
 
-      // Perform turn reflection
+      // Perform turn reflection (LLM-dependent — skip gracefully if unavailable)
       let reflections: ReflectionInsight[] = [];
-      if (this.config.reflection.enabled && this.config.reflection.turnReflection) {
+      if (this.llmEnabled && this.config.reflection.enabled && this.config.reflection.turnReflection) {
         try {
           const userMessages = params.messages.filter(m => m.role === "user").map(m => m.content).join("\n");
 
@@ -252,7 +254,7 @@ export class ContextEngine {
             confidence: 0.8,
           }));
         } catch (error) {
-          console.error("[brain-memory] Failed to perform turn reflection:", error);
+          logger.error("context", "Failed to perform turn reflection:", error);
           // Continue with empty reflections
         }
       }
@@ -277,7 +279,7 @@ export class ContextEngine {
           }
         );
       } catch (error) {
-        console.error("[brain-memory] Failed to update working memory:", error);
+        logger.error("context", "Failed to update working memory:", error);
         // Continue with existing working memory
       }
 
@@ -288,7 +290,7 @@ export class ContextEngine {
         workingMemory: this.workingMemory,
       };
     } catch (error) {
-      console.error("[brain-memory] Failed to process turn:", error);
+      logger.error("context", "Failed to process turn:", error);
       throw new Error(`Turn processing failed: ${(error as Error).message}`);
     }
   }
@@ -328,7 +330,7 @@ export class ContextEngine {
       // Fallback: if no results from scoped recall, try cross-session recall
       if (result.nodes.length === 0 && includeScopes.length > 0) {
         if (process.env.BM_DEBUG) {
-          console.log(`[brain-memory] Scoped recall returned 0 nodes, falling back to cross-session recall`);
+          logger.debug("context", "Scoped recall returned 0 nodes, falling back to cross-session recall");
         }
         const fallbackFilter = {
           excludeScopes: [],
@@ -339,12 +341,12 @@ export class ContextEngine {
       }
 
       if (process.env.BM_DEBUG) {
-        console.log(`[brain-memory] Recall for "${query.substring(0, 50)}": ${result.nodes.length} nodes`);
+        logger.debug("context", `Recall for "${query.substring(0, 50)}": ${result.nodes.length} nodes`);
       }
 
       return result;
     } catch (error) {
-      console.error("[brain-memory] Failed to recall information:", error);
+      logger.error("context", "Failed to recall information:", error);
       throw new Error(`Recall failed: ${(error as Error).message}`);
     }
   }
@@ -361,12 +363,12 @@ export class ContextEngine {
       return await runFusion(
         this.db,
         this.config,
-        createCompleteFn(this.config.llm)!,
+        this.llmEnabled ? createCompleteFn(this.config.llm) : null,  // graceful degradation
         createEmbedFn(this.config.embedding),
         sessionId
       );
     } catch (error) {
-      console.error("[brain-memory] Failed to perform fusion:", error);
+      logger.error("context", "Failed to perform fusion:", error);
       throw new Error(`Fusion failed: ${(error as Error).message}`);
     }
   }
@@ -378,7 +380,11 @@ export class ContextEngine {
     if (!this.config.reflection.enabled || !this.config.reflection.sessionReflection) {
       return [];
     }
-    
+    if (!this.llmEnabled) {
+      logger.warn("context", "Session reflection skipped — LLM not configured");
+      return [];
+    }
+
     try {
       // Get nodes created in this session
       const sessionNodes = allActiveNodes(this.db).filter(n => 
@@ -399,7 +405,7 @@ export class ContextEngine {
         }
       );
     } catch (error) {
-      console.error("[brain-memory] Failed to perform session reflection:", error);
+      logger.error("context", "Failed to perform session reflection:", error);
       throw new Error(`Session reflection failed: ${(error as Error).message}`);
     }
   }
@@ -411,7 +417,11 @@ export class ContextEngine {
     if (!this.config.reasoning.enabled) {
       return [];
     }
-    
+    if (!this.llmEnabled) {
+      logger.warn("context", "Reasoning skipped — LLM not configured");
+      return [];
+    }
+
     try {
       // Get all active nodes and edges for reasoning context
       const nodes = allActiveNodes(this.db);
@@ -426,7 +436,7 @@ export class ContextEngine {
       );
       return reasoningResult?.conclusions || [];
     } catch (error) {
-      console.error("[brain-memory] Failed to perform reasoning:", error);
+      logger.error("context", "Failed to perform reasoning:", error);
       throw new Error(`Reasoning failed: ${(error as Error).message}`);
     }
   }
@@ -438,7 +448,7 @@ export class ContextEngine {
     try {
       await runMaintenance(this.db, this.config);
     } catch (error) {
-      console.error("[brain-memory] Failed to run maintenance:", error);
+      logger.error("context", "Failed to run maintenance:", error);
       throw new Error(`Maintenance failed: ${(error as Error).message}`);
     }
   }
@@ -471,21 +481,245 @@ export class ContextEngine {
     try {
       this.db.close();
     } catch (error) {
-      console.error("[brain-memory] Failed to close database:", error);
+      logger.error("context", "Failed to close database:", error);
       // Don't throw here as this is a cleanup operation
     }
   }
 
   /**
-   * Get engine statistics
+   * Get comprehensive engine statistics.
+   *
+   * Returns counts for nodes (total/active/deprecated/by-type/by-category),
+   * edges (total/by-type), communities, vectors, sessions, DB size,
+   * schema version, uptime, and embedding cache hit rate.
+   *
+   * All queries are lightweight — typically < 10ms total on SQLite.
    */
-  getStats(): { nodeCount: number; edgeCount: number; sessionCount: number } {
-    const nodeCount = this.db.prepare("SELECT COUNT(*) as count FROM bm_nodes").get()["count"] as number;
-    const edgeCount = this.db.prepare("SELECT COUNT(*) as count FROM bm_edges").get()["count"] as number;
-    const sessionCount = this.db.prepare("SELECT COUNT(DISTINCT session_id) as count FROM bm_messages").get()["count"] as number;
-    
-    return { nodeCount, edgeCount, sessionCount };
+  getStats(): EngineStats {
+    const startMs = Date.now();
+
+    // Node counts
+    const totalNodes = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes").get()["c"] as number;
+    const activeNodes = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE status='active'").get()["c"] as number;
+    const deprecatedNodes = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE status='deprecated'").get()["c"] as number;
+
+    // Nodes by type
+    const taskCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE type='TASK'").get()["c"] as number;
+    const skillCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE type='SKILL'").get()["c"] as number;
+    const eventCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE type='EVENT'").get()["c"] as number;
+
+    // Nodes by temporal type
+    const staticCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE temporal_type='static'").get()["c"] as number;
+    const dynamicCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE temporal_type='dynamic'").get()["c"] as number;
+
+    // Nodes by source
+    const userCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE source='user'").get()["c"] as number;
+    const assistantCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE source='assistant'").get()["c"] as number;
+
+    // Edge counts
+    const totalEdges = this.db.prepare("SELECT COUNT(*) as c FROM bm_edges").get()["c"] as number;
+
+    // Communities, vectors, sessions
+    const communityCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_communities").get()["c"] as number;
+    const vectorCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_vectors").get()["c"] as number;
+    const sessionCount = this.db.prepare("SELECT COUNT(DISTINCT session_id) as c FROM bm_messages").get()["c"] as number;
+
+    // DB size
+    let dbSizeBytes = 0;
+    try {
+      const resolvedPath = this.config.dbPath.replace(/^~/, homedir());
+      if (existsSync(resolvedPath)) {
+        dbSizeBytes = statSync(resolvedPath).size;
+      }
+    } catch {
+      // Size unavailable
+    }
+
+    // Schema version
+    const schemaVersion = getSchemaVersion(this.db);
+
+    // Uptime
+    const uptimeMs = Date.now() - this.createdAt;
+
+    // Embedding cache stats
+    const cacheStats = getEmbedCacheStats();
+
+    const queryTimeMs = Date.now() - startMs;
+
+    return {
+      // Backward-compatible top-level fields
+      nodeCount: totalNodes,
+      edgeCount: totalEdges,
+      sessionCount,
+      // Detailed breakdowns
+      nodes: {
+        total: totalNodes,
+        active: activeNodes,
+        deprecated: deprecatedNodes,
+        byType: { task: taskCount, skill: skillCount, event: eventCount },
+        byTemporalType: { static: staticCount, dynamic: dynamicCount },
+        bySource: { user: userCount, assistant: assistantCount },
+      },
+      edges: { total: totalEdges },
+      communities: communityCount,
+      vectors: vectorCount,
+      dbSizeBytes,
+      schemaVersion,
+      uptimeMs,
+      embedCache: cacheStats,
+      queryTimeMs,
+    };
   }
+
+  // ─── Health Check (F-2) ──────────────────────────────────────
+
+  /**
+   * Check the health of all engine components.
+   *
+   * Returns a structured status object covering:
+   * - Database connection health
+   * - LLM availability
+   * - Embedding availability
+   * - Schema version
+   * - Uptime
+   * - Key statistics
+   */
+  healthCheck(): HealthStatus {
+    // Database check
+    let dbStatus: HealthComponentStatus = "ok";
+    let dbDetail: string | undefined;
+    try {
+      this.db.prepare("SELECT 1").get();
+    } catch (error) {
+      dbStatus = "error";
+      dbDetail = (error as Error).message;
+    }
+
+    // LLM status
+    let llmStatus: HealthLlmStatus = this.llmEnabled ? "ok" : "not_configured";
+    let llmDetail: string | undefined;
+    if (!this.llmEnabled) {
+      llmDetail = "No LLM API key configured — extraction, reflection, fusion, reasoning will be skipped.";
+    }
+
+    // Embedding status
+    let embedStatus: HealthEmbedStatus = this.embedEnabled ? "ok" : "not_configured";
+    let embedDetail: string | undefined;
+    if (!this.embedEnabled) {
+      embedDetail = "No Embedding API key configured — vector search and dedup will be disabled.";
+    }
+
+    // Schema version
+    const schemaVersion = getSchemaVersion(this.db);
+
+    // Uptime
+    const uptimeMs = Date.now() - this.createdAt;
+
+    // Stats
+    let stats: HealthStats | undefined;
+    if (dbStatus === "ok") {
+      try {
+        const nodeCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes").get()["c"] as number;
+        const edgeCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_edges").get()["c"] as number;
+        const vectorCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_vectors").get()["c"] as number;
+        const communityCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_communities").get()["c"] as number;
+
+        let dbSizeBytes = 0;
+        try {
+          const resolvedPath = this.config.dbPath.replace(/^~/, homedir());
+          if (existsSync(resolvedPath)) {
+            dbSizeBytes = statSync(resolvedPath).size;
+          }
+        } catch {
+          // Ignore — size info unavailable
+        }
+
+        stats = { nodeCount, edgeCount, vectorCount, communityCount, dbSizeBytes };
+      } catch {
+        // Stats unavailable but not fatal
+      }
+    }
+
+    // Overall status
+    let status: HealthOverallStatus = "healthy";
+    if (dbStatus === "error") {
+      status = "unhealthy";
+    } else if (!this.llmEnabled || !this.embedEnabled) {
+      status = "degraded";
+    }
+
+    const result: HealthStatus = {
+      status,
+      uptimeMs,
+      schemaVersion,
+      components: {
+        database: { status: dbStatus, ...(dbDetail ? { detail: dbDetail } : {}) },
+        llm: { status: llmStatus, ...(llmDetail ? { detail: llmDetail } : {}) },
+        embedding: { status: embedStatus, ...(embedDetail ? { detail: embedDetail } : {}) },
+      },
+    };
+    if (stats) result.stats = stats;
+
+    return result;
+  }
+}
+
+// ─── Engine Stats Types (F-5) ─────────────────────────────────
+
+export interface EngineStats {
+  // Backward-compatible top-level fields
+  nodeCount: number;
+  edgeCount: number;
+  sessionCount: number;
+  // Detailed breakdowns
+  nodes: {
+    total: number;
+    active: number;
+    deprecated: number;
+    byType: { task: number; skill: number; event: number };
+    byTemporalType: { static: number; dynamic: number };
+    bySource: { user: number; assistant: number };
+  };
+  edges: { total: number };
+  communities: number;
+  vectors: number;
+  dbSizeBytes: number;
+  schemaVersion: number;
+  uptimeMs: number;
+  embedCache: EmbedCacheStats;
+  queryTimeMs: number;
+}
+
+// ─── Health Check Types ────────────────────────────────────────
+
+export type HealthComponentStatus = "ok" | "error";
+export type HealthLlmStatus = "ok" | "not_configured" | "error";
+export type HealthEmbedStatus = "ok" | "not_configured" | "error";
+export type HealthOverallStatus = "healthy" | "degraded" | "unhealthy";
+
+export interface HealthStats {
+  nodeCount: number;
+  edgeCount: number;
+  vectorCount: number;
+  communityCount: number;
+  dbSizeBytes: number;
+}
+
+export interface HealthStatus {
+  /** Overall health: healthy / degraded / unhealthy */
+  status: HealthOverallStatus;
+  /** Engine uptime in milliseconds */
+  uptimeMs: number;
+  /** Current database schema version */
+  schemaVersion: number;
+  /** Component statuses */
+  components: {
+    database: { status: HealthComponentStatus; detail?: string };
+    llm: { status: HealthLlmStatus; detail?: string };
+    embedding: { status: HealthEmbedStatus; detail?: string };
+  };
+  /** Optional statistics (only when DB is healthy) */
+  stats?: HealthStats;
 }
 
 /**

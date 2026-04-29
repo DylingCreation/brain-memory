@@ -1,13 +1,14 @@
 {
   "name": "memory-likehuman-pro",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "Unified knowledge graph + vector memory system for AI agents",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
   "bin": {
     "like-human-brain-memory-configure": "./scripts/configure.js",
-    "like-human-brain-memory-setup": "./scripts/setup.js"
+    "like-human-brain-memory-setup": "./scripts/setup.js",
+    "brain-memory-doctor": "./scripts/doctor.js"
   },
   "scripts": {
     "dev": "tsx watch index.ts",
@@ -27,6 +28,7 @@
     "postinstall": "echo 'brain-memory installation complete'",
     "configure": "node scripts/configure.js",
     "setup-openclaw": "node scripts/setup.js",
+    "doctor": "node scripts/doctor.js",
     "release": "bash scripts/release.sh",
     "publish": "bash scripts/publish-npm.sh"
   },
@@ -50,6 +52,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^1.6.1",
     "dotenv": "^17.4.2",
     "eslint": "^8.0.0",
     "typedoc": "^0.25.0",

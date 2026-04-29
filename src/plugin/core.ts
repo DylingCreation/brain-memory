@@ -6,6 +6,7 @@
 
 import { ContextEngine } from '../engine/context';
 import type { BmConfig } from '../types';
+import { logger } from '../utils/logger';
 
 // Define minimal OpenClaw plugin interfaces
 export interface Message {
@@ -51,15 +52,15 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
 
   async init(): Promise<void> {
     if (!this.config.enabled) {
-      console.log('[brain-memory] Plugin disabled by configuration');
+      logger.info('plugin', 'Plugin disabled by configuration');
       return;
     }
 
     try {
       this.engine = new ContextEngine(this.config);
-      console.log('[brain-memory] Plugin initialized successfully');
+      logger.info('plugin', 'Plugin initialized successfully');
     } catch (error) {
-      console.error('[brain-memory] Failed to initialize:', error);
+      logger.error('plugin', 'Failed to initialize:', error);
       throw error;
     }
   }
@@ -67,14 +68,14 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
   async onSessionStart(event: SessionEvent): Promise<void> {
     if (!this.engine || !this.config.enabled) return;
 
-    console.log(`[brain-memory] Session started: ${event.sessionId}`);
+    logger.info('plugin', `Session started: ${event.sessionId}`);
     // Initialize session-specific working memory
   }
 
   async onSessionEnd(event: SessionEvent): Promise<void> {
     if (!this.engine || !this.config.enabled) return;
 
-    console.log(`[brain-memory] Session ended: ${event.sessionId}`);
+    logger.info('plugin', `Session ended: ${event.sessionId}`);
     
     // Perform session-level reflection
     if (this.config.extractMemories) {
@@ -83,9 +84,9 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
           event.sessionId,
           event.messages || []
         );
-        console.log(`[brain-memory] Performed session reflection, got ${reflections.length} insights`);
+        logger.info('plugin', `Performed session reflection, got ${reflections.length} insights`);
       } catch (error) {
-        console.error('[brain-memory] Session reflection failed:', error);
+        logger.error('plugin', 'Session reflection failed:', error);
       }
     }
 
@@ -93,9 +94,9 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
     if (this.config.autoMaintain) {
       try {
         await this.engine.runMaintenance();
-        console.log('[brain-memory] Maintenance completed');
+        logger.info('plugin', 'Maintenance completed');
       } catch (error) {
-        console.error('[brain-memory] Maintenance failed:', error);
+        logger.error('plugin', 'Maintenance failed:', error);
       }
     }
   }
@@ -115,12 +116,12 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
         }],
       });
 
-      console.log(`[brain-memory] Extracted ${result.extractedNodes.length} nodes, ${result.extractedEdges.length} edges`);
+      logger.info('plugin', `Extracted ${result.extractedNodes.length} nodes, ${result.extractedEdges.length} edges`);
 
       // Return null to indicate no modification to the message
       return null;
     } catch (error) {
-      console.error('[brain-memory] Message processing failed:', error);
+      logger.error('plugin', 'Message processing failed:', error);
       return null;
     }
   }
@@ -140,7 +141,7 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
       if (recallResult.nodes.length > 0) {
         const memoryContext = this.engine.getWorkingMemoryContext();
         
-        console.log(`[brain-memory] Retrieved ${recallResult.nodes.length} relevant memories`);
+        logger.info('plugin', `Retrieved ${recallResult.nodes.length} relevant memories`);
         
         return {
           memoryContext,
@@ -151,7 +152,7 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
       
       return null;
     } catch (error) {
-      console.error('[brain-memory] Memory context retrieval failed:', error);
+      logger.error('plugin', 'Memory context retrieval failed:', error);
       return null;
     }
   }
@@ -173,7 +174,7 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
         // This is a simplified approach - in practice, this would integrate with OpenClaw's context system
         const memoryContext = this.engine.getWorkingMemoryContext();
         
-        console.log(`[brain-memory] Retrieved ${recallResult.nodes.length} relevant memories`);
+        logger.info('plugin', `Retrieved ${recallResult.nodes.length} relevant memories`);
         
         // Attach memory context to message if the framework supports it
         if (memoryContext) {
@@ -183,7 +184,7 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
 
       return message;
     } catch (error) {
-      console.error('[brain-memory] Memory injection failed:', error);
+      logger.error('plugin', 'Memory injection failed:', error);
       return message;
     }
   }
@@ -215,7 +216,7 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
       this.engine.close();
       this.engine = null;
     }
-    console.log('[brain-memory] Plugin shut down');
+    logger.info('plugin', 'Plugin shut down');
   }
 }
 

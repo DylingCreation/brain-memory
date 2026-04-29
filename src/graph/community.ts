@@ -12,6 +12,7 @@ import { type DatabaseSyncInstance } from "@photostructure/sqlite";
 import { updateCommunities, upsertCommunitySummary, pruneCommunitySummaries } from "../store/store";
 import type { CompleteFn } from "../engine/llm";
 import type { EmbedFn } from "../engine/embed";
+import { logger } from "../utils/logger";
 
 export interface CommunityResult {
   labels: Map<string, string>;
@@ -161,7 +162,7 @@ export async function summarizeCommunities(
       }
       generated++;
     } catch (error) {
-      console.error(`Error summarizing community ${communityId}:`, error);
+      logger.error("community", `Error summarizing community ${communityId}:`, error);
     }
   }
 

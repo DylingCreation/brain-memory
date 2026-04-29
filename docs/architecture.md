@@ -60,10 +60,10 @@ brain-memory 采用四层架构，从 API 门面到 SQLite 存储逐层解耦：
 | **源码** | [src/engine/context.ts](../src/engine/context.ts) |
 | **输入** | 对话消息数组（sessionId / agentId / workspaceId / messages） |
 | **输出** | 提取结果（节点/边/反思/工作记忆）、召回结果（节点/边/Token 估算） |
-| **依赖** | Extractor、Recaller、LLM、Embedding、WorkingMemory |
-| **关键方法** | `processTurn` / `recall` / `performFusion` / `reflectOnSession` / `performReasoning` / `runMaintenance` |
+| **依赖** | Extractor、Recaller、LLM、Embedding、WorkingMemory、Migrate、Logger |
+| **关键方法** | `processTurn` / `recall` / `performFusion` / `reflectOnSession` / `performReasoning` / `runMaintenance` / `getStats` / `healthCheck` |
 
-**职责：** 初始化数据库、LLM 客户端、Embedding 客户端和所有子组件；编排提取 → 存储 → 召回 → 反思的完整流程；支持优雅降级（LLM 未配置时使用 Mock，Embedding 未配置时跳过）。
+**职责：** 初始化数据库 → 运行迁移（确保 schema 版本对齐）→ 初始化 LLM 客户端（未配置时优雅降级）→ 初始化 Embedding 客户端（未配置时降级）→ 编排完整流程 → 提供健康检查和统计查询。
 
 ---
 
@@ -234,6 +234,26 @@ brain-memory 采用四层架构，从 API 门面到 SQLite 存储逐层解耦：
 | **源码** | [src/store/store.ts](../src/store/store.ts) |
 | **关键操作** | upsertNode / upsertEdge / mergeNodes / searchNodes / graphWalk |
 | **关键特性** | 名称标准化去重、事务保护、FTS5 + LIKE 双策略检索 |
+
+#### 数据库迁移系统（v0.2.0 新增）
+
+| 项目 | 内容 |
+|------|------|
+| **源码** | [src/store/migrate.ts](../src/store/migrate.ts) |
+| **关键组件** | `migrate()` / `getSchemaVersion()` / `CURRENT_SCHEMA_VERSION` |
+| **元数据表** | `bm_meta`（key TEXT PRIMARY KEY, value TEXT NOT NULL） |
+| **关键特性** | 幂等迁移、旧 DB 自动标记当前版本、预留增量迁移扩展模板 |
+
+**迁移流程：** `initDb()` 创建表结构 → `migrate()` 创建 `bm_meta` 表 → 读取当前版本 → 版本为 0 时初始化为当前版本 → 按版本号递进执行增量迁移。
+
+#### 结构化日志模块（v0.2.0 新增）
+
+| 项目 | 内容 |
+|------|------|
+| **源码** | [src/utils/logger.ts](../src/utils/logger.ts) |
+| **日志级别** | `error` / `warn` / `info`（默认） / `debug` |
+| **控制方式** | `BM_LOG_LEVEL` 环境变量 |
+| **输出格式** | `[brain-memory][时间][级别][模块] 消息` |
 
 ---
 

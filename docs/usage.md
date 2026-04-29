@@ -57,7 +57,7 @@ const config = {
 const engine = new ContextEngine(config);
 ```
 
-> **注意：** `llm.apiKey` 是必填项。未配置时知识提取等功能将被禁用。`embedding` 不配置则自动降级为 FTS5 全文检索。
+> **注意：** LLM 不配置时不会抛异常，系统会**优雅降级**——跳过 LLM 依赖步骤（提取、反思、推理），但召回/工作记忆等非 LLM 功能仍正常可用。`embedding` 不配置则自动降级为 FTS5 全文检索。
 
 ### 处理对话轮次
 
@@ -236,15 +236,47 @@ nodes.forEach(node => {
 });
 ```
 
-### 统计信息
+### 统计信息（v0.2.0 增强）
 
 ```typescript
 const stats = engine.getStats();
 
+// 快速概览（向后兼容）
 console.log('节点总数:', stats.nodeCount);
 console.log('边总数:', stats.edgeCount);
 console.log('会话数:', stats.sessionCount);
+
+// 全维度统计
+console.log('活跃节点:', stats.nodes.active);
+console.log('废弃节点:', stats.nodes.deprecated);
+console.log('任务节点:', stats.nodes.byType.task);
+console.log('社区数:', stats.communities);
+console.log('向量化节点:', stats.vectors);
+console.log('数据库大小:', stats.dbSizeBytes, 'bytes');
+console.log('Schema 版本:', stats.schemaVersion);
+console.log('运行时长:', stats.uptimeMs, 'ms');
+console.log('缓存命中率:', (stats.embedCache.hitRate * 100).toFixed(1) + '%');
+console.log('查询耗时:', stats.queryTimeMs, 'ms');
 ```
+
+### 健康检查（v0.2.0 新增）
+
+```typescript
+const health = engine.healthCheck();
+
+console.log('整体状态:', health.status);           // "healthy" | "degraded" | "unhealthy"
+console.log('运行时长:', health.uptimeMs, 'ms');
+console.log('Schema 版本:', health.schemaVersion);
+console.log('DB 状态:', health.components.database.status);
+console.log('LLM 状态:', health.components.llm.status);
+console.log('Embedding 状态:', health.components.embedding.status);
+console.log('统计:', health.stats);
+```
+
+**状态判定：**
+- `healthy` — 全部组件正常
+- `degraded` — DB 正常，但 LLM 或 Embedding 未配置（功能受限）
+- `unhealthy` — DB 异常
 
 ---
 
@@ -440,6 +472,15 @@ const config = {
   reflection: { sessionReflection: false }  // 关闭会话反思
 };
 ```
+
+### CLI 诊断工具（v0.2.0 新增）
+
+```bash
+npm run doctor
+# 或：npx brain-memory-doctor
+```
+
+一键检查：Node.js 版本、依赖安装、LLM/Embedding 配置、数据库状态。输出 ✓/⚠/✗ 报告。
 
 ---
 

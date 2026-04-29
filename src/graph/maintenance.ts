@@ -12,6 +12,7 @@ import type { EmbedFn } from "../engine/embed";
 import { invalidateGraphCache, computeGlobalPageRank } from "./pagerank"
 import { detectCommunities, summarizeCommunities } from "./community"
 import { dedup } from "./dedup"
+import { logger } from "../utils/logger";
 
 export async function runMaintenance(
   db: DatabaseSyncInstance,
@@ -38,7 +39,7 @@ export async function runMaintenance(
     try {
       communitySummaries = await summarizeCommunities(db, communityResult.communities, llm, embedFn);
     } catch (err) {
-      if (process.env.BM_DEBUG) console.log(`  [WARN] community summaries failed: ${err}`);
+      logger.debug("maintenance", `community summaries failed: ${err}`);
     }
   }
 

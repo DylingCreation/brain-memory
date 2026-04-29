@@ -11,6 +11,34 @@ All notable changes to the brain-memory project.
 
 ---
 
+## [0.2.0] — 2026-04-29
+
+> **版本主题**：从「功能完整」走向「生产可靠」
+
+### Added
+- **数据库迁移系统（F-1）** — `src/store/migrate.ts`，`migrate()` 函数 + `bm_meta` 元数据表 + `getSchemaVersion()`，支持从旧版本平滑升级，幂等操作
+- **健康检查 API（F-2）** — `healthCheck()` 方法，返回结构化 `HealthStatus` 对象（overall status / component status / stats / uptime / schema version），6 个新类型定义 + 7 个测试
+- **优雅降级机制（F-3）** — 移除 mock LLM，引入 `llmEnabled` 标志，LLM/Embedding 不可用时跳过依赖步骤而非崩溃或产生无效数据，Fusion 降级为启发式规则，12 个降级测试
+- **结构化日志（F-4）** — `src/utils/logger.ts`，支持 `BM_LOG_LEVEL=error|warn|info|debug` 四级日志控制，统一输出格式 `[brain-memory][时间][级别][模块]`，替换 10 个文件 50+ 处 `console.*`
+- **统计指标查询增强（F-5）** — `getStats()` 返回全维度统计（节点按类型/时态/来源分类、社区、向量、缓存命中率、查询耗时等 16+ 字段），向后兼容旧 API
+- **CLI 诊断工具（F-6）** — `npm run doctor` / `npx brain-memory-doctor`，一键检查环境/依赖/配置/数据库状态，输出诊断报告（✓/⚠/✗）
+- **SQL 参数化审计（F-7）** — 逐项审计 89 处 `.prepare()` + 8 处 `.exec()`，确认 100% 参数化，无 SQL 注入漏洞
+- **Embedding 缓存命中率统计** — `getEmbedCacheStats()` 返回 hits/misses/hitRate
+
+### Changed
+- **`ContextEngine` 构造函数** — LLM/Embedding 未配置时不再抛异常，改为 `console.warn` + 继续初始化
+- **`Extractor` 构造函数** — 接受 `null` LLM 参数，LLM 不可用时返回空结果而非崩溃
+- **`runFusion` 函数** — 接受 `null` LLM 参数，无 LLM 时降级为启发式合并/链接
+- **日志输出** — 全部替换为结构化 logger，兼容 `BM_LOG_LLM` 环境变量，`BM_DEBUG` 功能合并到 `BM_LOG_LEVEL=debug`
+
+### Deprecated
+- **`BM_DEBUG` 环境变量** — 功能已合并到 `BM_LOG_LEVEL=debug`，将在未来版本移除
+
+### Security
+- **SQL 参数化 100% 审计通过** — 所有 CRUD 查询路径使用 `?` 占位符，动态 SQL（scope 子句、IN 列表、FTS5 MATCH）均安全
+
+---
+
 ## [0.1.9] — 2026-04-25
 
 ### Added

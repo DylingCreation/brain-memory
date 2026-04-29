@@ -13,6 +13,7 @@ import type { BmConfig, ReflectionConfig, ReflectionInsight, ReflectionResult } 
 import type { CompleteFn } from "../engine/llm";
 import { TURN_REFLECTION_SYS, SESSION_REFLECTION_SYS } from "./prompts"
 import { extractJson } from "../utils/json";
+import { logger } from "../utils/logger";
 
 // ─── Safety filter for reflection content ──────────────────────
 // Prevents prompt injection through reflection results.
@@ -120,7 +121,7 @@ export async function reflectOnSession(
 
     return parseSessionReflection(raw, cfg);
   } catch (err) {
-    if (process.env.BM_DEBUG) console.log(`  [WARN] session reflection failed: ${err}`);
+    logger.debug("reflect", `session reflection failed: ${err}`);
     return [];
   }
 }

@@ -154,6 +154,15 @@ const engine = new ContextEngine(config);
 | **FTS5 索引** | 自动同步（通过触发器） |
 | **6 张表 + 8 个索引** | 完整的图存储 + 向量存储 + 全文检索 |
 
+### 数据库迁移（v0.2.0 新增）
+
+v0.2.0 引入了数据库迁移系统，确保从旧版本平滑升级：
+
+- **`bm_meta` 表** — 存储 schema 版本号（新增表，不修改任何现有表）
+- **自动迁移** — `initDb()` 每次调用后自动执行 `migrate()`，幂等操作
+- **升级路径** — 用户从 v0.1.x 升级到 v0.2.0 时，旧 DB 文件会被自动标记为 schema v1，无需手动操作
+- **增量迁移** — 预留了 `migrateTo_v2` 等扩展模板，后续 schema 变更将支持逐步升级
+
 ### 备份
 
 直接复制 SQLite 数据库文件即可：
@@ -170,16 +179,38 @@ gzip /backup/brain-memory-$(date +%Y%m%d).db
 
 ---
 
-## 日志
+## 日志（v0.2.0 更新）
 
-### 启用调试日志
+### 结构化日志
 
-设置环境变量：
+v0.2.0 引入了结构化日志系统，使用 `BM_LOG_LEVEL` 环境变量控制：
+
+| BM_LOG_LEVEL | 可见级别 | 说明 |
+|-------------|---------|------|
+| `error` | 仅 ERROR | 生产环境，仅看错误 |
+| `warn` | ERROR + WARN | 日常运行，关注警告 |
+| `info`（默认） | ERROR + WARN + INFO | 基本信息 |
+| `debug` | 全部 | 调试模式，包含所有调试信息 |
 
 ```bash
-BM_DEBUG=true node your-app.js
-# 或 OpenClaw 环境中配置
+BM_LOG_LEVEL=info node your-app.js
+BM_LOG_LEVEL=debug node your-app.js  # 调试模式
 ```
+
+**输出格式：**
+```
+[brain-memory][2026-04-29 11:45:23.456][INFO ][context] Initialized with 42 existing nodes
+```
+
+### LLM 请求日志（兼容旧机制）
+
+```bash
+BM_LOG_LLM=1 node your-app.js  # LLM 请求/响应/重试日志
+```
+
+### 废弃说明
+
+`BM_DEBUG` 环境变量已废弃，请使用 `BM_LOG_LEVEL=debug` 替代。
 
 ### 正常启动日志
 
@@ -195,7 +226,7 @@ brain-memory 启动时会输出以下信息：
 |---------|------|
 | `Plugin initialized successfully` | 插件初始化成功 |
 | `ContextEngine initialized with N existing nodes` | 加载已有 N 个记忆节点 |
-| `LLM not configured, some features will be disabled` | 未配置 LLM，部分功能被禁用 |
+| `LLM not configured — ...` | 未配置 LLM，LLM 依赖功能将优雅降级跳过 |
 | `Plugin disabled by configuration` | 插件被配置禁用 |
 
 ### 运行时日志
@@ -204,7 +235,7 @@ brain-memory 启动时会输出以下信息：
 |---------|------|
 | `Extracted N nodes, M edges` | 本轮提取结果 |
 | `Cached N memories for agent X` | 记忆缓存更新 |
-| `Recall for "...": N nodes` | 召回结果数量（BM_DEBUG） |
+| `Recall for "...": N nodes` | 召回结果数量 |
 | `Session started: X` / `Session ended: X` | 会话生命周期 |
 | `Maintenance completed` | 图维护完成 |
 | `AI reply extracted: N nodes, M edges` | AI 回复提取结果 |
