@@ -312,6 +312,8 @@ LLM 和 Embedding 可以使用不同的 API：
 
 ## 六、验证配置
 
+### 方法一：查看启动日志
+
 重启 OpenClaw 后，查看日志确认 brain-memory 启动状态：
 
 ```
@@ -320,12 +322,41 @@ LLM 和 Embedding 可以使用不同的 API：
 ```
 
 - 无报错信息 → LLM 和 Embedding 配置成功
-- 出现 `LLM not configured` 警告 → LLM 未配置，知识提取等功能将被禁用
+- 出现 `LLM not configured` 警告 → LLM 未配置，知识提取等功能将被**优雅降级**跳过（不会崩溃）
 - 出现 `Embedding` 相关错误 → Embedding 未配置，将降级为 FTS5 全文检索
+
+### 方法二：CLI 诊断工具（v0.2.0 新增）
+
+```bash
+npm run doctor
+# 或：npx brain-memory-doctor
+```
+
+一键检查：Node.js 版本、依赖安装、LLM/Embedding 配置、数据库状态（schema 版本、表统计、WAL/SHM 残留）。输出 ✓/⚠/✗ 报告。
+
+### 方法三：健康检查 API（v0.2.0 新增）
+
+```typescript
+const health = engine.healthCheck();
+console.log(health.status);           // "healthy" | "degraded" | "unhealthy"
+console.log(health.components.llm);   // { status: "ok" | "not_configured" | "error" }
+console.log(health.schemaVersion);    // 1
+console.log(health.uptimeMs);         // 运行时长
+```
 
 ---
 
-## 七、常见问题
+## 七、环境变量（v0.2.0 更新）
+
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
+| `BM_LOG_LEVEL` | `info` | 日志级别：`error` / `warn` / `info` / `debug` |
+| `BM_LOG_LLM` | 未设置 | 设为 `1` 开启 LLM 请求详细日志（兼容旧机制） |
+| `BM_DEBUG` | 未设置 | ⚠️ **已废弃**，使用 `BM_LOG_LEVEL=debug` 替代 |
+
+---
+
+## 八、常见问题
 
 **Q: 可以不配 Embedding 吗？**
 

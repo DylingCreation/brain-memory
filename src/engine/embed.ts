@@ -33,6 +33,31 @@ interface CacheEntry {
 
 const embedCache = new Map<string, CacheEntry>();
 
+// ─── Cache Hit/Miss Tracking ────────────────────────────────
+
+let cacheHits = 0;
+let cacheMisses = 0;
+
+function cacheGet(text: string): number[] | null {
+  const key = cacheKey(text);
+  const entry = embedCache.get(key);
+  if (entry !== undefined) {
+    // #9 fix: check TTL — stale entries are treated as misses
+    if (Date.now() - entry.timestamp > EMBED_CACHE_TTL_MS) {
+      embedCache.delete(key);
+      cacheMisses++;
+      return null;
+    }
+    // Move to end (most recently used)
+    embedCache.delete(key);
+    embedCache.set(key, entry);
+    cacheHits++;
+    return entry.vector;
+  }
+  cacheMisses++;
+  return null;
+}
+
 function cacheKey(text: string): string {
   // Simple hash for cache key — avoids storing full text as key
   let h = 0;
@@ -57,21 +82,27 @@ function purgeExpired(): void {
   for (const key of expired) embedCache.delete(key);
 }
 
-function cacheGet(text: string): number[] | null {
-  const key = cacheKey(text);
-  const entry = embedCache.get(key);
-  if (entry !== undefined) {
-    // #9 fix: check TTL — stale entries are treated as misses
-    if (Date.now() - entry.timestamp > EMBED_CACHE_TTL_MS) {
-      embedCache.delete(key);
-      return null;
-    }
-    // Move to end (most recently used)
-    embedCache.delete(key);
-    embedCache.set(key, entry);
-    return entry.vector;
-  }
-  return null;
+export interface EmbedCacheStats {
+  size: number;
+  hits: number;
+  misses: number;
+  hitRate: number;
+}
+
+export function getEmbedCacheStats(): EmbedCacheStats {
+  const total = cacheHits + cacheMisses;
+  return {
+    size: embedCache.size,
+    hits: cacheHits,
+    misses: cacheMisses,
+    hitRate: total > 0 ? cacheHits / total : 0,
+  };
+}
+
+/** Reset cache stats counters (useful for testing or per-session tracking). */
+export function resetEmbedCacheStats(): void {
+  cacheHits = 0;
+  cacheMisses = 0;
 }
 
 function cacheSet(text: string, vec: number[]): void {

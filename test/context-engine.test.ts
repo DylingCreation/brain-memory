@@ -1,6 +1,6 @@
 /**
  * brain-memory — ContextEngine tests
- * 
+ *
  * Tests for the main ContextEngine class functionality
  */
 
@@ -8,18 +8,21 @@ import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { ContextEngine } from '../src/engine/context';
 import { DEFAULT_CONFIG } from '../src/types';
 import fs from 'fs';
+import path from 'path';
 
 describe('ContextEngine', () => {
   let engine: ContextEngine;
-  const testDbPath = './test-brain-memory-context.db';
+  const testDbPath = path.resolve(__dirname, 'test-brain-memory-context.db');
 
   beforeEach(() => {
-    // Create a temporary database for testing
+    // Clean up any leftover files from previous test runs
+    cleanupDbFiles(testDbPath);
+
     const config = {
       ...DEFAULT_CONFIG,
       dbPath: testDbPath,
       llm: {
-        apiKey: 'mock-key', // Using mock LLM
+        apiKey: 'mock-key',
         baseURL: 'https://api.mock.com',
         model: 'gpt-4o-mini'
       },
@@ -29,20 +32,25 @@ describe('ContextEngine', () => {
         model: 'text-embedding-3-small'
       }
     };
-    
+
     engine = new ContextEngine(config);
   });
 
   afterEach(() => {
-    // Clean up test database
-    try {
-      if (fs.existsSync(testDbPath)) {
-        fs.unlinkSync(testDbPath);
-      }
-    } catch (error) {
-      // Ignore cleanup errors in tests
-    }
+    // Close the engine first (flushes WAL)
+    try { engine.close(); } catch { /* ignore */ }
+    // Clean up all database files (main + WAL + SHM)
+    cleanupDbFiles(testDbPath);
   });
+
+  function cleanupDbFiles(dbPath: string): void {
+    const files = [dbPath, `${dbPath}-wal`, `${dbPath}-shm`];
+    for (const f of files) {
+      try {
+        if (fs.existsSync(f)) fs.unlinkSync(f);
+      } catch { /* ignore cleanup errors */ }
+    }
+  }
 
   it('should initialize properly', () => {
     expect(engine).toBeDefined();
@@ -58,18 +66,14 @@ describe('ContextEngine', () => {
 
   it('should have working working memory context', () => {
     const context = engine.getWorkingMemoryContext();
-    expect(context).toBeDefined(); // Should be either string or null
+    expect(context).toBeDefined();
   });
 
   it('should handle recall method gracefully', async () => {
-    // This test would normally require a real LLM configuration
-    // For now, we'll just verify the method exists and signature
     expect(engine.recall).toBeDefined();
   });
 
   it('should handle processTurn method gracefully', async () => {
-    // This test would normally require a real LLM configuration
-    // For now, we'll just verify the method exists and signature
     expect(engine.processTurn).toBeDefined();
   });
 

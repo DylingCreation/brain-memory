@@ -261,6 +261,17 @@ npm run setup-openclaw
 
 > **重要提示：** 交互式配置脚本仅设置 **核心 API 凭证**（LLM 端点、API Key、模型名称、Embedding 设置），**不配置** brain-memory 的高级功能参数，例如衰减参数、反思设置、融合阈值、工作记忆限制等。这些高级参数需要手动在 OpenClaw 配置文件中设置，或通过代码中的 `BmConfig` 接口进行编程配置。
 
+### 🩺 CLI 诊断工具（v0.2.0 新增）
+
+一键检查环境、依赖、配置、数据库状态：
+
+```bash
+npm run doctor
+# 或：npx brain-memory-doctor
+```
+
+检查项：Node.js 版本、依赖安装状态、LLM/Embedding 配置、数据库文件/schema 版本/表统计、WAL/SHM 残留文件。
+
 ---
 
 ## 📋 记忆分类体系
@@ -460,8 +471,11 @@ class ContextEngine {
   // 🔎 节点搜索
   searchNodes(query: string, limit?: number): BmNode[];
 
-  // 📊 统计信息
-  getStats(): { nodeCount: number; edgeCount: number; sessionCount: number };
+  // 📊 统计信息（v0.2.0 增强）
+  getStats(): EngineStats; // 节点按类型/状态/来源分类、社区、向量、dbSizeBytes、schemaVersion、uptimeMs、embedCache、queryTimeMs
+
+  // 🩺 健康检查（v0.2.0 新增）
+  healthCheck(): HealthStatus; // 整体状态、组件状态(db/llm/embedding)、统计、运行时长、schemaVersion
 
   // ❌ 关闭数据库
   close(): void;

@@ -123,8 +123,13 @@ CREATE INDEX IF NOT EXISTS idx_edges_type ON bm_edges(type);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON bm_messages(session_id, turn_index);
 `;
 
+import { migrate } from "./migrate";
+
 export function initDb(dbPath: string): DatabaseSyncInstance {
   const db = new DatabaseSync(dbPath);
   db.exec(SCHEMA);
+  // Run migrations to ensure schema version is tracked and any pending
+  // migrations are applied. Idempotent — safe to call on every init().
+  migrate(db);
   return db;
 }

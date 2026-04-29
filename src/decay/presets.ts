@@ -6,6 +6,7 @@
  */
 
 import type { DecayConfig } from "../types";
+import { logger } from "../utils/logger";
 
 // ─── Presets ──────────────────────────────────────────────────
 
@@ -129,7 +130,7 @@ export function visualizeDecay(cfg: DecayConfig): string {
 export function applyDecayPreset(base: DecayConfig, presetName: string): DecayConfig {
   const preset = DECAY_PRESETS[presetName];
   if (!preset) {
-    console.warn(`[brain-memory] Unknown decay preset: ${presetName}. Using "balanced".`);
+    logger.warn("decay", `Unknown decay preset: ${presetName}. Using "balanced".`);
     return { ...base, ...DECAY_PRESETS.balanced };
   }
   return { ...base, ...preset };

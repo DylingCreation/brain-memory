@@ -16,6 +16,7 @@ import type { BmConfig, ReflectionInsight, ReflectionConfig } from "../types";
 import { upsertNode, findByName, allActiveNodes, normalizeName } from "../store/store";
 import { sanitizeReflectionText } from "./extractor"
 import { tokenize, jaccardSimilarity } from "../utils/text";
+import { logger } from "../utils/logger";
 
 // ─── Insight → Node Mapping ───────────────────────────────────
 
@@ -72,9 +73,7 @@ export function storeReflectionInsights(
       db.prepare("UPDATE bm_nodes SET importance=?, validated_count=validated_count+1, updated_at=? WHERE id=?")
         .run(newImportance, Date.now(), relatedNode.id);
       boosted++;
-      if (process.env.BM_DEBUG) {
-        console.log(`  [REFLECT] boosted "${relatedNode.name}" importance: ${relatedNode.importance.toFixed(2)} → ${newImportance.toFixed(2)}`);
-      }
+      logger.debug("reflect", `boosted "${relatedNode.name}" importance: ${relatedNode.importance.toFixed(2)} → ${newImportance.toFixed(2)}`);
       continue;
     }
 
@@ -107,13 +106,9 @@ export function storeReflectionInsights(
       }
 
       stored++;
-      if (process.env.BM_DEBUG) {
-        console.log(`  [REFLECT] stored "${name}" (importance: ${initialImportance.toFixed(2)})`);
-      }
+      logger.debug("reflect", `stored "${name}" (importance: ${initialImportance.toFixed(2)})`);
     } catch (err) {
-      if (process.env.BM_DEBUG) {
-        console.log(`  [WARN] failed to store reflection: ${err}`);
-      }
+      logger.debug("reflect", `failed to store reflection: ${err}`);
     }
   }
 
@@ -165,9 +160,7 @@ export function applyTurnBoosts(
       .run(newImportance, Date.now(), node.id);
 
     applied++;
-    if (process.env.BM_DEBUG) {
-      console.log(`  [REFLECT] turn boost "${node.name}": ${node.importance.toFixed(2)} → ${newImportance.toFixed(2)} (${boost.reason})`);
-    }
+    logger.debug("reflect", `turn boost "${node.name}": ${node.importance.toFixed(2)} → ${newImportance.toFixed(2)} (${boost.reason})`);
   }
 
   return applied;

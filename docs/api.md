@@ -29,7 +29,8 @@ new ContextEngine(config: BmConfig)
 | **getWorkingMemoryContext** | `getWorkingMemoryContext(): string \| null` | 获取工作记忆上下文 |
 | **searchNodes** | `searchNodes(query, limit?): BmNode[]` | 直接搜索节点 |
 | **getAllActiveNodes** | `getAllActiveNodes(): BmNode[]` | 获取所有活跃节点 |
-| **getStats** | `getStats(): { nodeCount, edgeCount, sessionCount }` | 获取统计信息 |
+| **getStats** | `getStats(): EngineStats` | 获取全维度统计信息（16+ 字段） |
+| **healthCheck** | `healthCheck(): HealthStatus` | 健康检查（整体/组件/统计/运行时长） |
 | **close** | `close(): void` | 关闭数据库连接 |
 
 ---
@@ -90,6 +91,8 @@ new ContextEngine(config: BmConfig)
 | **ReasoningConclusion** | 推理结论 | [src/types.ts](../src/types.ts) |
 | **ReasoningResult** | 推理结果 | [src/types.ts](../src/types.ts) |
 | **ScopeFilter** | 范围过滤器 | [src/types.ts](../src/types.ts) |
+| **HealthStatus** | 健康检查结果 | [src/engine/context.ts](../src/engine/context.ts) |
+| **EngineStats** | 全维度统计信息 | [src/engine/context.ts](../src/engine/context.ts) |
 
 ### 枚举常量
 

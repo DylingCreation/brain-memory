@@ -26,6 +26,7 @@ import { getCommunityPeers, communityRepresentatives } from "../graph/community"
 import { personalizedPageRank } from "../graph/pagerank";
 import { applyTimeDecay } from "../decay/engine";
 import { estimateNodeTokens } from "../utils/tokens";
+import { logger } from "../utils/logger";
 
 interface RecallPathResult {
   seeds: string[];
@@ -91,10 +92,7 @@ export class Recaller {
 
     const ids = new Set(filtered.map(n => n.id));
 
-    if (process.env.BM_DEBUG) {
-      const communities = new Set(filtered.map(n => n.communityId).filter(Boolean));
-      console.log(`  [DEBUG] recall: preciseSeeds=${preciseSeeds.length}, generalizedSeeds=${generalizedSeeds.length} → unifiedSeeds=${unifiedSeeds.length} → final=${filtered.length} nodes, ${communities.size} communities`);
-    }
+    logger.debug("recall", `preciseSeeds=${preciseSeeds.length}, generalizedSeeds=${generalizedSeeds.length} → unifiedSeeds=${unifiedSeeds.length} → final=${filtered.length} nodes, ${new Set(filtered.map(n => n.communityId).filter(Boolean)).size} communities`);
 
     return {
       nodes: filtered,

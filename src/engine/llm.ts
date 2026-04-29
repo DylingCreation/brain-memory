@@ -14,6 +14,8 @@ export interface LlmConfig {
   model?: string;
 }
 
+import { logger } from "../utils/logger";
+
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 1000;
 
@@ -32,9 +34,9 @@ export function createCompleteFn(cfg?: LlmConfig): CompleteFn | null {
     const requestId = crypto.randomUUID().slice(0, 8);
     const startTime = Date.now();
 
-    // Logging (#3): optional, enabled via BM_LOG_LLM env var
+    // Logging (#3): optional, enabled via BM_LOG_LLM env var or BM_LOG_LEVEL=debug
     if (process.env.BM_LOG_LLM) {
-      console.log(`[LLM] req=${requestId} model=${model} system=${system.length}ch user=${user.length}ch`);
+      logger.debug("llm", `req=${requestId} model=${model} system=${system.length}ch user=${user.length}ch`);
     }
 
     let lastError: Error | null = null;
@@ -46,13 +48,13 @@ export function createCompleteFn(cfg?: LlmConfig): CompleteFn | null {
           : await openaiComplete(apiKey, baseURL, model, system, user);
 
         if (process.env.BM_LOG_LLM) {
-          console.log(`[LLM] req=${requestId} ok latency=${Date.now() - startTime}ms attempt=${attempt}`);
+          logger.debug("llm", `req=${requestId} ok latency=${Date.now() - startTime}ms attempt=${attempt}`);
         }
         return result;
       } catch (error) {
         lastError = error as Error;
         if (process.env.BM_LOG_LLM) {
-          console.warn(`[LLM] req=${requestId} fail attempt=${attempt}/${MAX_RETRIES} error=${lastError.message}`);
+          logger.warn("llm", `req=${requestId} fail attempt=${attempt}/${MAX_RETRIES} error=${lastError.message}`);
         }
         // Retry on transient errors (#4): rate limits (429), server errors (5xx), network failures
         const isRetryable = isRetryableError(lastError);
@@ -60,7 +62,7 @@ export function createCompleteFn(cfg?: LlmConfig): CompleteFn | null {
 
         const delayMs = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
         if (process.env.BM_LOG_LLM) {
-          console.log(`[LLM] req=${requestId} retrying in ${delayMs}ms...`);
+          logger.debug("llm", `req=${requestId} retrying in ${delayMs}ms...`);
         }
         await sleep(delayMs);
       }

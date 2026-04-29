@@ -253,19 +253,59 @@ getAllActiveNodes(): BmNode[]
 
 ### getStats
 
-获取统计信息。
+获取统计信息（v0.2.0 增强）。
 
 ```typescript
-getStats(): { nodeCount: number; edgeCount: number; sessionCount: number }
+getStats(): EngineStats
 ```
 
 **返回值：**
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `nodeCount` | `number` | 节点总数（含已废弃） |
-| `edgeCount` | `number` | 边总数 |
-| `sessionCount` | `number` | 会话数（基于 bm_messages 表去重） |
+| `nodeCount` | `number` | 节点总数（向后兼容） |
+| `nodes.total` | `number` | 节点总数（嵌套结构） |
+| `nodes.active` | `number` | 活跃节点数 |
+| `nodes.deprecated` | `number` | 废弃节点数 |
+| `nodes.byType` | `object` | 按类型分类（task/skill/event） |
+| `nodes.byTemporalType` | `object` | 按时态分类（static/dynamic） |
+| `nodes.bySource` | `object` | 按来源分类（user/assistant） |
+| `edgeCount` | `number` | 边总数（向后兼容） |
+| `communities` | `number` | 社区数 |
+| `vectors` | `number` | 向量化节点数 |
+| `sessionCount` | `number` | 会话数（向后兼容） |
+| `dbSizeBytes` | `number` | 数据库文件大小（字节） |
+| `schemaVersion` | `number` | Schema 版本号 |
+| `uptimeMs` | `number` | 引擎运行时长（毫秒） |
+| `embedCache` | `object` | 嵌入缓存统计（size/hits/misses/hitRate） |
+| `queryTimeMs` | `number` | 本次查询耗时（毫秒） |
+
+---
+
+### healthCheck（v0.2.0 新增）
+
+健康检查 API。
+
+```typescript
+healthCheck(): HealthStatus
+```
+
+**返回值：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `status` | `"healthy"\|"degraded"\|"unhealthy"` | 整体健康状态 |
+| `uptimeMs` | `number` | 引擎运行时长（毫秒） |
+| `schemaVersion` | `number` | Schema 版本号 |
+| `components.database` | `{ status, detail? }` | DB 连接状态 |
+| `components.llm` | `{ status, detail? }` | LLM 状态（ok/not_configured/error） |
+| `components.embedding` | `{ status, detail? }` | Embedding 状态（ok/not_configured/error） |
+| `stats` | `object` | 统计信息（节点/边/向量/社区/DB 大小） |
+
+**状态判定逻辑：**
+- DB 异常 → `unhealthy`
+- DB 正常，但 LLM 或 Embedding 未配置 → `degraded`
+- 全部正常 → `healthy`
 
 ---
 
@@ -566,8 +606,21 @@ async function session_end(event: any, ctx: any): Promise<void>
 
 **常见错误场景：**
 
-- **LLM 未配置** — `createCompleteFn` 返回 null，ContextEngine 使用 Mock（仅日志警告）
+- **LLM 未配置** — `createCompleteFn` 返回 null，ContextEngine 优雅降级，跳过 LLM 依赖步骤（仅 warn 日志）
 - **Embedding 未配置** — `createEmbedFn` 返回 null，向量相关功能跳过
 - **数据库初始化失败** — 构造器抛出异常，需调用方处理
 
 > ⚠️ 系统没有定义特定的错误类型（如 `DatabaseError` / `ValidationError`）。所有异常均为标准 `Error` 对象，通过错误消息区分。
+
+---
+
+## CLI 命令（v0.2.0 新增）
+
+### brain-memory-doctor
+
+```bash
+npx brain-memory-doctor
+# 或：npm run doctor
+```
+
+一键诊断：环境、依赖、配置、数据库状态。输出 ✓/⚠/✗ 报告。
