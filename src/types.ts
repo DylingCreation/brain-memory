@@ -32,23 +32,49 @@ export type EdgeType =
   | "SOLVED_BY"
   | "REQUIRES"
   | "PATCHES"
-  | "CONFLICTS_WITH";
+  | "CONFLICTS_WITH"
+  | "HAS_PREFERENCE"
+  | "BELONGS_TO"
+  | "LEARNED_FROM"
+  | "EXEMPLIFIES"
+  | "RELATED_TO"
+  | "OBSERVED_IN";
 
-// 边方向约束
+/**
+ * 边方向约束：定义每种边类型允许 from/to 端的节点类型。
+ * 新增 6 种边类型（v1.0.0），使 8 类记忆节点均可建立图谱关系。
+ * extract.ts 必须 import 本处定义，不得维护本地副本。
+ */
 export const EDGE_FROM_CONSTRAINT: Record<EdgeType, Set<GraphNodeType>> = {
+  // 现有 5 种（v0.1.x）
   USED_SKILL:     new Set(["TASK"]),
   SOLVED_BY:      new Set(["EVENT", "SKILL"]),
   REQUIRES:       new Set(["SKILL"]),
   PATCHES:        new Set(["SKILL"]),
   CONFLICTS_WITH: new Set(["SKILL"]),
+  // 新增 6 种（v1.0.0）
+  HAS_PREFERENCE: new Set(["TASK", "SKILL", "EVENT"]),
+  BELONGS_TO:     new Set(["TASK", "SKILL", "EVENT"]),
+  LEARNED_FROM:   new Set(["SKILL"]),
+  EXEMPLIFIES:    new Set(["SKILL"]),
+  RELATED_TO:     new Set(["TASK", "SKILL", "EVENT"]),
+  OBSERVED_IN:    new Set(["SKILL", "EVENT"]),
 };
 
 export const EDGE_TO_CONSTRAINT: Record<EdgeType, Set<GraphNodeType>> = {
+  // 现有 5 种（v0.1.x）
   USED_SKILL:     new Set(["SKILL"]),
   SOLVED_BY:      new Set(["SKILL"]),
   REQUIRES:       new Set(["SKILL"]),
   PATCHES:        new Set(["SKILL"]),
   CONFLICTS_WITH: new Set(["SKILL"]),
+  // 新增 6 种（v1.0.0）
+  HAS_PREFERENCE: new Set(["TASK", "SKILL", "EVENT"]),
+  BELONGS_TO:     new Set(["TASK", "SKILL", "EVENT"]),
+  LEARNED_FROM:   new Set(["SKILL"]),
+  EXEMPLIFIES:    new Set(["SKILL"]),
+  RELATED_TO:     new Set(["TASK", "SKILL", "EVENT"]),
+  OBSERVED_IN:    new Set(["SKILL", "EVENT"]),
 };
 
 // ─── 节点 ─────────────────────────────────────────────────────

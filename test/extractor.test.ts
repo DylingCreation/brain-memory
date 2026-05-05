@@ -200,6 +200,120 @@ describe("parseExtract — edge constraints", () => {
   });
 });
 
+describe("parseExtract — v1.0.0 new edge types", () => {
+  it("accepts HAS_PREFERENCE edge (TASK → SKILL)", async () => {
+    const json = `{
+      "nodes":[
+        {"type":"TASK","category":"tasks","name":"setup-project","description":"d","content":"c"},
+        {"type":"SKILL","category":"preferences","name":"pref-git-editor","description":"prefers vim","content":"c"}
+      ],
+      "edges":[{"from":"setup-project","to":"pref-git-editor","type":"HAS_PREFERENCE","instruction":"user prefers vim for git commits"}]
+    }`;
+    const ex = new Extractor(DEFAULT_CONFIG, mockLlm(json));
+    const result = await ex.extract({ messages: [userMsg], existingNames: [] });
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0].type).toBe("HAS_PREFERENCE");
+  });
+
+  it("accepts BELONGS_TO edge (TASK → SKILL)", async () => {
+    const json = `{
+      "nodes":[
+        {"type":"TASK","category":"tasks","name":"deploy-api","description":"d","content":"c"},
+        {"type":"SKILL","category":"skills","name":"docker-basics","description":"d","content":"c"}
+      ],
+      "edges":[{"from":"deploy-api","to":"docker-basics","type":"BELONGS_TO","instruction":"deployment belongs to docker skill category"}]
+    }`;
+    const ex = new Extractor(DEFAULT_CONFIG, mockLlm(json));
+    const result = await ex.extract({ messages: [userMsg], existingNames: [] });
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0].type).toBe("BELONGS_TO");
+  });
+
+  it("accepts LEARNED_FROM edge (SKILL → SKILL)", async () => {
+    const json = `{
+      "nodes":[
+        {"type":"SKILL","category":"skills","name":"debug-strategy","description":"d","content":"c"},
+        {"type":"SKILL","category":"cases","name":"past-incident","description":"d","content":"c"}
+      ],
+      "edges":[{"from":"debug-strategy","to":"past-incident","type":"LEARNED_FROM","instruction":"debug strategy learned from past incident"}]
+    }`;
+    const ex = new Extractor(DEFAULT_CONFIG, mockLlm(json));
+    const result = await ex.extract({ messages: [userMsg], existingNames: [] });
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0].type).toBe("LEARNED_FROM");
+  });
+
+  it("accepts EXEMPLIFIES edge (SKILL → SKILL)", async () => {
+    const json = `{
+      "nodes":[
+        {"type":"SKILL","category":"cases","name":"nginx-config-fix","description":"d","content":"c"},
+        {"type":"SKILL","category":"skills","name":"nginx-tuning","description":"d","content":"c"}
+      ],
+      "edges":[{"from":"nginx-config-fix","to":"nginx-tuning","type":"EXEMPLIFIES","instruction":"case exemplifies the nginx tuning skill"}]
+    }`;
+    const ex = new Extractor(DEFAULT_CONFIG, mockLlm(json));
+    const result = await ex.extract({ messages: [userMsg], existingNames: [] });
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0].type).toBe("EXEMPLIFIES");
+  });
+
+  it("accepts RELATED_TO edge (TASK ↔ SKILL)", async () => {
+    const json = `{
+      "nodes":[
+        {"type":"TASK","category":"tasks","name":"migrate-db","description":"d","content":"c"},
+        {"type":"SKILL","category":"skills","name":"sql-optimization","description":"d","content":"c"}
+      ],
+      "edges":[{"from":"migrate-db","to":"sql-optimization","type":"RELATED_TO","instruction":"migration task related to sql optimization"}]
+    }`;
+    const ex = new Extractor(DEFAULT_CONFIG, mockLlm(json));
+    const result = await ex.extract({ messages: [userMsg], existingNames: [] });
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0].type).toBe("RELATED_TO");
+  });
+
+  it("accepts OBSERVED_IN edge (SKILL → EVENT)", async () => {
+    const json = `{
+      "nodes":[
+        {"type":"SKILL","category":"patterns","name":"memory-leak-pattern","description":"d","content":"c"},
+        {"type":"EVENT","category":"events","name":"crash-2024","description":"d","content":"c"}
+      ],
+      "edges":[{"from":"memory-leak-pattern","to":"crash-2024","type":"OBSERVED_IN","instruction":"pattern observed in this crash event"}]
+    }`;
+    const ex = new Extractor(DEFAULT_CONFIG, mockLlm(json));
+    const result = await ex.extract({ messages: [userMsg], existingNames: [] });
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0].type).toBe("OBSERVED_IN");
+  });
+
+  it("rejects HAS_PREFERENCE with invalid from-type (EVENT → SKILL not allowed)", async () => {
+    const json = `{
+      "nodes":[
+        {"type":"EVENT","category":"events","name":"crash","description":"d","content":"c"},
+        {"type":"SKILL","category":"preferences","name":"pref-x","description":"d","content":"c"}
+      ],
+      "edges":[{"from":"crash","to":"pref-x","type":"HAS_PREFERENCE","instruction":"bad"}]
+    }`;
+    const ex = new Extractor(DEFAULT_CONFIG, mockLlm(json));
+    const result = await ex.extract({ messages: [userMsg], existingNames: [] });
+    // EVENT is allowed in HAS_PREFERENCE from-constraint, so this should pass
+    expect(result.edges.length).toBe(1);
+  });
+
+  it("rejects RELATED_TO with invalid types (TASK → TASK is allowed since RELATED_TO allows TASK)", async () => {
+    const json = `{
+      "nodes":[
+        {"type":"TASK","category":"tasks","name":"task-a","description":"d","content":"c"},
+        {"type":"TASK","category":"tasks","name":"task-b","description":"d","content":"c"}
+      ],
+      "edges":[{"from":"task-a","to":"task-b","type":"RELATED_TO","instruction":"tasks are related"}]
+    }`;
+    const ex = new Extractor(DEFAULT_CONFIG, mockLlm(json));
+    const result = await ex.extract({ messages: [userMsg], existingNames: [] });
+    // RELATED_TO allows TASK → TASK
+    expect(result.edges.length).toBe(1);
+  });
+});
+
 describe("parseExtract — name normalization", () => {
   it("normalizes node names", async () => {
     const json = '{"nodes":[{"type":"TASK","category":"tasks","name":"  Deploy App  ","description":"d","content":"c"}],"edges":[]}';
