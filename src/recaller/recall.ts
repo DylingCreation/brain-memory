@@ -27,6 +27,9 @@ import { personalizedPageRank } from "../graph/pagerank";
 import { applyTimeDecay } from "../decay/engine";
 import { estimateNodeTokens } from "../utils/tokens";
 import { logger } from "../utils/logger";
+// B-4: retriever module integration
+import { analyzeIntent } from "../retriever/intent-analyzer";
+import { expandQuery } from "../retriever/query-expander";
 
 interface RecallPathResult {
   seeds: string[];
@@ -46,8 +49,19 @@ export class Recaller {
   async recall(query: string, scopeFilter?: ScopeFilter, sourceFilter?: "user" | "assistant" | "both"): Promise<RecallResult> {
     const limit = this.cfg.recallMaxNodes;
 
+    // B-4: Intent analysis for diagnostics (optional, doesn't change graph recall behavior yet)
+    const intent = analyzeIntent(query);
+    logger.debug("recall", `intent=${intent.intent} scores=${JSON.stringify(intent.scores)}`);
+
+    // B-4: Query expansion for FTS5 seed acquisition
+    const expandedQuery = expandQuery(query);
+    const usedExpanded = expandedQuery !== query;
+    if (usedExpanded) {
+      logger.debug("recall", `query expanded: "${query}" → "${expandedQuery}"`);
+    }
+
     // Phase 2 (#6 fix): Get seeds from both paths, but defer graphWalk + PPR
-    const preciseSeeds = await this.getPreciseSeeds(query, limit, scopeFilter, sourceFilter);
+    const preciseSeeds = await this.getPreciseSeeds(expandedQuery, limit, scopeFilter, sourceFilter);
     const generalizedSeeds = await this.getGeneralizedSeeds(query, limit, scopeFilter, sourceFilter);
 
     if (!preciseSeeds.length && !generalizedSeeds.length) {

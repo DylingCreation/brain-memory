@@ -300,37 +300,41 @@ export class ContextEngine {
    *
    * Memory belongs to the Agent/Workspace, not to individual Sessions.
    * This method first tries to recall within the current agent/workspace scope,
-   * then falls back to cross-session recall if no results are found.
+   * then falls back to cross-scope recall based on sharing configuration (v1.0.0 B-2).
    */
   async recall(query: string, sessionId?: string, agentId?: string, workspaceId?: string): Promise<RecallResult> {
     try {
       const excludeScopes: any[] = [];
       const includeScopes: any[] = [];
 
-      // Fix: Build scope filter by agent/workspace, NOT by sessionId.
-      // Memory should be shared across sessions for the same agent.
+      // Build scope filter by agent/workspace
       if (agentId || workspaceId) {
         includeScopes.push({
-          sessionId: null,           // ← do NOT restrict by session
+          sessionId: null,
           agentId: agentId || null,
           workspaceId: workspaceId || null,
           allowCrossScope: true,
         });
       }
 
-      // First attempt: scoped recall (by agent/workspace if available)
+      // First attempt: scoped recall with sharing configuration (v1.0.0 B-2)
+      const sharingCfg = this.config.memorySharing || { enabled: true, mode: "mixed" as const, sharedCategories: [] as any[], allowedAgents: [] as string[] };
       const scopeFilter = {
         excludeScopes,
         includeScopes,
-        allowCrossScope: includeScopes.length === 0, // no restrictions → recall everything
+        allowCrossScope: includeScopes.length === 0,
+        sharingMode: sharingCfg.enabled ? sharingCfg.mode : "isolated",
+        sharedCategories: sharingCfg.sharedCategories,
+        currentAgentId: agentId,
+        allowedAgents: sharingCfg.allowedAgents,
       };
 
       let result = await this.recaller.recall(query, scopeFilter);
 
-      // Fallback: if no results from scoped recall, try cross-session recall
-      if (result.nodes.length === 0 && includeScopes.length > 0) {
+      // Fallback: if no results and no cross-scope was attempted, try unrestricted recall
+      if (result.nodes.length === 0 && includeScopes.length === 0) {
         if (process.env.BM_DEBUG) {
-          logger.debug("context", "Scoped recall returned 0 nodes, falling back to cross-session recall");
+          logger.debug("context", "Scoped recall returned 0 nodes, falling back to unrestricted recall");
         }
         const fallbackFilter = {
           excludeScopes: [],

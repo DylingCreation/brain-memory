@@ -6,6 +6,8 @@
  * Supports cross-scope retrieval when authorized.
  */
 
+import type { MemoryCategory, SharingMode } from "../types";
+
 export interface MemoryScope {
   sessionId?: string;
   agentId?: string;
@@ -16,6 +18,14 @@ export interface ScopeFilter {
   includeScopes: MemoryScope[];
   excludeScopes: MemoryScope[];
   allowCrossScope: boolean;
+  /** v1.0.0 B-2: Multi-agent sharing */
+  sharingMode?: SharingMode;
+  /** v1.0.0 B-2: Categories allowed for cross-agent sharing */
+  sharedCategories?: MemoryCategory[];
+  /** v1.0.0 B-2: Current agent ID (for cross-scope recall) */
+  currentAgentId?: string;
+  /** v1.0.0 B-2: Allowed agent IDs for sharing (empty = all) */
+  allowedAgents?: string[];
 }
 
 export const DEFAULT_SCOPE_FILTER: ScopeFilter = {
@@ -66,6 +76,25 @@ export function buildScopeFilterClause(filter: ScopeFilter): { clause: string; p
       return parts.length > 0 ? `(${parts.join(" AND ")})` : "1=1";  // #18 fix: AND for includeScopes (was OR, too permissive)
     });
     conditions.push(`(${includeClauses.join(" OR ")})`);
+  }
+
+  // v1.0.0 B-2: Cross-scope sharing logic
+  if (filter.allowCrossScope && filter.sharingMode && filter.sharingMode !== "isolated") {
+    if (filter.sharingMode === "shared") {
+      // Fully shared: no additional restriction
+      // (allow all active nodes regardless of scope)
+    } else if (filter.sharingMode === "mixed" && filter.sharedCategories && filter.sharedCategories.length > 0) {
+      // Mixed mode: allow nodes from any agent, but only for shared categories
+      const placeholders = filter.sharedCategories.map(() => "?").join(", ");
+      filter.sharedCategories.forEach(cat => params.push(cat));
+      conditions.push(`(category IN (${placeholders}))`);
+    }
+    // Additional agent restriction if allowedAgents is specified
+    if (filter.allowedAgents && filter.allowedAgents.length > 0) {
+      const agentPlaceholders = filter.allowedAgents.map(() => "?").join(", ");
+      filter.allowedAgents.forEach(aid => params.push(aid));
+      conditions.push(`(scope_agent IN (${agentPlaceholders}))`);
+    }
   }
 
   // Exclude scopes

@@ -169,6 +169,36 @@ export interface ReasoningConfig {
   minRecallNodes: number;
 }
 
+// ─── 记忆注入格式配置（v1.0.0 B-1）───────────────────────────
+
+export interface MemoryInjectionConfig {
+  /** 是否启用记忆注入 */
+  enabled: boolean;
+  /** 注入策略：full=完整XML / summary=仅名称+描述 / adaptive=自动切换 / off=不注入 */
+  strategy: "full" | "summary" | "adaptive" | "off";
+  /** Token 预算（0=不限制） */
+  tokenBudget: number;
+  /** 最大节点数（即使预算允许也不超过此数） */
+  maxNodes: number;
+  /** 是否附带原始对话片段 */
+  includeEpisodic: boolean;
+}
+
+// ─── 多 Agent 记忆共享配置（v1.0.0 B-2）─────────────────────
+
+export type SharingMode = "isolated" | "mixed" | "shared";
+
+export interface MemorySharingConfig {
+  /** 是否启用共享 */
+  enabled: boolean;
+  /** 共享模式：isolated=完全隔离 / mixed=部分共享 / shared=完全共享 */
+  mode: SharingMode;
+  /** 允许跨 Agent 共享的记忆类别（mixed 模式生效） */
+  sharedCategories: MemoryCategory[];
+  /** 允许共享的 Agent 列表（空=所有 Agent） */
+  allowedAgents: string[];
+}
+
 // ─── 反思系统类型 ─────────────────────────────────────────────
 
 export type ReflectionKind = "invariant" | "derived";
@@ -331,6 +361,10 @@ export interface BmConfig {
   fusion: FusionConfig;
   /** 推理检索配置 */
   reasoning: ReasoningConfig;
+  /** 记忆注入格式配置（v1.0.0 B-1） */
+  memoryInjection: MemoryInjectionConfig;
+  /** 多 Agent 记忆共享配置（v1.0.0 B-2） */
+  memorySharing: MemorySharingConfig;
 }
 
 export const DEFAULT_CONFIG: BmConfig = {
@@ -345,7 +379,7 @@ export const DEFAULT_CONFIG: BmConfig = {
   pagerankDamping: 0.85,
   pagerankIterations: 20,
   decay: {
-    enabled: false,
+    enabled: true,  // v1.0.0 B-3: default on
     recencyHalfLifeDays: 30,
     recencyWeight: 0.4,
     frequencyWeight: 0.3,
@@ -393,5 +427,20 @@ export const DEFAULT_CONFIG: BmConfig = {
     maxHops: 2,
     maxConclusions: 3,
     minRecallNodes: 3,
+  },
+  /** v1.0.0 B-1: Memory injection format */
+  memoryInjection: {
+    enabled: true,
+    strategy: "adaptive",
+    tokenBudget: 6000,
+    maxNodes: 12,
+    includeEpisodic: true,
+  },
+  /** v1.0.0 B-2: Multi-agent memory sharing */
+  memorySharing: {
+    enabled: true,
+    mode: "mixed",
+    sharedCategories: ["profile", "preferences"],
+    allowedAgents: [],
   },
 };

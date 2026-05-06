@@ -5,7 +5,9 @@
  */
 
 import { ContextEngine } from '../engine/context';
-import type { BmConfig } from '../types';
+import type { BmConfig, BmNode, BmEdge } from '../types';
+import { assembleContext } from '../format/assemble';
+import { allActiveNodes, allEdges } from '../store/store';
 import { logger } from '../utils/logger';
 
 // Define minimal OpenClaw plugin interfaces
@@ -130,6 +132,20 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
     if (!this.engine || !this.config.enabled || !this.config.injectMemories) return null;
 
     try {
+      // v1.0.0 B-1: Get memory injection config
+      const injectionCfg = this.config.memoryInjection || {
+        enabled: true,
+        strategy: 'adaptive',
+        tokenBudget: 6000,
+        maxNodes: 12,
+        includeEpisodic: true,
+      };
+
+      if (!injectionCfg.enabled || injectionCfg.strategy === 'off') {
+        // Disabled — fallback to raw nodes for backward compat
+        return this._getRawMemoryContext(message);
+      }
+
       // Query relevant memories for this conversation
       const recallResult = await this.engine.recall(
         message.content.toString(),
@@ -139,20 +155,64 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
       );
 
       if (recallResult.nodes.length > 0) {
-        const memoryContext = this.engine.getWorkingMemoryContext();
-        
         logger.info('plugin', `Retrieved ${recallResult.nodes.length} relevant memories`);
-        
+
+        // v1.0.0 B-1: Format memories using assembleContext for structured injection
+        const allNodes = allActiveNodes((this.engine as any).db);
+        const allEdgesList = allEdges((this.engine as any).db);
+
+        // Apply maxNodes cap before assembly
+        const recalledNodes = recallResult.nodes.slice(0, injectionCfg.maxNodes);
+
+        const assembled = assembleContext((this.engine as any).db, {
+          tokenBudget: injectionCfg.tokenBudget,
+          recallStrategy: injectionCfg.strategy,
+          activeNodes: [],
+          activeEdges: [],
+          recalledNodes,
+          recalledEdges: recallResult.edges || [],
+        });
+
+        const memoryContext = this.engine.getWorkingMemoryContext();
+
         return {
           memoryContext,
-          relatedNodes: recallResult.nodes,
-          tokenEstimate: recallResult.tokenEstimate
+          relatedNodes: recalledNodes,
+          tokenEstimate: assembled.tokens,
+          // v1.0.0 B-1: Structured formatted content for injection
+          formattedXml: assembled.xml,
+          systemPrompt: assembled.systemPrompt,
+          episodicXml: injectionCfg.includeEpisodic ? assembled.episodicXml : '',
         };
       }
-      
+
       return null;
     } catch (error) {
       logger.error('plugin', 'Memory context retrieval failed:', error);
+      // Fallback to raw context on error
+      return this._getRawMemoryContext(message);
+    }
+  }
+
+  /** Fallback: raw memory context (pre-v1.0.0 behavior) */
+  private async _getRawMemoryContext(message: Message): Promise<any> {
+    if (!this.engine) return null;
+    try {
+      const recallResult = await this.engine.recall(
+        message.content.toString(),
+        message.sessionId,
+        message.agentId,
+        message.workspaceId
+      );
+      if (recallResult.nodes.length > 0) {
+        return {
+          memoryContext: this.engine.getWorkingMemoryContext(),
+          relatedNodes: recallResult.nodes,
+          tokenEstimate: recallResult.tokenEstimate,
+        };
+      }
+      return null;
+    } catch {
       return null;
     }
   }
@@ -161,25 +221,19 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
     if (!this.engine || !this.config.enabled || !this.config.injectMemories) return message;
 
     try {
-      // Query relevant memories for this conversation
-      const recallResult = await this.engine.recall(
-        message.content.toString(),
-        message.sessionId,
-        message.agentId,
-        message.workspaceId
-      );
+      // v1.0.0 B-1: Reuse getMemoryContext which now returns formatted content
+      const memCtx = await this.getMemoryContext(message);
+      if (memCtx) {
+        logger.info('plugin', `Retrieved ${memCtx.relatedNodes?.length || 0} relevant memories`);
 
-      if (recallResult.nodes.length > 0) {
-        // Inject memories into the message context or related structures
-        // This is a simplified approach - in practice, this would integrate with OpenClaw's context system
-        const memoryContext = this.engine.getWorkingMemoryContext();
-        
-        logger.info('plugin', `Retrieved ${recallResult.nodes.length} relevant memories`);
-        
-        // Attach memory context to message if the framework supports it
-        if (memoryContext) {
-          (message as any).memoryContext = memoryContext;
-        }
+        // v1.0.0 B-1: Attach structured formatted content for downstream use
+        (message as any).memoryContext = memCtx.memoryContext;
+        (message as any).formattedMemory = {
+          xml: memCtx.formattedXml,
+          systemPrompt: memCtx.systemPrompt,
+          episodicXml: memCtx.episodicXml,
+          tokenCount: memCtx.tokenEstimate,
+        };
       }
 
       return message;

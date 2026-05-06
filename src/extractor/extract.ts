@@ -15,6 +15,7 @@ import { normalizeName } from "../store/store";
 import { extractJson, extractJsonTolerant } from "../utils/json";
 import { truncate } from "../utils/truncate";
 import { logger } from "../utils/logger";
+import { heuristicExtract, heuristicConfidence } from "./heuristic";
 
 const VALID_NODE_TYPES = new Set(["TASK", "SKILL", "EVENT"]);
 const VALID_CATEGORIES = new Set(["profile", "preferences", "entities", "events", "tasks", "skills", "cases", "patterns"]);
@@ -100,13 +101,6 @@ export class Extractor {
   constructor(private cfg: BmConfig, private llm: CompleteFn | null) {}
 
   async extract(params: { messages: any[]; existingNames: string[] }): Promise<ExtractionResult> {
-    // Graceful degradation: skip extraction when LLM is not available
-    if (!this.llm) {
-      logger.warn("extract", "Extraction skipped — LLM not configured");
-      return { nodes: [], edges: [] };
-    }
-
-    const maxRetries = 2;
     const noiseCfg = this.cfg.noiseFilter;
     const filtered = noiseCfg.enabled
       ? params.messages.filter(m => {
@@ -117,6 +111,18 @@ export class Extractor {
 
     if (filtered.length === 0) return { nodes: [], edges: [] };
 
+    // ── Tier 1: Heuristic extraction (always runs, LLM-free, < 10ms) ──
+    const heuristicResult = heuristicExtract(filtered, { minContentLength: noiseCfg.minContentLength });
+
+    // ── LLM unavailable → return heuristic result directly ──
+    if (!this.llm) {
+      const conf = heuristicConfidence(heuristicResult);
+      logger.info("extract", `LLM not configured — heuristic extraction returned ${heuristicResult.nodes.length} nodes (confidence: ${conf})`);
+      return heuristicResult;
+    }
+
+    // ── Tier 2/3: LLM extraction ──
+    const maxRetries = 2;
     const userPrompt = `<Existing Nodes>\n${params.existingNames.join(", ") || "（无）"}\n\n<Conversation>\n${
       filtered
         .map(m => `[${(m.role ?? "?").toUpperCase()} t=${m.turn_index ?? 0}]\n${
@@ -133,11 +139,13 @@ export class Extractor {
           const fixPrompt = `上次输出 JSON 解析失败。请修正格式错误（确保双引号、无尾随逗号、完整闭合）并重新输出。原始对话：\n\n${userPrompt}`;
           raw = await this.llm(EXTRACT_SYS, fixPrompt);
         }
-        const result = this.parseExtract(raw);
-        if (result.nodes.length > 0 || result.edges.length > 0) {
-          return result;
+        const llmResult = this.parseExtract(raw);
+        if (llmResult.nodes.length > 0 || llmResult.edges.length > 0) {
+          // ── Merge heuristic + LLM results (dedup by normalized name) ──
+          return this.mergeResults(heuristicResult, llmResult);
         }
-        return result;
+        // LLM returned empty — fall back to heuristic
+        return heuristicResult;
       } catch (error) {
         if (attempt < maxRetries) {
           logger.warn("extract", `Extraction parse failed (attempt ${attempt + 1}/${maxRetries}), retrying...`);
@@ -145,12 +153,37 @@ export class Extractor {
         }
         logger.warn("extract", "All retries failed, attempting tolerant extraction...");
         const tolerantResult = this.parseExtractTolerant(raw);
-        if (tolerantResult) return tolerantResult;
-        logger.error("extract", "Failed to extract knowledge after all attempts:", error);
-        return { nodes: [], edges: [] };
+        if (tolerantResult) {
+          return this.mergeResults(heuristicResult, tolerantResult);
+        }
+        logger.error("extract", "LLM extraction failed after all attempts, falling back to heuristic:", error);
+        return heuristicResult;
       }
     }
-    return { nodes: [], edges: [] };
+    return heuristicResult;
+  }
+
+  /**
+   * Merge heuristic and LLM extraction results, deduplicating by normalized name.
+   * LLM results take priority when names conflict (higher precision).
+   */
+  private mergeResults(heuristic: ExtractionResult, llm: ExtractionResult): ExtractionResult {
+    const llmNames = new Set(llm.nodes.map(n => normalizeName(n.name)));
+    const mergedNodes = [...llm.nodes];
+
+    // Add heuristic nodes that aren't already in LLM results
+    for (const node of heuristic.nodes) {
+      const normalizedName = normalizeName(node.name);
+      if (!llmNames.has(normalizedName)) {
+        mergedNodes.push(node);
+      }
+    }
+
+    // Merge edges (LLM edges take priority; heuristic edges are empty for now)
+    const mergedEdges = [...llm.edges, ...heuristic.edges];
+
+    logger.info("extract", `Merged extraction: ${llm.nodes.length} LLM + ${heuristic.nodes.length} heuristic → ${mergedNodes.length} total nodes`);
+    return { nodes: mergedNodes, edges: mergedEdges };
   }
 
   async finalize(params: { sessionNodes: any[]; graphSummary: string }): Promise<FinalizeResult> {
