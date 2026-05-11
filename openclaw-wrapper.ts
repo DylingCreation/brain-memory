@@ -54,6 +54,13 @@ let initComplete = false;
 const MEMORY_CACHE_MAX_SIZE = 200;
 const sessionMemoryCache = new Map<string, any>();
 
+// Session message buffer for session_end reflection.
+// OpenClaw's session_end hook does not provide message history,
+// so we collect messages during the session and use them for reflection.
+// Bounded to prevent memory leaks from abandoned sessions.
+const SESSION_MESSAGES_MAX = 100;
+const sessionMessagesBuffer = new Map<string, Array<{ role: string; content: string }>>();
+
 /**
  * Evict oldest cache entry if cache exceeds size limit.
  * #8 fix: prevents memory leak from accumulating session IDs.
@@ -64,6 +71,30 @@ function evictCacheIfNeeded(): void {
     if (oldest !== undefined) sessionMemoryCache.delete(oldest);
     else break;
   }
+}
+
+/**
+ * Push a message into the session buffer for session_end reflection.
+ * Bounded to SESSION_MESSAGES_MAX per session to prevent memory leaks.
+ */
+function pushSessionMessage(sessionId: string, role: string, content: string): void {
+  let buf = sessionMessagesBuffer.get(sessionId);
+  if (!buf) {
+    buf = [];
+    sessionMessagesBuffer.set(sessionId, buf);
+  }
+  if (buf.length < SESSION_MESSAGES_MAX) {
+    buf.push({ role, content });
+  }
+}
+
+/**
+ * Drain and return the session message buffer, clearing it.
+ */
+function drainSessionMessages(sessionId: string): Array<{ role: string; content: string }> {
+  const buf = sessionMessagesBuffer.get(sessionId) || [];
+  sessionMessagesBuffer.delete(sessionId);
+  return buf;
 }
 
 /**
@@ -105,10 +136,12 @@ export function register(api: any) {
   const bmConfig = fullConfig?.plugins?.entries?.['brain-memory']?.config || {};
 
   // Expand ~ path if present
+  // Fix: On Windows, process.env.HOME may be undefined; use USERPROFILE as fallback
+  const homeDir = process.env.HOME || process.env.USERPROFILE || '';
   if (!bmConfig.dbPath) {
-    bmConfig.dbPath = `${process.env.HOME}/.openclaw/brain-memory.db`;
+    bmConfig.dbPath = homeDir ? `${homeDir}/.openclaw/brain-memory.db` : './brain-memory.db';
   } else if (bmConfig.dbPath?.startsWith('~')) {
-    bmConfig.dbPath = bmConfig.dbPath.replace('~', process.env.HOME || '');
+    bmConfig.dbPath = homeDir ? bmConfig.dbPath.replace('~', homeDir) : bmConfig.dbPath.replace('~', '.');
   }
 
   // Store config globally for access in hook functions.
@@ -305,13 +338,17 @@ export async function message_received(...args: any[]) {
 
   try {
     // Convert to brain-memory's Message format
+    const messageContent = typeof content === 'string' ? content : JSON.stringify(content || '');
     const message = {
       sessionId,
       agentId,
       workspaceId,
-      content: typeof content === 'string' ? content : JSON.stringify(content || ''),
+      content: messageContent,
       role: 'user' as const,
     };
+
+    // Buffer message for session_end reflection
+    pushSessionMessage(sessionId, 'user', messageContent);
 
     // Process the message (extract memories, etc.)
     const result = await pluginInstance.handleMessage(message);
@@ -373,9 +410,13 @@ export async function message_sent(...args: any[]) {
     await initPromise;
   }
 
-  if (!pluginInstance || !storedConfig?.extractMemories) return;
+  // Buffer assistant message for session_end reflection (even if extraction is disabled)
+  const trimmed = typeof content === 'string' ? content.trim() : '';
+  if (trimmed.length > 0) {
+    pushSessionMessage(sessionId, 'assistant', trimmed);
+  }
 
-  const trimmed = content.trim();
+  if (!pluginInstance || !storedConfig?.extractMemories) return;
   if (trimmed.length < 50) return;
 
   try {
@@ -389,15 +430,22 @@ export async function message_sent(...args: any[]) {
       role: 'assistant' as const,
     };
 
-    // Use process.nextTick to ensure non-blocking extraction
-    process.nextTick(async () => {
-      try {
-        const result = await pluginInstance.handleMessage(aiMessage) as any;
-        console.debug(`[brain-memory] AI reply extracted: ${result?.extractedNodes?.length || 0} nodes, ${result?.extractedEdges?.length || 0} edges`);
-      } catch (error) {
-        console.error('[brain-memory] AI reply extraction failed:', error);
-      }
+    // Await extraction directly with a timeout so it's guaranteed to run
+    // (process.nextTick could be lost if the event loop exits early)
+    const EXTRACTION_TIMEOUT_MS = 5000;
+    const extractionPromise = (async () => {
+      const result = await pluginInstance.handleMessage(aiMessage) as any;
+      console.debug(`[brain-memory] AI reply extracted: ${result?.extractedNodes?.length || 0} nodes, ${result?.extractedEdges?.length || 0} edges`);
+    })();
+
+    const timeoutPromise = new Promise<void>((resolve) => {
+      setTimeout(() => {
+        console.warn(`[brain-memory] AI reply extraction timed out after ${EXTRACTION_TIMEOUT_MS}ms`);
+        resolve();
+      }, EXTRACTION_TIMEOUT_MS);
     });
+
+    await Promise.race([extractionPromise, timeoutPromise]);
   } catch (error) {
     console.error('[brain-memory] AI reply extraction failed:', error);
   }
@@ -492,14 +540,33 @@ export async function session_end(...args: any[]) {
   }
 
   try {
+    // Use buffered session messages for reflection (OpenClaw's session_end hook
+    // does not provide message history, so we collect them during the session)
+    const messages = drainSessionMessages(sessionId);
+
     const sessionEvent = {
       sessionId,
       agentId,
       workspaceId,
-      messages: []
+      messages
     };
 
-    await pluginInstance.onSessionEnd(sessionEvent);
+    console.log(`[brain-memory] Session ${sessionId} ended with ${messages.length} messages for reflection`);
+
+    // Convert buffered messages to the Message format expected by the plugin core
+    const fullMessages = messages.map(m => ({
+      sessionId,
+      agentId,
+      workspaceId,
+      content: m.content,
+      role: m.role,
+    }));
+    await pluginInstance.onSessionEnd({
+      sessionId,
+      agentId,
+      workspaceId,
+      messages: fullMessages,
+    });
   } catch (error) {
     console.error('[brain-memory] Session end failed:', error);
   }

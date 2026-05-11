@@ -153,7 +153,9 @@ async function checkConfiguration() {
   if (existsSync(configPath)) {
     try {
       // 动态导入检查结构
-      const configModule = await import(configPath);
+      // Fix: Windows ESM requires file:// URLs for absolute paths
+      const configUrl = new URL(`file://${configPath.replace(/\\/g, "/")}`);
+      const configModule = await import(configUrl.href);
       const hasLlm = configModule.LLM_CONFIG &&
         configModule.LLM_CONFIG.baseURL !== "YOUR_LLM_BASE_URL_HERE" &&
         configModule.LLM_CONFIG.apiKey !== "YOUR_API_KEY_HERE";
