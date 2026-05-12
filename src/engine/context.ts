@@ -512,6 +512,16 @@ export class ContextEngine {
     const skillCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE type='SKILL'").get()["c"] as number;
     const eventCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE type='EVENT'").get()["c"] as number;
 
+    // Nodes by category (C-6: 8 类节点分项统计)
+    const catProfile = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE category='profile'").get()["c"] as number;
+    const catPreferences = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE category='preferences'").get()["c"] as number;
+    const catEntities = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE category='entities'").get()["c"] as number;
+    const catEvents = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE category='events'").get()["c"] as number;
+    const catTasks = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE category='tasks'").get()["c"] as number;
+    const catSkills = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE category='skills'").get()["c"] as number;
+    const catCases = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE category='cases'").get()["c"] as number;
+    const catPatterns = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE category='patterns'").get()["c"] as number;
+
     // Nodes by temporal type
     const staticCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE temporal_type='static'").get()["c"] as number;
     const dynamicCount = this.db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE temporal_type='dynamic'").get()["c"] as number;
@@ -561,6 +571,7 @@ export class ContextEngine {
         active: activeNodes,
         deprecated: deprecatedNodes,
         byType: { task: taskCount, skill: skillCount, event: eventCount },
+        byCategory: { profile: catProfile, preferences: catPreferences, entities: catEntities, events: catEvents, tasks: catTasks, skills: catSkills, cases: catCases, patterns: catPatterns },
         byTemporalType: { static: staticCount, dynamic: dynamicCount },
         bySource: { user: userCount, assistant: assistantCount },
       },
@@ -681,6 +692,7 @@ export interface EngineStats {
     active: number;
     deprecated: number;
     byType: { task: number; skill: number; event: number };
+    byCategory: { profile: number; preferences: number; entities: number; events: number; tasks: number; skills: number; cases: number; patterns: number };
     byTemporalType: { static: number; dynamic: number };
     bySource: { user: number; assistant: number };
   };

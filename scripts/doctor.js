@@ -296,6 +296,88 @@ async function checkDatabase() {
   }
 }
 
+// ─── 5. 安全检查（C-5：npm audit）─────────────────────────────
+
+async function checkSecurity() {
+  section("安全检查");
+
+  const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+
+  let raw = "";
+  try {
+    raw = execSync("npm audit --json", {
+      cwd: projectRoot,
+      encoding: "utf-8",
+      maxBuffer: 10 * 1024 * 1024,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch (e) {
+    // npm audit exits 1 when vulnerabilities found — JSON is in stdout
+    if (e.stdout) raw = e.stdout;
+    else {
+      if (e.stderr && e.stderr.includes("found 0 vulnerabilities")) {
+        check("ok", "无已知漏洞（npm audit 通过）");
+        return;
+      }
+      check("warn", `无法运行 npm audit: ${(e.stderr || e.message).slice(0, 100)}`);
+      return;
+    }
+  }
+
+  if (!raw.trim()) {
+    check("ok", "无已知漏洞（npm audit 通过）");
+    return;
+  }
+
+  let auditResult;
+  try {
+    auditResult = JSON.parse(raw);
+  } catch {
+    check("warn", "npm audit 结果解析失败，请手动运行 `npm audit`");
+    return;
+  }
+
+  const vulns = auditResult.vulnerabilities || {};
+  let critical = 0, high = 0, moderate = 0, low = 0;
+
+  for (const [, info] of Object.entries(vulns)) {
+    const severity = info.severity;
+    if (severity === "critical") critical++;
+    else if (severity === "high") high++;
+    else if (severity === "moderate") moderate++;
+    else if (severity === "low") low++;
+  }
+
+  if (critical > 0) {
+    check("fail", `存在 ${critical} 个严重漏洞（critical），需立即处理`);
+  }
+  if (high > 0) {
+    check("fail", `存在 ${high} 个高危漏洞（high），需立即处理`);
+  }
+  if (critical === 0 && high === 0) {
+    if (moderate > 0) {
+      check("warn", `${moderate} 个中等漏洞（moderate），建议发布前处理`);
+    } else {
+      check("ok", "无严重/高危/中等漏洞");
+    }
+  }
+  if (low > 0) {
+    check("ok", `${low} 个低风险漏洞（low），不阻塞发布`);
+  }
+
+  // Show vulnerability details for moderate and above
+  if (moderate > 0 || critical > 0 || high > 0) {
+    console.log();
+    for (const [, info] of Object.entries(vulns)) {
+      const severity = info.severity;
+      if (["critical", "high", "moderate"].includes(severity)) {
+        const via = Array.isArray(info.via) ? info.via.filter(v => typeof v === "string").join(" → ") : String(info.via);
+        console.log(`  ${C.gray}${S.dot} ${info.name} (${info.severity}): ${via}${C.reset}`);
+      }
+    }
+  }
+}
+
 // ─── Main ───────────────────────────────────────────────────────
 
 async function main() {
@@ -304,6 +386,7 @@ async function main() {
   await checkDependencies();
   await checkConfiguration();
   await checkDatabase();
+  await checkSecurity();
   footer(totalOk, totalWarn, totalFail);
 }
 
