@@ -105,6 +105,13 @@ export function resetEmbedCacheStats(): void {
   cacheMisses = 0;
 }
 
+/** Clear the entire embedding cache (useful for testing isolation). */
+export function clearEmbedCache(): void {
+  embedCache.clear();
+  cacheHits = 0;
+  cacheMisses = 0;
+}
+
 function cacheSet(text: string, vec: number[]): void {
   const key = cacheKey(text);
   if (embedCache.has(key)) embedCache.delete(key);
