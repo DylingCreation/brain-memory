@@ -253,7 +253,7 @@ getAllActiveNodes(): BmNode[]
 
 ### getStats
 
-获取统计信息（v0.2.0 增强）。
+获取统计信息（v0.2.0 增强，v1.0.0 增加 byCategory）。
 
 ```typescript
 getStats(): EngineStats
@@ -268,6 +268,7 @@ getStats(): EngineStats
 | `nodes.active` | `number` | 活跃节点数 |
 | `nodes.deprecated` | `number` | 废弃节点数 |
 | `nodes.byType` | `object` | 按类型分类（task/skill/event） |
+| `nodes.byCategory` | `object` | 按 8 类分类（profile/preferences/entities/events/tasks/skills/cases/patterns）🆕 v1.0.0 |
 | `nodes.byTemporalType` | `object` | 按时态分类（static/dynamic） |
 | `nodes.bySource` | `object` | 按来源分类（user/assistant） |
 | `edgeCount` | `number` | 边总数（向后兼容） |

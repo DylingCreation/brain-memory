@@ -43,7 +43,7 @@ brain-memory simulates human brain memory mechanisms:
 
 - **8-Category Memory** — `profile` / `preferences` / `entities` / `events` / `tasks` / `skills` / `cases` / `patterns`
 - **Bidirectional Knowledge Extraction** — Extracts both user messages and AI replies (suggestions, code, tool recommendations)
-- **Graph Nodes + Edges** — 3 node types (TASK / SKILL / EVENT) × 5 edge types with strict direction constraints
+- **Graph Nodes + Edges** — 3 node types (TASK / SKILL / EVENT) × 11 edge types with strict direction constraints
 - **Time Decay** — Weibull model with static/dynamic differentiated decay
 
 </details>
@@ -516,12 +516,13 @@ brain-memory uses **SQLite** with **6 tables + FTS5 full-text index**:
 npm test
 ```
 
-Comprehensive test coverage:
-
+Comprehensive test coverage (v1.0.0):
+- ✅ **531 test cases** — 48 test files, 0 failures
+- ✅ **83.2% code coverage** — Core modules (recall, llm, embed, plugin) > 90%
 - ✅ **Unit tests** — Individual components
 - ✅ **Integration tests** — Full workflows
-- ✅ **Performance benchmarks** — Response time & throughput
-- ✅ **Error handling** — Edge case coverage
+- ✅ **Performance benchmarks** — 0.44ms recall avg, 7.21ms vector search
+- ✅ **Error handling** — Graceful degradation, edge case coverage
 
 ---
 

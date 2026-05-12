@@ -4,9 +4,17 @@
 
 ---
 
-## v0.2.0 版本能力演进
+## v1.0.0 版本能力概览
 
-v0.2.0 主题为**「从功能完整走向生产可靠」**，在 v0.1.9 功能完备的基础上，新增以下核心能力：
+v1.0.0 主题为**「核心架构完备 + 工程扎实」**，在 v0.2.0 的基础上新增：
+- 图 Schema 补全（6 种新边类型，共 11 种）
+- 启发式三级提取（降低 LLM 依赖 50-70%）
+- OpenClaw 插件真实集成
+- retriever/ 6 模块完整集成
+- 多 Agent 记忆共享策略
+- 遗忘曲线默认开启
+- 测试覆盖率 57% → 83.2%
+- Ollama/Qwen/Windows 运行时适配
 
 | 维度 | 能力 | 说明 |
 |------|------|------|
@@ -71,7 +79,7 @@ brain-memory 将记忆分为 **8 类**，覆盖对话中所有有价值的信息
 | **SKILL** | 可复用操作技能（含工具 / 命令 / API） |
 | **EVENT** | 报错或异常事件 |
 
-### 5 种关系类型（严格方向约束）
+### 11 种关系类型（严格方向约束）
 
 | 边类型 | 方向 | 含义 |
 |--------|------|------|
@@ -80,6 +88,12 @@ brain-memory 将记忆分为 **8 类**，覆盖对话中所有有价值的信息
 | **REQUIRES** | SKILL → SKILL | 技能依赖另一技能 |
 | **PATCHES** | SKILL → SKILL | 新技能替代旧技能 |
 | **CONFLICTS_WITH** | SKILL ↔ SKILL | 两个技能冲突 |
+| **HAS_PREFERENCE** | TASK → SKILL | 任务涉及某偏好 |
+| **BELONGS_TO** | SKILL → TASK | 技能归属于某任务 |
+| **LEARNED_FROM** | EVENT → SKILL | 从异常中学到的技能 |
+| **EXEMPLIFIES** | EVENT → TASK | 异常案例对应的任务 |
+| **RELATED_TO** | TASK ↔ TASK, SKILL ↔ SKILL, EVENT ↔ EVENT | 同类节点关联 |
+| **OBSERVED_IN** | EVENT → EVENT | 异常出现的上下文 |
 
 > 边类型的方向受到严格约束，不符合约束的边不会被提取。详见源码：[src/types.ts — EDGE_FROM_CONSTRAINT](../src/types.ts)
 
