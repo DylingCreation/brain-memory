@@ -1,6 +1,6 @@
 {
   "name": "memory-likehuman-pro",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Unified knowledge graph + vector memory system for AI agents",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

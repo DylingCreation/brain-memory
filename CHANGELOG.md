@@ -11,6 +11,67 @@ All notable changes to the brain-memory project.
 
 ---
 
+## [1.0.0] — 2026-05-13
+
+> **版本主题**：从「功能完整」走向「核心架构完备 + 工程扎实」  
+> **Commit**: 55d2455 · 本地 4 个提交领先 origin
+
+### Added
+
+#### 核心架构修复 (A 批次)
+- **图 Schema 补全（A-1）** — 新增 6 种边类型（HAS_PREFERENCE、BELONGS_TO、LEARNED_FROM、EXEMPLIFIES、RELATED_TO、OBSERVED_IN），EDGE_TO_CONSTRAINT 不再全指向 SKILL，8 类节点都能建立/查询关系
+- **启发式提取（A-2）** — 三级提取架构：①启发式（8 类正则+关键词+语义模板）②LLM 校验 ③多轮合并。无 LLM 时仍能产出有效节点，有 LLM 时调用次数降低 50-70%
+- **OpenClaw 插件真实集成（A-3）** — `api.registerHook()` 规范注册，Handler 签名适配，5 钩子名全匹配，`setup-openclaw.js` 实际注入配置
+
+#### 核心体验改进 (B 批次)
+- **记忆注入格式 overhaul（B-1）** — `assembleContext` 接入 + `memoryInjection` 配置，summary/full/adaptive 三策略 + token 预算控制
+- **多 Agent 记忆共享（B-2）** — `sharingMode` 三模式（isolated/mixed/shared）+ `sharedCategories` 过滤
+- **遗忘曲线默认开启（B-3）** — `decay.enabled` 默认 true + 维护衰减归档
+- **retriever/ 6 文件完整集成（B-4）** — intent-analyzer、hybrid-recall、query-expander、reranker、admission-control、vector-recall 接入 recall 主流程
+
+#### 工程质量补债 (B 批次)
+- **测试覆盖率 57% → 83.2%（B-5/B-7）** — 新增 7 个测试文件 + 扩展 reranker 测试，446 → 529 用例
+- **JSDoc 24.1% → 50.7%（B-6）** — store.ts + analyzer.ts 核心文件全量注释
+
+#### 工程清理 (C 批次)
+- **.gitignore 清理（C-1）** — 删除 400+ 行 AI 批量生成的无效规则，490 行 → 61 行
+- **.npmignore 完善（C-2）** — 新增屏蔽 19 项开发文件，移除 docs/ 误屏蔽
+- **测试目录统一（C-3）** — 删除旧 `tests/` 21 个遗留文件，vitest 配置统一为 `test/` 单根
+- **INDEX.md 自动生成（C-4）** — `scripts/generate-index.js` 扫描 .devdocs/ 目录树
+- **doctor.js npm audit（C-5）** — 新增 checkSecurity() 模块，按 critical/high/moderate/low 分级报告
+- **getStats() byCategory（C-6）** — 8 类节点分项统计
+- **核心召回基线（C-7）** — 首次测量：avg 0.44ms / p95 0.50ms（200 节点）
+
+#### 运行时适配 (v1.0.0 远程提交)
+- **Ollama Embedding 适配** — `embed.ts` 检测端口 11434，端点路由 `/api/embed` vs 标准 `/embeddings`
+- **Qwen thinking 优化** — `isThinkingModel()` 检测，对 qwen3 自动注入 `"thinking": { "type": "disabled" }`，延迟 4s → 1s
+- **OpenClaw 插件增强** — Session 消息缓冲（Map 每 session 100 条）、Windows HOME/USERPROFILE 降级、AI 回复提取 Promise.race + 5s 超时
+- **Windows 兼容** — `wrapper.ts` 增加 HOME/USERPROFILE 降级，`rimraf` 跨平台清理
+- **环境变量统一** — `DASHSCOPE_*` → `TEST_LLM_*` / `TEST_EMBEDDING_*`
+- **构建修复** — `tsconfig.build.json` 改用 `src/**/*.ts` 通配符，修复新模块被遗漏的 bug
+
+### Changed
+- **测试目录结构** — `test/` + `tests/` 并存 → 统一为 `test/` 单根目录
+- **环境变量命名** — `DASHSCOPE_*` 废弃，统一为 `TEST_LLM_*` / `TEST_EMBEDDING_*` 前缀
+- **vitest 配置** — 精简 include/exclude/alias，移除 `tests/` 相关路径
+- **package.json clean** — `rm -rf dist coverage` → `npx rimraf dist coverage`（Windows 兼容）
+
+### Fixed
+- **测试用例数丢失** — B-5 批次的 5 个测试文件（115 用例）从未提交到 git，已重写并提交
+- **plugin/core.ts 覆盖率 0%** — 测试文件缺失，重写后恢复至 75.53%
+- **config.js 误屏蔽** — .gitignore 中移除 config.js（内容为模板，与 config.template.js 相同）
+- **.env.example 误屏蔽** — .gitignore 中移除 .env.example（模板文件应入库）
+
+### Quality
+- **测试**：531 passed / 0 failed / 18 skipped（48 文件）
+- **覆盖率**：83.2%（Statements）
+- **JSDoc**：50.7%（103/203 导出项）
+- **性能**：向量搜索 7.21ms / 节点插入 24,759 ops/s / 核心召回 0.44ms avg
+- **安全**：0 critical / 0 high / 5 moderate（esbuild→vite→vitest 链）
+- **SQL 安全**：100% 参数化，0 注入漏洞
+
+---
+
 ## [0.2.0] — 2026-04-29
 
 > **版本主题**：从「功能完整」走向「生产可靠」
