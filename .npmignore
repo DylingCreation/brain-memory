@@ -1,30 +1,55 @@
-# Dependencies
+# ─── Dependencies ────────────────────────────────────────────
 node_modules/
+package-lock.json
 
-# Test files
+# ─── Build artifacts ────────────────────────────────────────
+dist/
+build/
+coverage/
+
+# ─── Tests ──────────────────────────────────────────────────
 tests/
 test/
+test-engine.ts
+vitest.config.ts
+test-results/
 
-# Documentation
-docs/
+# ─── Development scripts ────────────────────────────────────
+scripts/
+Makefile
+validate_features.js
+generate_test_data.js
 
-# Development files
+# ─── Build configuration (dev-only) ─────────────────────────
+tsconfig.build.json
+tsconfig.plugin.json
+tsconfig.test.json
+.eslintrc.json
+.gitattributes
+.gitignore
+
+# ─── Plugin source/dev files (compiled output in dist/) ────
+openclaw-plugin.js
+openclaw-plugin.ts
+openclaw-register.ts
+openclaw-wrapper.ts
+
+# ─── Development/dev-only artifacts ─────────────────────────
+benchmark/
 .devcontainer/
 .editorconfig
 .eslintignore
-.eslintrc.json
-.git/
 .github/
-.gitignore
+.git/
 
-# Environment files
+# ─── Environment ────────────────────────────────────────────
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
-# IDE files
+# ─── IDE ────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
@@ -32,13 +57,13 @@ docs/
 *~
 .vs/
 
-# Logs
+# ─── Logs ───────────────────────────────────────────────────
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# OS generated files
+# ─── OS files ───────────────────────────────────────────────
 .DS_Store
 .DS_Store?
 ._*
@@ -47,17 +72,17 @@ yarn-error.log*
 ehthumbs.db
 Thumbs.db
 
-# Coverage directory used by tools like istanbul
-coverage/
-
-# Temporary folders
+# ─── Temporary ──────────────────────────────────────────────
 tmp/
 temp/
 
-# Build artifacts
-dist/
-build/
+# ─── Internal docs ──────────────────────────────────────────
+METHODOLOGY.md
+llm-cost-analysis.md
+.devdocs/
 
-# Scripts that are only used for development
-scripts/dev/
-scripts/test/
+# ─── NOTE ───────────────────────────────────────────────────
+# docs/ is intentionally NOT ignored — user documentation ships with npm package
+# config.template.js and .env.example intentionally NOT ignored — users need reference templates
+# openclaw.plugin.json intentionally NOT ignored — OpenClaw runtime needs plugin manifest
+# tsconfig.json and core-only.tsconfig.json NOT ignored — consumers need for type inference
