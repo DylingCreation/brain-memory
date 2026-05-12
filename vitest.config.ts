@@ -5,9 +5,9 @@ export default defineConfig({
     // Configure test environment
     environment: 'node',
     
-    // Test file patterns
-    include: ['tests/unit/**/*.test.{ts,js}', 'tests/unit/**/*.spec.{ts,js}', 'test/**/*.test.{ts,js}', 'test/**/*.spec.{ts,js}'],
-    exclude: ['node_modules', 'dist', 'tests/e2e'],
+    // Test file patterns — unified test root
+    include: ['test/**/*.test.{ts,js}', 'test/**/*.spec.{ts,js}'],
+    exclude: ['node_modules', 'dist'],
     
     // Test globals
     globals: true,
@@ -19,7 +19,7 @@ export default defineConfig({
       reportsDirectory: './coverage',
       exclude: [
         'node_modules/**',
-        'tests/**',
+        'test/**',
         'dist/**',
         'scripts/**',
         '**/types.ts',
@@ -27,8 +27,8 @@ export default defineConfig({
       ]
     },
     
-    // Setup files
-    setupFiles: ['./tests/setup.ts'],
+    // Setup files (none required — each test file handles its own setup)
+    // setupFiles: ['./test/setup.ts'],
     
     // Timeout configuration
     testTimeout: 10000,
@@ -50,8 +50,7 @@ export default defineConfig({
   // Define resolve aliases if needed
   resolve: {
     alias: {
-      '@src': './src',
-      '@tests': './tests',
+      '@test': './test',
       '@utils': './src/utils',
       '@types': './src/types'
     }

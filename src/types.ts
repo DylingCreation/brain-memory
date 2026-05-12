@@ -9,6 +9,11 @@
 
 // ─── 8 类统一记忆体系 ──────────────────────────────────────────
 
+/**
+ * 8 类记忆分类常量：profile / preferences / entities / events /
+ * tasks / skills / cases / patterns。
+ * 通过 `as const` 确保类型推导为字面量联合类型。
+ */
 export const MEMORY_CATEGORIES = [
   "profile",      // 用户画像
   "preferences",  // 用户偏好
@@ -20,13 +25,16 @@ export const MEMORY_CATEGORIES = [
   "patterns",     // 模式规律
 ] as const;
 
+/** 8 类记忆分类的 TypeScript 联合类型。 */
 export type MemoryCategory = (typeof MEMORY_CATEGORIES)[number];
 
 // 图节点类型（3种，用于知识图谱边）
+/** 图节点类型：TASK=任务, SKILL=技能, EVENT=事件。 */
 export type GraphNodeType = "TASK" | "SKILL" | "EVENT";
 
 // ─── 边类型 ───────────────────────────────────────────────────
 
+/** 知识图谱边类型联合类型：定义节点之间的 11 种关系。 */
 export type EdgeType =
   | "USED_SKILL"
   | "SOLVED_BY"
@@ -61,6 +69,7 @@ export const EDGE_FROM_CONSTRAINT: Record<EdgeType, Set<GraphNodeType>> = {
   OBSERVED_IN:    new Set(["SKILL", "EVENT"]),
 };
 
+/** 边 to 端类型约束：定义每种边类型允许指向的目标节点类型。 */
 export const EDGE_TO_CONSTRAINT: Record<EdgeType, Set<GraphNodeType>> = {
   // 现有 5 种（v0.1.x）
   USED_SKILL:     new Set(["SKILL"]),
@@ -79,8 +88,13 @@ export const EDGE_TO_CONSTRAINT: Record<EdgeType, Set<GraphNodeType>> = {
 
 // ─── 节点 ─────────────────────────────────────────────────────
 
+/** 节点状态：active=活跃, deprecated=已弃用。 */
 export type NodeStatus = "active" | "deprecated";
 
+/**
+ * 记忆节点（Brain Memory Node）。
+ * 知识图谱中的基本单元，包含 8 类记忆分类、类型、内容、衰减权重等。
+ */
 export interface BmNode {
   id: string;
   type: GraphNodeType;
@@ -111,6 +125,7 @@ export interface BmNode {
 
 // ─── 边 ───────────────────────────────────────────────────────
 
+/** 知识图谱边（Edge）：连接两个节点的有向关系。 */
 export interface BmEdge {
   id: string;
   fromId: string;
@@ -124,6 +139,7 @@ export interface BmEdge {
 
 // ─── 工作记忆配置 ─────────────────────────────────────────────
 
+/** 工作记忆配置：控制当前任务、决策、约束的追踪上限。 */
 export interface WorkingMemoryConfig {
   enabled: boolean;
   maxTasks: number;
@@ -148,6 +164,7 @@ export interface WorkingMemoryState {
 
 // ─── 知识融合配置 ─────────────────────────────────────────────
 
+/** 知识融合配置：控制节点合并/关联的阈值和权重。 */
 export interface FusionConfig {
   enabled: boolean;
   similarityThreshold: number;
@@ -162,6 +179,7 @@ export interface FusionConfig {
 
 // ─── 推理检索配置 ─────────────────────────────────────────────
 
+/** 推理检索配置：控制图谱遍历跳数、结论数等。 */
 export interface ReasoningConfig {
   enabled: boolean;
   maxHops: number;
@@ -171,6 +189,7 @@ export interface ReasoningConfig {
 
 // ─── 记忆注入格式配置（v1.0.0 B-1）───────────────────────────
 
+/** 记忆注入格式配置：控制如何将召回的记忆注入到对话上下文中。 */
 export interface MemoryInjectionConfig {
   /** 是否启用记忆注入 */
   enabled: boolean;
@@ -186,8 +205,10 @@ export interface MemoryInjectionConfig {
 
 // ─── 多 Agent 记忆共享配置（v1.0.0 B-2）─────────────────────
 
+/** 共享模式：isolated=完全隔离 / mixed=部分共享 / shared=完全共享。 */
 export type SharingMode = "isolated" | "mixed" | "shared";
 
+/** 多 Agent 记忆共享配置：控制跨 Agent 的记忆共享策略。 */
 export interface MemorySharingConfig {
   /** 是否启用共享 */
   enabled: boolean;

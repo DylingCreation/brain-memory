@@ -33,6 +33,7 @@ function cosineSimilarityF32(a: Float32Array, b: Float32Array): number {
 }
 import { tokenize, jaccardSimilarity } from "../utils/text";
 
+/** A pair of nodes flagged as potentially duplicate or related, with similarity scores and a pending decision. */
 export interface FusionCandidate {
   nodeA: BmNode;
   nodeB: BmNode;
@@ -43,6 +44,7 @@ export interface FusionCandidate {
   reason: string;
 }
 
+/** The outcome of a full fusion pipeline run: candidates found, merges performed, and links created. */
 export interface FusionResult {
   candidates: FusionCandidate[];
   merged: number;
@@ -52,6 +54,7 @@ export interface FusionResult {
 
 // ─── Threshold Check ──────────────────────────────────────────
 
+/** Check whether fusion should run: requires enough active nodes and communities to make merging meaningful. Uses `fusion.minNodes` and `fusion.minCommunities` from config. */
 export function shouldRunFusion(
   db: DatabaseSyncInstance,
   cfg: BmConfig,
@@ -67,6 +70,7 @@ export function shouldRunFusion(
 
 // ─── Candidate Discovery ──────────────────────────────────────
 
+/** Find potential duplicate/related node pairs. Phase 1: name token overlap (Jaccard). Phase 2: content vector cosine similarity (if embedFn provided). Returns pairs above the combined similarity threshold, sorted by score descending. */
 export function findFusionCandidates(
   db: DatabaseSyncInstance,
   cfg: BmConfig,
@@ -129,6 +133,7 @@ export function findFusionCandidates(
 
 // ─── LLM Decision ─────────────────────────────────────────────
 
+/** Use LLM to decide merge/link/none for each candidate. Falls back to auto-merge for pairs above `autoMergeThreshold` if LLM call fails. */
 export async function decideFusion(
   llm: CompleteFn,
   candidates: FusionCandidate[],
@@ -159,6 +164,7 @@ export async function decideFusion(
 
 // ─── Execute Fusion ───────────────────────────────────────────
 
+/** Apply fusion decisions: merge nodes (keep higher validatedCount), or link cross-community nodes with REQUIRES edges. Consumed nodes are tracked to avoid double-processing. */
 export function executeFusion(
   db: DatabaseSyncInstance,
   candidates: FusionCandidate[],
@@ -204,6 +210,7 @@ export function executeFusion(
 
 // ─── Full Fusion Pipeline ─────────────────────────────────────
 
+/** Run the full fusion pipeline: threshold check → candidate discovery → LLM decision (or heuristic fallback if LLM unavailable) → execute. Supports graceful degradation when LLM is not available. */
 export async function runFusion(
   db: DatabaseSyncInstance,
   cfg: BmConfig,
@@ -244,6 +251,7 @@ export async function runFusion(
 
 // ─── Helpers ──────────────────────────────────────────────────
 
+/** Compute name similarity: exact match returns 1.0, otherwise Jaccard similarity of tokenized names. */
 export function computeNameSimilarity(a: string, b: string): number {
   const tokensA = tokenize(a);
   const tokensB = tokenize(b);
@@ -263,6 +271,7 @@ export function computeNameSimilarity(a: string, b: string): number {
 export { tokenize, jaccardSimilarity } from "../utils/text";
 export { cosineSimilarityF32 as cosineSimilarity } from "../utils/similarity";
 
+/** Parse an LLM response into a fusion decision. Strips think tags and code fences, extracts JSON, validates decision field. Returns {decision: "none", reason: ""} on parse failure. */
 export function parseFusionDecision(raw: string): { decision: "merge" | "link" | "none"; reason: string } {
   try {
     let s = raw.trim();
