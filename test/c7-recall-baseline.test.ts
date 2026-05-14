@@ -46,8 +46,8 @@ describe("C-7 核心召回响应时间基线", () => {
     const types = ["TASK", "SKILL", "EVENT"] as const;
     const categories = ["tasks", "skills", "events", "entities", "patterns"] as const;
 
-    // Access private db via (engine as any)
-    const db = (engine as any).db;
+    // Access underlying DB via the new getDb() method
+    const db = engine.getDb();
 
     const now = Date.now();
     for (let i = 0; i < 200; i++) {

@@ -5,12 +5,13 @@
  * 计算时机：recall 时实时算（不存数据库），每次查询都是新鲜的。
  * 全局 PageRank 作为基线，只在 session_end / bm_maintain 时写入。
  *
+ * v1.1.0 F-2: Uses IStorageAdapter instead of DatabaseSyncInstance.
+ *
  * Authors: adoresever (graph-memory), brain-memory contributors
  */
 
-import { type DatabaseSyncInstance } from "@photostructure/sqlite";
 import type { BmConfig } from "../types";
-import { updatePageranks } from "../store/store";
+import type { IStorageAdapter } from "../store/adapter";
 
 interface GraphStructure {
   nodeIds: Set<string>;
@@ -22,19 +23,18 @@ interface GraphStructure {
 let _cached: GraphStructure | null = null;
 const CACHE_TTL = 30_000;
 
-function loadGraph(db: DatabaseSyncInstance): GraphStructure {
+function loadGraph(storage: IStorageAdapter): GraphStructure {
   if (_cached && Date.now() - _cached.cachedAt < CACHE_TTL) return _cached;
 
-  const nodeRows = db.prepare("SELECT id FROM bm_nodes WHERE status='active'").all() as any[];
-  const nodeIds = new Set(nodeRows.map((r: any) => r.id));
-  const edgeRows = db.prepare("SELECT from_id, to_id FROM bm_edges").all() as any[];
+  const { nodeIds: ids, edges } = storage.loadGraphStructure();
+  const nodeIds = new Set(ids);
   const adj = new Map<string, string[]>();
   for (const id of nodeIds) adj.set(id, []);
 
-  for (const e of edgeRows) {
-    if (!nodeIds.has(e.from_id) || !nodeIds.has(e.to_id)) continue;
-    adj.get(e.from_id)!.push(e.to_id);
-    adj.get(e.to_id)!.push(e.from_id);
+  for (const e of edges) {
+    if (!nodeIds.has(e.fromId) || !nodeIds.has(e.toId)) continue;
+    adj.get(e.fromId)!.push(e.toId);
+    adj.get(e.toId)!.push(e.fromId);
   }
 
   _cached = { nodeIds, adj, N: nodeIds.size, cachedAt: Date.now() };
@@ -48,9 +48,9 @@ export interface PPRResult {
 }
 
 export function personalizedPageRank(
-  db: DatabaseSyncInstance, seedIds: string[], candidateIds: string[], cfg: BmConfig,
+  storage: IStorageAdapter, seedIds: string[], candidateIds: string[], cfg: BmConfig,
 ): PPRResult {
-  const graph = loadGraph(db);
+  const graph = loadGraph(storage);
   const { nodeIds, adj, N } = graph;
   const damping = cfg.pagerankDamping;
   const iterations = cfg.pagerankIterations;
@@ -98,16 +98,17 @@ export interface GlobalPageRankResult {
   topK: Array<{ id: string; name: string; score: number }>;
 }
 
-export function computeGlobalPageRank(db: DatabaseSyncInstance, cfg: BmConfig): GlobalPageRankResult {
+export function computeGlobalPageRank(storage: IStorageAdapter, cfg: BmConfig): GlobalPageRankResult {
   // Clear cache first to avoid stale graph data (ISSUE 8.1)
   invalidateGraphCache();
-  const graph = loadGraph(db);
+  const graph = loadGraph(storage);
   const { nodeIds, adj, N } = graph;
   if (N === 0) return { scores: new Map(), topK: [] };
 
-  const nameRows = db.prepare("SELECT id, name FROM bm_nodes WHERE status='active'").all() as any[];
+  // Get node names for topK output
+  const allNodes = storage.findAllActive();
   const nameMap = new Map<string, string>();
-  nameRows.forEach(r => nameMap.set(r.id, r.name));
+  for (const n of allNodes) nameMap.set(n.id, n.name);
 
   const init = 1 / N;
   let rank = new Map<string, number>();
@@ -133,8 +134,144 @@ export function computeGlobalPageRank(db: DatabaseSyncInstance, cfg: BmConfig): 
     rank = newRank;
   }
 
-  updatePageranks(db, rank);
+  // Write back to storage
+  storage.updatePageranks(rank);
+
   const sorted = Array.from(rank.entries()).sort((a, b) => b[1] - a[1]).slice(0, 20)
     .map(([id, score]) => ({ id, name: nameMap.get(id) || id, score }));
   return { scores: rank, topK: sorted };
+}
+
+// ─── Incremental PageRank (v1.1.0 F-3) ───────────────────────
+
+export interface IncrementalPRResult {
+  scores: Map<string, number>;
+  dirtyCount: number;
+  subgraphSize: number;
+  skipped: boolean;
+}
+
+/**
+ * Incremental PageRank: only recompute for dirty nodes.
+ * Strategy: subgraph PageRank with fixed boundary.
+ *
+ * 1. Get dirty nodes from storage
+ * 2. Extract affected subgraph (dirty + 2-hop neighbors)
+ * 3. Run PageRank on subgraph with boundary nodes fixed
+ * 4. Merge results — only dirty nodes get updated scores
+ * 5. Write back
+ *
+ * Returns skipped=true if dirty ratio > threshold (caller should run full PR).
+ */
+export function runIncrementalPageRank(
+  storage: IStorageAdapter,
+  cfg: BmConfig,
+  threshold: number = 0.10,
+): IncrementalPRResult {
+  const dirtyNodes = storage.getDirtyNodes();
+  if (dirtyNodes.size === 0) return { scores: new Map(), dirtyCount: 0, subgraphSize: 0, skipped: false };
+
+  // Check dirty ratio — if too high, fall back to full maintenance
+  const allNodes = storage.findAllActive();
+  const totalActive = allNodes.length;
+  const dirtyRatio = dirtyNodes.size / Math.max(totalActive, 1);
+  if (dirtyRatio > threshold) return { scores: new Map(), dirtyCount: dirtyNodes.size, subgraphSize: 0, skipped: true };
+
+  // Get existing pagerank scores for boundary nodes
+  const existingScores = new Map<string, number>();
+  for (const n of allNodes) existingScores.set(n.id, n.pagerank);
+
+  // Build subgraph: dirty nodes + 2-hop neighbors
+  const subgraph = storage.getAffectedSubgraph(2);
+  const subNodeIds = new Set(subgraph.nodes.map(n => n.id));
+  const subNodeIdsArr = subgraph.nodes.map(n => n.id);
+  const subAdj = new Map<string, string[]>();
+  for (const id of subNodeIdsArr) subAdj.set(id, []);
+  for (const e of subgraph.edges) {
+    if (subNodeIds.has(e.fromId) && subNodeIds.has(e.toId)) {
+      subAdj.get(e.fromId)!.push(e.toId);
+      subAdj.get(e.toId)!.push(e.fromId);
+    }
+  }
+
+  const N = subNodeIds.size;
+  const dirtyCount = dirtyNodes.size;
+  const damping = cfg.pagerankDamping;
+  const iterations = cfg.pagerankIterations;
+
+  // Initialize: dirty nodes get uniform score, boundary nodes keep existing scores
+  let rank = new Map<string, number>();
+  const dirtyInitScore = dirtyCount > 0 ? 1 / dirtyCount : 0;
+  for (const id of subNodeIdsArr) {
+    if (dirtyNodes.has(id)) {
+      rank.set(id, dirtyInitScore);
+    } else {
+      rank.set(id, existingScores.get(id) || 0);
+    }
+  }
+
+  // Run PageRank on subgraph with fixed boundary
+  for (let i = 0; i < iterations; i++) {
+    const newRank = new Map<string, number>();
+
+    // Boundary nodes: keep existing scores (fixed)
+    for (const id of subNodeIdsArr) {
+      if (!dirtyNodes.has(id)) {
+        newRank.set(id, existingScores.get(id) || 0);
+        continue;
+      }
+      // Dirty nodes: compute new score from neighbors
+      newRank.set(id, 0);
+    }
+
+    // Propagate from dirty nodes to neighbors
+    for (const nodeId of subNodeIdsArr) {
+      if (!dirtyNodes.has(nodeId)) continue;
+      const neighbors = subAdj.get(nodeId) || [];
+      if (neighbors.length === 0) continue;
+      const currentScore = rank.get(nodeId) || 0;
+      const contrib = damping * currentScore / neighbors.length;
+      for (const nb of neighbors) {
+        if (subNodeIds.has(nb)) {
+          newRank.set(nb, (newRank.get(nb) || 0) + contrib);
+        }
+      }
+    }
+
+    // Handle dangling nodes (no neighbors in subgraph)
+    for (const nodeId of subNodeIdsArr) {
+      if (!dirtyNodes.has(nodeId)) continue;
+      const neighbors = subAdj.get(nodeId) || [];
+      if (neighbors.length === 0) {
+        const currentScore = rank.get(nodeId) || 0;
+        // Redistribute to other dirty nodes
+        const otherDirty = subNodeIdsArr.filter(id => dirtyNodes.has(id) && id !== nodeId);
+        if (otherDirty.length > 0) {
+          const dc = damping * currentScore / otherDirty.length;
+          for (const nb of otherDirty) newRank.set(nb, (newRank.get(nb) || 0) + dc);
+        }
+      }
+    }
+
+    // Normalize: ensure sum of dirty nodes = dirtyRatio of total (approximation)
+    const dirtySum = Array.from(newRank.entries()).filter(([id]) => dirtyNodes.has(id)).reduce((s, [, v]) => s + v, 0);
+    if (dirtySum > 0) {
+      const targetSum = dirtyRatio; // dirty nodes should get ~dirtyRatio of total score
+      const scale = targetSum / dirtySum;
+      for (const [id, val] of newRank) {
+        if (dirtyNodes.has(id)) newRank.set(id, val * scale);
+      }
+    }
+
+    rank = newRank;
+  }
+
+  // Write back only dirty nodes' scores
+  const dirtyScores = new Map<string, number>();
+  for (const [id, score] of rank) {
+    if (dirtyNodes.has(id)) dirtyScores.set(id, score);
+  }
+  if (dirtyScores.size > 0) storage.updatePageranks(dirtyScores);
+
+  return { scores: dirtyScores, dirtyCount, subgraphSize: N, skipped: false };
 }

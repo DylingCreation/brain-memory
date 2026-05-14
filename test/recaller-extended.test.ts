@@ -5,13 +5,16 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { createTestDb, insertNode, insertEdge, insertVector } from "./helpers.ts";
+import { createTestStorage, cleanupTestDb, insertNode, insertEdge, insertVector } from "./helpers.ts";
 import { Recaller } from "../src/recaller/recall.ts";
 import { DEFAULT_CONFIG, type BmConfig } from "../src/types";
 
+let storage: ReturnType<typeof createTestStorage>;
 let db: ReturnType<typeof createTestDb>;
 
-beforeEach(() => { db = createTestDb(); });
+beforeEach(() => { storage = createTestStorage(); db = (storage as any).getDb(); });
+
+afterEach(() => { cleanupTestDb(storage); });
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -71,7 +74,7 @@ describe("Recaller — recall with embedding", () => {
     insertVector(db, id2, [0.1, 0.9, 0.0], "Git branching strategy");
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG, recallMaxNodes: 10, recallMaxDepth: 2 };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     recaller.setEmbedFn(makeEmbedFn(3));
 
     const result = await recaller.recall("docker");
@@ -85,7 +88,7 @@ describe("Recaller — recall with embedding", () => {
     insertVector(db, id1, [0.1, 0.1, 0.1], "Docker compose up for services");
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG, recallMaxNodes: 10, recallMaxDepth: 2 };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     recaller.setEmbedFn(makeEmbedFn(3));
 
     const result = await recaller.recall("docker");
@@ -96,7 +99,7 @@ describe("Recaller — recall with embedding", () => {
     insertNode(db, { name: "python-test", type: "SKILL", category: "skills", content: "Python testing framework" });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG, recallMaxNodes: 10, recallMaxDepth: 2 };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     recaller.setEmbedFn(vi.fn(async () => { throw new Error("API down"); }));
 
     const result = await recaller.recall("python");
@@ -115,7 +118,7 @@ describe("Recaller — source filter", () => {
     db.prepare("UPDATE bm_nodes SET source = ? WHERE id = ?").run("assistant", assistantId);
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG, recallMaxNodes: 10, recallMaxDepth: 2 };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const result = await recaller.recall("skill", undefined, "user");
 
     expect(result.nodes.every(n => n.source === "user")).toBe(true);
@@ -127,7 +130,7 @@ describe("Recaller — source filter", () => {
     insertNode(db, { name: "assistant-skill", type: "SKILL", category: "skills", content: "Assistant skill" });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG, recallMaxNodes: 10, recallMaxDepth: 2 };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const result = await recaller.recall("skill", undefined, "assistant");
 
     expect(result.nodes.every(n => n.source === "assistant")).toBe(true);
@@ -139,7 +142,7 @@ describe("Recaller — source filter", () => {
     db.prepare("UPDATE bm_nodes SET source = ? WHERE id = ?").run("assistant", aid);
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG, recallMaxNodes: 10, recallMaxDepth: 2 };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const result = await recaller.recall("skill", undefined, "both");
 
     expect(result.nodes.length).toBeGreaterThanOrEqual(2);
@@ -159,7 +162,7 @@ describe("Recaller — decay disabled", () => {
       recallMaxDepth: 2,
       decay: { ...DEFAULT_CONFIG.decay, enabled: false },
     };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const result = await recaller.recall("skill");
 
     expect(result.nodes.length).toBeGreaterThanOrEqual(1);
@@ -177,7 +180,7 @@ describe("Recaller — generalized seeds", () => {
     insertNode(db, { name: "standalone-skill", type: "SKILL", category: "skills", content: "A standalone skill" });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG, recallMaxNodes: 10, recallMaxDepth: 2 };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     recaller.setEmbedFn(makeEmbedFn(3));
 
     const result = await recaller.recall("standalone");
@@ -188,7 +191,7 @@ describe("Recaller — generalized seeds", () => {
   it("generalized seeds returns empty when no community data exists", async () => {
     // Empty DB, no communities
     const cfg: BmConfig = { ...DEFAULT_CONFIG, recallMaxNodes: 10, recallMaxDepth: 2 };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     recaller.setEmbedFn(makeEmbedFn(3));
 
     // No nodes → generalized seeds will return empty
@@ -206,7 +209,7 @@ describe("Recaller — syncEmbed", () => {
     insertVector(db, id, vec, "Content that is already embedded");
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const embedFn = makeEmbedFn(3);
     recaller.setEmbedFn(embedFn);
 
@@ -219,7 +222,7 @@ describe("Recaller — syncEmbed", () => {
     const id = insertNode(db, { name: "short-node", type: "SKILL", category: "skills", content: "Short content" });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const embedFn = makeEmbedFn(3);
     recaller.setEmbedFn(embedFn);
 
@@ -234,7 +237,7 @@ describe("Recaller — syncEmbed", () => {
     const id = insertNode(db, { name: "no-embed-node", type: "SKILL", category: "skills", content: "No embed" });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
 
     // No embedFn set — should not throw
     await recaller.syncEmbed(makeNodeData({ id, content: "No embed" }));
@@ -246,7 +249,7 @@ describe("Recaller — syncEmbed", () => {
     const id = insertNode(db, { name: "error-node", type: "SKILL", category: "skills", content: "Will fail" });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     recaller.setEmbedFn(vi.fn(async () => { throw new Error("API down"); }));
 
     // Should not throw
@@ -257,7 +260,7 @@ describe("Recaller — syncEmbed", () => {
     const id = insertNode(db, { name: "long-node", type: "SKILL", category: "skills", content: "A".repeat(500) });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     // Only set embedFn, not batchEmbedFn — forces sequential fallback for chunked content
     const embedFn = makeEmbedFn(3);
     recaller.setEmbedFn(embedFn);
@@ -276,7 +279,7 @@ describe("Recaller — syncEmbed", () => {
 describe("Recaller — batchSyncEmbed", () => {
   it("returns immediately when no nodes", async () => {
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const embedFn = makeEmbedFn(3);
     recaller.setEmbedFn(embedFn);
 
@@ -286,7 +289,7 @@ describe("Recaller — batchSyncEmbed", () => {
 
   it("returns immediately when embedFn not set", async () => {
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
 
     await recaller.batchSyncEmbed([makeNodeData({ name: "test" })]);
     // Should not throw
@@ -297,7 +300,7 @@ describe("Recaller — batchSyncEmbed", () => {
     insertVector(db, id, [0.5, 0.5, 0.5], "Already embedded");
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const embedFn = makeEmbedFn(3);
     recaller.setEmbedFn(embedFn);
 
@@ -310,7 +313,7 @@ describe("Recaller — batchSyncEmbed", () => {
     const id2 = insertNode(db, { name: "node-2", type: "SKILL", category: "skills", content: "Content two" });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const batchEmbedFn = makeBatchEmbedFn(3);
     recaller.setEmbedFn(makeEmbedFn(3));
     recaller.setBatchEmbedFn(batchEmbedFn);
@@ -334,7 +337,7 @@ describe("Recaller — batchSyncEmbed", () => {
     const id2 = insertNode(db, { name: "node-2", type: "SKILL", category: "skills", content: "Content two" });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const embedFn = makeEmbedFn(3);
     recaller.setEmbedFn(embedFn);
 
@@ -351,7 +354,7 @@ describe("Recaller — batchSyncEmbed", () => {
     const id = insertNode(db, { name: "error-batch", type: "SKILL", category: "skills", content: "Will fail in batch" });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     recaller.setEmbedFn(vi.fn(async () => { throw new Error("API down"); }));
 
     // Should not throw
@@ -366,7 +369,7 @@ describe("Recaller — buildEmbeddingText (via syncEmbed)", () => {
     const id = insertNode(db, { name: "short", type: "SKILL", category: "skills", content: "Short" });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const embedFn = vi.fn(async (text: string) => {
       // The embedded text should include header
       expect(text).toContain("short: ");
@@ -384,7 +387,7 @@ describe("Recaller — buildEmbeddingText (via syncEmbed)", () => {
     const id = insertNode(db, { name: "long-para", type: "SKILL", category: "skills", content: longContent });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const embedFn = vi.fn(async (text: string) => {
       // Should be truncated at paragraph boundary (~830 chars)
       expect(text.length).toBeLessThan(longContent.length + 50);
@@ -407,7 +410,7 @@ describe("Recaller — chunkText (via batchSyncEmbed with long content)", () => 
     const id = insertNode(db, { name: "chunkable", type: "SKILL", category: "skills", content: longContent });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const batchEmbedFn = makeBatchEmbedFn(3);
     recaller.setEmbedFn(makeEmbedFn(3));
     recaller.setBatchEmbedFn(batchEmbedFn);
@@ -424,7 +427,7 @@ describe("Recaller — chunkText (via batchSyncEmbed with long content)", () => 
     const id = insertNode(db, { name: "short-chunk", type: "SKILL", category: "skills", content: shortContent });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const batchEmbedFn = makeBatchEmbedFn(3);
     recaller.setEmbedFn(makeEmbedFn(3));
     recaller.setBatchEmbedFn(batchEmbedFn);
@@ -444,7 +447,7 @@ describe("Recaller — meanAggregate (via syncEmbed with chunked content)", () =
     const id = insertNode(db, { name: "aggregate-test", type: "SKILL", category: "skills", content: longContent });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const batchEmbedFn = vi.fn(async (texts: string[]) => {
       return texts.map(t => {
         const arr = new Array(3).fill(0);
@@ -473,7 +476,7 @@ describe("Recaller — edge filtering", () => {
     insertEdge(db, { fromId: id1, toId: id2, type: "USED_SKILL" });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG, recallMaxNodes: 10, recallMaxDepth: 2 };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const result = await recaller.recall("task");
 
     // If both nodes are recalled, edge should be included
@@ -490,7 +493,7 @@ describe("Recaller — token estimation", () => {
     insertNode(db, { name: "token-test", type: "SKILL", category: "skills", content: "Some content for token estimation test" });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG, recallMaxNodes: 10, recallMaxDepth: 2 };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const result = await recaller.recall("token");
 
     expect(result.tokenEstimate).toBeGreaterThanOrEqual(0);
@@ -507,7 +510,7 @@ describe("Recaller — buildEmbeddingText sentence fallback", () => {
     const id = insertNode(db, { name: "sentence-truncate", type: "SKILL", category: "skills", content });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const embedFn = vi.fn(async (text: string) => {
       // Text should be truncated near the sentence boundary (~901 chars)
       expect(text.length).toBeLessThan(content.length + 50);
@@ -525,7 +528,7 @@ describe("Recaller — buildEmbeddingText sentence fallback", () => {
     const id = insertNode(db, { name: "hardcut-truncate", type: "SKILL", category: "skills", content });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const embedFn = vi.fn(async (text: string) => {
       // Should be truncated at exactly maxContentLen (no natural boundary)
       expect(text.length).toBeLessThanOrEqual(1200 + 50); // header + ~1200 + margin
@@ -547,7 +550,7 @@ describe("Recaller — chunkText sentence boundary", () => {
     const id = insertNode(db, { name: "chunk-sentence", type: "SKILL", category: "skills", content });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const batchEmbedFn = vi.fn(async (texts: string[]) => texts.map(() => [0.5, 0.5, 0.5]));
     recaller.setEmbedFn(makeEmbedFn(3));
     recaller.setBatchEmbedFn(batchEmbedFn);
@@ -568,7 +571,7 @@ describe("Recaller — scope filtering via generalized seeds", () => {
     db.prepare("UPDATE bm_nodes SET scope_session = ? WHERE id = ?").run("excl-session", id2);
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG, recallMaxNodes: 10, recallMaxDepth: 2 };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     recaller.setEmbedFn(makeEmbedFn(3));
 
     // generalized seeds will trigger matchesScope with excludeScopes
@@ -586,7 +589,7 @@ describe("Recaller — scope filtering via generalized seeds", () => {
     db.prepare("UPDATE bm_nodes SET scope_session = ? WHERE id = ?").run("match-session", id1);
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG, recallMaxNodes: 10, recallMaxDepth: 2 };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     recaller.setEmbedFn(makeEmbedFn(3));
 
     const scopeFilter = {
@@ -602,7 +605,7 @@ describe("Recaller — scope filtering via generalized seeds", () => {
     insertNode(db, { name: "no-filter-2", type: "SKILL", category: "skills", content: "Node 2" });
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG, recallMaxNodes: 10, recallMaxDepth: 2 };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
 
     // Empty scope filter → matchesScope returns true for all
     const scopeFilter = { excludeScopes: [], includeScopes: [] };
@@ -627,7 +630,7 @@ describe("Recaller — generalized seeds with community vector", () => {
     );
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG, recallMaxNodes: 10, recallMaxDepth: 2 };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     recaller.setEmbedFn(makeEmbedFn(3));
 
     const result = await recaller.recall("community");

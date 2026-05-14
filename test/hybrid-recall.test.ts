@@ -3,17 +3,20 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { createTestDb, insertNode, insertEdge } from "./helpers.ts";
+import { createTestStorage, cleanupTestDb, createTestDb, insertNode, insertEdge } from "./helpers.ts";
 import { HybridRecaller } from "../src/retriever/hybrid-recall.ts";
 import { DEFAULT_CONFIG } from "../src/types.ts";
 
 let db: ReturnType<typeof createTestDb>;
+let storage: ReturnType<typeof createTestStorage>;
 
-beforeEach(() => { db = createTestDb(); });
+beforeEach(() => { storage = createTestStorage(); db = storage.getDb(); });
+
+afterEach(() => { cleanupTestDb(storage); });
 
 describe("HybridRecaller", () => {
   it("returns empty for empty DB", async () => {
-    const recaller = new HybridRecaller(db, DEFAULT_CONFIG);
+    const recaller = new HybridRecaller(storage, DEFAULT_CONFIG);
     const result = await recaller.recall("test query");
     expect(result.nodes.length).toBe(0);
     expect(result.diagnostics?.graphCount).toBe(0);
@@ -25,7 +28,7 @@ describe("HybridRecaller", () => {
     const b = insertNode(db, { name: "git-flow", type: "SKILL", category: "skills", description: "Git workflow", content: "Use git branch", sessions: ["s1"] });
     insertEdge(db, { fromId: a, toId: b, type: "REQUIRES", sessionId: "s1" });
 
-    const recaller = new HybridRecaller(db, DEFAULT_CONFIG);
+    const recaller = new HybridRecaller(storage, DEFAULT_CONFIG);
     const result = await recaller.recall("docker");
 
     expect(result.nodes.length).toBeGreaterThanOrEqual(1);
@@ -36,7 +39,7 @@ describe("HybridRecaller", () => {
   it("includes diagnostics", async () => {
     insertNode(db, { name: "test-skill", type: "SKILL", category: "skills", description: "Test skill", content: "Test content", sessions: ["s1"] });
 
-    const recaller = new HybridRecaller(db, DEFAULT_CONFIG);
+    const recaller = new HybridRecaller(storage, DEFAULT_CONFIG);
     const result = await recaller.recall("test");
 
     expect(result.diagnostics).toBeDefined();

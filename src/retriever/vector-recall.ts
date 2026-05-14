@@ -2,19 +2,29 @@
  * brain-memory — Vector-only recall engine (no graph dependency)
  *
  * Pure vector + FTS5 recall with RRF fusion for `engine: "vector"` mode.
- * Supports: vector search, FTS5 search, RRF fusion, cross-encoder reranking.
+ *
+ * v1.1.0 F-2: Uses IStorageAdapter.
  */
 
-import { type DatabaseSyncInstance } from "@photostructure/sqlite";
 import type { BmConfig, BmNode, BmEdge } from "../types";
 import type { EmbedFn } from "../engine/embed";
 import type { ScopeFilter } from "../scope/isolation";
-import {
-  searchNodes, vectorSearchWithScore, updateAccess,
-} from "../store/store";
+import type { IStorageAdapter, StorageFilter } from "../store/adapter";
 import { applyTimeDecay } from "../decay/engine";
-import { expandQuery } from "./query-expander"
-import { analyzeIntent } from "./intent-analyzer"
+import { expandQuery } from "./query-expander";
+import { analyzeIntent } from "./intent-analyzer";
+
+function toStorageFilter(filter?: ScopeFilter): StorageFilter | undefined {
+  if (!filter) return undefined;
+  return {
+    includeScopes: filter.includeScopes,
+    excludeScopes: filter.excludeScopes,
+    sharingMode: filter.sharingMode,
+    sharedCategories: filter.sharedCategories,
+    currentAgentId: filter.currentAgentId,
+    allowedAgents: filter.allowedAgents,
+  };
+}
 
 export interface VectorRecallResult {
   nodes: BmNode[];
@@ -40,7 +50,7 @@ interface ScoredNode {
 export class VectorRecaller {
   private embed: EmbedFn | null = null;
 
-  constructor(private db: DatabaseSyncInstance, private cfg: BmConfig) {}
+  constructor(private storage: IStorageAdapter, private cfg: BmConfig) {}
 
   setEmbedFn(fn: EmbedFn): void { this.embed = fn; }
 
@@ -48,11 +58,10 @@ export class VectorRecaller {
     const intent = analyzeIntent(query);
     const limit = this.cfg.recallMaxNodes;
     const candidatePool = Math.max(limit * 3, 15);
+    const sf = toStorageFilter(scopeFilter);
 
-    // Query expansion for BM25
     const bm25Query = expandQuery(query);
 
-    // Parallel: vector search + FTS5
     let vectorNodes: BmNode[] = [];
     let vectorScores: Map<string, number> = new Map();
     let bm25Nodes: BmNode[] = [];
@@ -62,7 +71,7 @@ export class VectorRecaller {
     if (this.embed) {
       try {
         const vec = await this.embed(query);
-        const scored = vectorSearchWithScore(this.db, vec, candidatePool, scopeFilter);
+        const scored = this.storage.vectorSearchWithScore(vec, candidatePool, sf);
         vectorNodes = scored.map(s => s.node);
         for (const s of scored) {
           if (s && s.node && s.node.id !== undefined) {
@@ -74,8 +83,7 @@ export class VectorRecaller {
 
     // FTS5 search
     try {
-      bm25Nodes = searchNodes(this.db, bm25Query, candidatePool, scopeFilter);
-      // BM25 scores: normalize by rank
+      bm25Nodes = this.storage.searchNodes(bm25Query, candidatePool, sf);
       bm25Nodes.forEach((n, i) => {
         if (n && n.id !== undefined) {
           bm25Scores.set(n.id, 1 / (i + 1));
@@ -97,15 +105,14 @@ export class VectorRecaller {
     // Update access counts
     if (this.cfg.decay.enabled) {
       const top = fused.slice(0, limit);
-      for (const f of top) updateAccess(this.db, f.node.id);
+      for (const f of top) this.storage.updateAccess(f.node.id);
     }
 
     const finalNodes = fused.slice(0, limit).map(f => f.node);
-    const ids = new Set(finalNodes.map(n => n.id));
 
     return {
       nodes: finalNodes,
-      edges: [], // No edges in pure vector mode
+      edges: [],
       tokenEstimate: this.estimateTokens(finalNodes),
       diagnostics: {
         vectorCount: vectorNodes.length,
@@ -116,17 +123,15 @@ export class VectorRecaller {
     };
   }
 
-  /** Reciprocal Rank Fusion: RRF(d) = Σ 1/(k + rank_d) */
   private rrfFusion(
     vectorNodes: BmNode[],
     vectorScores: Map<string, number>,
     bm25Nodes: BmNode[],
     bm25Scores: Map<string, number>,
   ): ScoredNode[] {
-    const K = 60; // Standard RRF constant
+    const K = 60;
     const nodeMap = new Map<string, { node: BmNode; vScore: number; vRank: number; bScore: number; bRank: number }>();
 
-    // Vector results
     for (let i = 0; i < vectorNodes.length; i++) {
       const n = vectorNodes[i];
       if (n && n.id && !nodeMap.has(n.id)) {
@@ -134,40 +139,32 @@ export class VectorRecaller {
       }
     }
 
-    // BM25 results
     for (let i = 0; i < bm25Nodes.length; i++) {
       const n = bm25Nodes[i];
       if (n && n.id && !nodeMap.has(n.id)) {
         nodeMap.set(n.id, { node: n, vScore: 0, vRank: 0, bScore: bm25Scores.get(n.id) ?? 0, bRank: i + 1 });
-      } else {
-        nodeMap.get(n.id)!.bScore = bm25Scores.get(n.id) ?? 0;
-        nodeMap.get(n.id)!.bRank = i + 1;
+      } else if (n && n.id) {
+        const entry = nodeMap.get(n.id)!;
+        entry.bScore = bm25Scores.get(n.id) ?? 0;
+        entry.bRank = i + 1;
       }
     }
 
-    // Compute RRF scores
     const results: ScoredNode[] = [];
-    for (const [id, data] of nodeMap) {
+    for (const [, data] of nodeMap) {
       const vRRF = data.vRank > 0 ? 1 / (K + data.vRank) : 0;
       const bRRF = data.bRank > 0 ? 1 / (K + data.bRank) : 0;
-
-      // Weighted fusion: if both sources agree, boost; if only one, still include
-      const fusedScore = vRRF + bRRF;
-
       results.push({
         node: data.node,
-        vectorScore: data.vScore,
-        vectorRank: data.vRank,
-        bm25Score: data.bScore,
-        bm25Rank: data.bRank,
-        fusedScore,
+        vectorScore: data.vScore, vectorRank: data.vRank,
+        bm25Score: data.bScore, bm25Rank: data.bRank,
+        fusedScore: vRRF + bRRF,
       });
     }
 
     return results.sort((a, b) => b.fusedScore - a.fusedScore);
   }
 
-  // #21 fix: use language-aware token estimation
   private estimateTokens(nodes: BmNode[]): number {
     const chineseRatio = nodes.reduce((s, n) => s + (n.content.match(/[\u4e00-\u9fff]/g) || []).length, 0) /
       nodes.reduce((s, n) => s + n.content.length, 1);

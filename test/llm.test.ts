@@ -187,6 +187,10 @@ describe("createCompleteFn — retry logic", () => {
     const fn = createCompleteFn({ apiKey: "sk-test" })!;
     const promise = fn("sys", "user");
 
+    // Attach rejection handler early to prevent vitest unhandled rejection warning
+    // (fake timer + async retry creates a microtask timing gap)
+    promise.catch(() => {});
+
     // Advance through all 3 retries
     await vi.advanceTimersByTimeAsync(1000);
     await vi.advanceTimersByTimeAsync(2000);

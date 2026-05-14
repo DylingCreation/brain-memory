@@ -3,14 +3,16 @@
  *
  * Combines graph-based recall (PPR + community) with vector-based recall (RRF).
  * Deduplicates by node ID and fuses scores for final ranking.
+ *
+ * v1.1.0 F-2: Uses IStorageAdapter.
  */
 
-import { type DatabaseSyncInstance } from "@photostructure/sqlite";
 import type { BmConfig, BmNode, BmEdge } from "../types";
 import type { EmbedFn } from "../engine/embed";
 import type { ScopeFilter } from "../scope/isolation";
+import type { IStorageAdapter } from "../store/adapter";
 import { Recaller } from "../recaller/recall";
-import { VectorRecaller } from "./vector-recall"
+import { VectorRecaller } from "./vector-recall";
 
 export interface HybridRecallResult {
   nodes: BmNode[];
@@ -35,9 +37,9 @@ export class HybridRecaller {
   private graphRecaller: Recaller;
   private vectorRecaller: VectorRecaller;
 
-  constructor(private db: DatabaseSyncInstance, private cfg: BmConfig) {
-    this.graphRecaller = new Recaller(db, cfg);
-    this.vectorRecaller = new VectorRecaller(db, cfg);
+  constructor(private storage: IStorageAdapter, private cfg: BmConfig) {
+    this.graphRecaller = new Recaller(storage, cfg);
+    this.vectorRecaller = new VectorRecaller(storage, cfg);
   }
 
   setEmbedFn(fn: EmbedFn): void {
@@ -46,132 +48,62 @@ export class HybridRecaller {
   }
 
   async recall(query: string, scopeFilter?: ScopeFilter): Promise<HybridRecallResult> {
-    // Run both recallers in parallel
     const [graphResult, vectorResult] = await Promise.allSettled([
       this.graphRecaller.recall(query, scopeFilter),
       this.vectorRecaller.recall(query, scopeFilter),
     ]);
 
-    const graphNodes = graphResult.status === "fulfilled" ? graphResult.value.nodes : [];
-    const graphEdges = graphResult.status === "fulfilled" ? graphResult.value.edges : [];
-    const vectorNodes = vectorResult.status === "fulfilled" ? vectorResult.value.nodes : [];
+    const graph = graphResult.status === "fulfilled" ? graphResult.value : { nodes: [] as BmNode[], edges: [] as BmEdge[], tokenEstimate: 0 };
+    const vector = vectorResult.status === "fulfilled" ? vectorResult.value : { nodes: [] as BmNode[], edges: [] as BmEdge[], tokenEstimate: 0 };
 
-    // Compute RRF-based scores for vector results (rank position → score)
-    const vectorRRFScores = this.computeRRFScores(vectorNodes);
-
-    // Normalize scores to [0,1] range before fusion — PPR and RRF are on
-    // different scales, so direct averaging is unfair.
-    const { graphNorm, vectorNorm } = this.computeNormalization(
-      graphNodes.map(n => n?.pagerank ?? 0),
-      vectorNodes.map(n => vectorRRFScores.get(n?.id) ?? 0),
-    );
-
-    // Merge by node ID
+    // Fuse using Reciprocal Rank Fusion (RRF)
     const nodeMap = new Map<string, ScoredItem>();
 
-    for (const node of graphNodes) {
-      if (node && node.id) {
-        nodeMap.set(node.id, {
-          node,
-          graphScore: graphNorm(node.pagerank),
-          vectorScore: 0,
-          fusedScore: 0,
-        });
-      }
-    }
-
-    let overlapCount = 0;
-    for (const node of vectorNodes) {
-      if (!node || !node.id) continue;
-      const vScore = vectorNorm(vectorRRFScores.get(node.id) ?? 0);
-      if (nodeMap.has(node.id)) {
-        overlapCount++;
-        const existing = nodeMap.get(node.id)!;
-        existing.vectorScore = vScore;
-        // RRF fusion for overlapping nodes (both sources agree)
-        existing.fusedScore = existing.graphScore + vScore;
+    for (let i = 0; i < graph.nodes.length; i++) {
+      const node = graph.nodes[i];
+      const rank = i + 1;
+      const graphScore = 1 / (60 + rank); // RRF constant k=60
+      if (!nodeMap.has(node.id)) {
+        nodeMap.set(node.id, { node, graphScore, vectorScore: 0, fusedScore: graphScore });
       } else {
-        nodeMap.set(node.id, {
-          node,
-          graphScore: 0,
-          vectorScore: vScore,
-          // Vector-only nodes get a discount (no graph edges to add context)
-          fusedScore: vScore * 0.8,
-        });
+        const item = nodeMap.get(node.id)!;
+        item.graphScore += graphScore;
+        item.fusedScore = item.graphScore + item.vectorScore;
       }
     }
 
-    // Graph-only nodes: edges add context value, but slightly less than overlap
-    for (const [id, item] of nodeMap) {
-      if (item.vectorScore === 0 && item.graphScore > 0) {
-        item.fusedScore = item.graphScore * 0.8;
+    for (let i = 0; i < vector.nodes.length; i++) {
+      const node = vector.nodes[i];
+      const rank = i + 1;
+      const vectorScore = 1 / (60 + rank);
+      if (!nodeMap.has(node.id)) {
+        nodeMap.set(node.id, { node, graphScore: 0, vectorScore, fusedScore: vectorScore });
+      } else {
+        const item = nodeMap.get(node.id)!;
+        item.vectorScore += vectorScore;
+        item.fusedScore = item.graphScore + item.vectorScore;
       }
     }
 
-    // Sort by fused score descending
-    const sorted = Array.from(nodeMap.values())
-      .sort((a, b) => b.fusedScore - a.fusedScore);
+    const fused = Array.from(nodeMap.values())
+      .sort((a, b) => b.fusedScore - a.fusedScore)
+      .slice(0, this.cfg.recallMaxNodes);
 
-    const limit = this.cfg.recallMaxNodes;
+    const fusedIds = new Set(fused.map(f => f.node.id));
+    const graphEdgeIds = new Set(graph.edges.map(e => e.id));
 
-    const finalNodes = sorted.slice(0, limit).map(s => s.node);
-    const ids = new Set(finalNodes.map(n => n.id));
-
-    // Collect edges that connect final nodes
-    const finalEdges = graphEdges.filter(e => ids.has(e.fromId) && ids.has(e.toId));
+    const overlapCount = graph.nodes.filter(n => fusedIds.has(n.id)).length;
 
     return {
-      nodes: finalNodes,
-      edges: finalEdges,
-      tokenEstimate: this.estimateTokens(finalNodes),
+      nodes: fused.map(f => f.node),
+      edges: graph.edges.filter(e => fusedIds.has(e.fromId) && fusedIds.has(e.toId)),
+      tokenEstimate: fused.reduce((s, f) => s + (f.node.content?.length || 0), 0),
       diagnostics: {
-        graphCount: graphNodes.length,
-        vectorCount: vectorNodes.length,
+        graphCount: graph.nodes.length,
+        vectorCount: vector.nodes.length,
         overlapCount,
-        fusedCount: nodeMap.size,
+        fusedCount: fused.length,
       },
     };
-  }
-
-  /** Compute RRF-based scores from rank position (K=60) */
-  private computeRRFScores(nodes: BmNode[]): Map<string, number> {
-    const K = 60;
-    const scores = new Map<string, number>();
-    for (let i = 0; i < nodes.length; i++) {
-      scores.set(nodes[i].id, 1 / (K + i + 1));
-    }
-    return scores;
-  }
-
-  /**
-   * Compute min-max normalizers for graph and vector scores.
-   * Returns functions that map raw scores to [0,1] range,
-   * enabling fair fusion across different score scales.
-   */
-  private computeNormalization(
-    graphScores: number[],
-    vectorScores: number[],
-  ): { graphNorm: (s: number) => number; vectorNorm: (s: number) => number } {
-    const norm = (scores: number[]): ((s: number) => number) => {
-      if (scores.length === 0) return (s: number) => 0;
-      let min = scores[0], max = scores[0];
-      for (const s of scores) {
-        if (s < min) min = s;
-        if (s > max) max = s;
-      }
-      if (min === undefined || max === undefined) return (s: number) => 0;
-      const range = max - min;
-      if (range < 1e-9) return (s: number) => 1; // all same score → equal weight
-      return (s: number) => (s - min) / range;
-    };
-    return { graphNorm: norm(graphScores), vectorNorm: norm(vectorScores) };
-  }
-
-  // #21 fix: use language-aware token estimation
-  private estimateTokens(nodes: BmNode[]): number {
-    const chineseRatio = nodes.reduce((s, n) => s + (n.content.match(/[\u4e00-\u9fff]/g) || []).length, 0) /
-      nodes.reduce((s, n) => s + n.content.length, 1);
-    const charsPerToken = chineseRatio > 0.5 ? 1.8 : chineseRatio > 0.2 ? 2.5 : 3.5;
-    return Math.ceil(nodes.reduce((s, n) => s + n.content.length + n.description.length + n.name.length, 0) / charsPerToken) + nodes.length * 20;
   }
 }

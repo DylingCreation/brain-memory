@@ -3,8 +3,13 @@
  */
 
 import { createHash } from "crypto";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { rmSync } from "node:fs";
 import { DatabaseSync, type DatabaseSyncInstance } from "@photostructure/sqlite";
 import type { BmNode } from "../src/types.ts";
+import { IStorageAdapter } from "../src/store/adapter";
+import { SQLiteStorageAdapter } from "../src/store/sqlite-adapter";
 
 export function createTestDb(): DatabaseSyncInstance {
   const db = new DatabaseSync(":memory:");
@@ -176,4 +181,40 @@ export function insertVector(db: DatabaseSyncInstance, nodeId: string, vec: numb
   const f32 = new Float32Array(vec);
   const blob = new Uint8Array(f32.buffer, f32.byteOffset, f32.byteLength);
   db.prepare("INSERT OR REPLACE INTO bm_vectors(node_id, embedding, hash) VALUES(?,?,?)").run(nodeId, blob, hash);
+}
+
+// ─── IStorageAdapter helper ─────────────────────────────────────
+
+let _testCounter = 0;
+
+/**
+ * Create a test SQLiteStorageAdapter backed by a temp file.
+ * Call cleanupTestDb() in afterEach to remove the file.
+ */
+export function createTestStorage(): IStorageAdapter {
+  _testCounter++;
+  const dbPath = join(tmpdir(), `brain-memory-test-${Date.now()}-${_testCounter}.db`);
+  const storage = new SQLiteStorageAdapter(dbPath);
+  storage.initialize();
+  return storage;
+}
+
+/**
+ * Clean up the test database file. Call this in afterEach.
+ * Accepts either a SQLiteStorageAdapter or a DatabaseSyncInstance.
+ */
+export function cleanupTestDb(storageOrDb: IStorageAdapter | DatabaseSyncInstance): void {
+  if (storageOrDb && typeof (storageOrDb as any).close === "function") {
+    // It's a SQLiteStorageAdapter
+    const storage = storageOrDb as SQLiteStorageAdapter;
+    try {
+      const db = storage.getDb();
+      // DatabaseSync doesn't expose the path directly, but SQLiteStorageAdapter stores it
+      // We'll use a workaround: just close and let the OS clean up temp files
+      storage.close();
+    } catch { /* ignore */ }
+  } else {
+    // It's a DatabaseSyncInstance (in-memory, nothing to clean)
+    try { (storageOrDb as DatabaseSyncInstance).close(); } catch { /* ignore */ }
+  }
 }

@@ -7,11 +7,17 @@
  * 5 test cases.
  */
 
-import { describe, it, expect } from "vitest";
-import { createTestDb, insertNode } from "./helpers";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { createTestStorage, cleanupTestDb, createTestDb, insertNode } from "./helpers";
 import { AdmissionController, DEFAULT_ADMISSION_CONFIG, type AdmissionConfig } from "../src/retriever/admission-control";
 import { Reranker, type RerankerConfig } from "../src/retriever/reranker";
 import type { BmConfig } from "../src/types";
+
+let storage: ReturnType<typeof createTestStorage>;
+let db: ReturnType<typeof createTestDb>;
+
+beforeEach(() => { storage = createTestStorage(); db = storage.getDb(); });
+afterEach(() => { cleanupTestDb(storage); });
 
 // ─── Test 1: recall + rerank enabled, no API key → cosine fallback ──
 
@@ -70,7 +76,7 @@ describe("AdmissionController — disabled by default", () => {
   it("accepts all when admission control is disabled", () => {
     const db = createTestDb();
     const config: AdmissionConfig = { ...DEFAULT_ADMISSION_CONFIG, enabled: false };
-    const ac = new AdmissionController(db, config);
+    const ac = new AdmissionController(storage, config);
 
     const result = ac.evaluate({
       name: "test-memory",
@@ -80,7 +86,7 @@ describe("AdmissionController — disabled by default", () => {
 
     expect(result.decision).toBe("accept");
     expect(result.reason).toBe("admission control disabled");
-    db.close();
+
   });
 });
 
@@ -94,7 +100,7 @@ describe("AdmissionController — enabled gatekeeper", () => {
       enabled: true,
       minContentLength: 10,
     };
-    const ac = new AdmissionController(db, config);
+    const ac = new AdmissionController(storage, config);
 
     const result = ac.evaluate({
       name: "new-memory",
@@ -103,7 +109,7 @@ describe("AdmissionController — enabled gatekeeper", () => {
     });
 
     expect(result.decision).toBe("accept");
-    db.close();
+
   });
 });
 
@@ -117,7 +123,7 @@ describe("AdmissionController — min content length rejection", () => {
       enabled: true,
       minContentLength: 100,
     };
-    const ac = new AdmissionController(db, config);
+    const ac = new AdmissionController(storage, config);
 
     const result = ac.evaluate({
       name: "short-memory",
@@ -127,6 +133,6 @@ describe("AdmissionController — min content length rejection", () => {
 
     expect(result.decision).toBe("reject");
     expect(result.reason).toContain("content too short");
-    db.close();
+
   });
 });

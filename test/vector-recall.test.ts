@@ -3,17 +3,20 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { createTestDb, insertNode } from "./helpers.ts";
+import { createTestStorage, cleanupTestDb, createTestDb, insertNode } from "./helpers.ts";
 import { VectorRecaller } from "../src/retriever/vector-recall.ts";
 import { DEFAULT_CONFIG } from "../src/types.ts";
 
 let db: ReturnType<typeof createTestDb>;
+let storage: ReturnType<typeof createTestStorage>;
 
-beforeEach(() => { db = createTestDb(); });
+beforeEach(() => { storage = createTestStorage(); db = storage.getDb(); });
+
+afterEach(() => { cleanupTestDb(storage); });
 
 describe("VectorRecaller", () => {
   it("returns empty for empty DB", async () => {
-    const recaller = new VectorRecaller(db, DEFAULT_CONFIG);
+    const recaller = new VectorRecaller(storage, DEFAULT_CONFIG);
     const result = await recaller.recall("test query");
     expect(result.nodes.length).toBe(0);
     expect(result.diagnostics?.vectorCount).toBe(0);
@@ -24,7 +27,7 @@ describe("VectorRecaller", () => {
     insertNode(db, { name: "docker-setup", type: "SKILL", category: "skills", description: "Docker container setup guide", content: "Use docker compose up -d to start all services", sessions: ["s1"] });
     insertNode(db, { name: "git-flow", type: "SKILL", category: "skills", description: "Git workflow guide", content: "Use git branch and git merge for feature branches", sessions: ["s1"] });
 
-    const recaller = new VectorRecaller(db, DEFAULT_CONFIG);
+    const recaller = new VectorRecaller(storage, DEFAULT_CONFIG);
     const result = await recaller.recall("docker");
 
     expect(result.nodes.length).toBeGreaterThanOrEqual(1);
@@ -36,7 +39,7 @@ describe("VectorRecaller", () => {
   it("returns intent in diagnostics", async () => {
     insertNode(db, { name: "fix-bug", type: "EVENT", category: "events", description: "Error fix", content: "Fixed connection error", sessions: ["s1"] });
 
-    const recaller = new VectorRecaller(db, DEFAULT_CONFIG);
+    const recaller = new VectorRecaller(storage, DEFAULT_CONFIG);
     const result = await recaller.recall("报错怎么修复");
 
     expect(result.diagnostics?.intent).toBe("technical");
@@ -48,7 +51,7 @@ describe("VectorRecaller", () => {
     }
 
     const cfg = { ...DEFAULT_CONFIG, recallMaxNodes: 3 };
-    const recaller = new VectorRecaller(db, cfg);
+    const recaller = new VectorRecaller(storage, cfg);
     const result = await recaller.recall("skill");
 
     expect(result.nodes.length).toBeLessThanOrEqual(3);

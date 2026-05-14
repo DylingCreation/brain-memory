@@ -3,22 +3,19 @@
  *
  * Lightweight gatekeeper: evaluates candidate memories before writing.
  * Rejects low-utility, low-confidence, or duplicate content.
- * Simplified from memory-lancedb-pro's admission-control.ts.
+ *
+ * v1.1.0 F-2: Uses IStorageAdapter.
  */
 
-import type { DatabaseSyncInstance } from "@photostructure/sqlite";
 import type { MemoryCategory } from "../types";
-import { searchNodes, vectorSearchWithScore } from "../store/store";
+import type { IStorageAdapter } from "../store/adapter";
 import type { EmbedFn } from "../engine/embed";
 import { tokenize, jaccardSimilarity } from "../utils/text";
 
 export interface AdmissionConfig {
   enabled: boolean;
-  /** Minimum similarity to existing memory to reject as duplicate */
   duplicateThreshold: number;
-  /** Minimum content length to accept */
   minContentLength: number;
-  /** Type-based priors (higher = more likely to accept) */
   typePriors: Record<string, number>;
 }
 
@@ -27,14 +24,8 @@ export const DEFAULT_ADMISSION_CONFIG: AdmissionConfig = {
   duplicateThreshold: 0.85,
   minContentLength: 10,
   typePriors: {
-    profile: 0.95,
-    preferences: 0.9,
-    entities: 0.75,
-    events: 0.45,
-    tasks: 0.8,
-    skills: 0.85,
-    cases: 0.8,
-    patterns: 0.85,
+    profile: 0.95, preferences: 0.9, entities: 0.75, events: 0.45,
+    tasks: 0.8, skills: 0.85, cases: 0.8, patterns: 0.85,
   },
 };
 
@@ -46,12 +37,11 @@ export interface AdmissionResult {
 
 export class AdmissionController {
   constructor(
-    private db: DatabaseSyncInstance,
+    private storage: IStorageAdapter,
     private config: AdmissionConfig,
     private embedFn?: EmbedFn | null,
   ) {}
 
-  /** Evaluate whether a candidate memory should be admitted */
   evaluate(params: {
     name: string;
     content: string;
@@ -65,21 +55,18 @@ export class AdmissionController {
       return { decision: "accept", reason: "admission control disabled", similarityToExisting: 0 };
     }
 
-    // Check minimum content length
     if (content.length < minContentLength) {
       return { decision: "reject", reason: `content too short (${content.length} < ${minContentLength})`, similarityToExisting: 0 };
     }
 
-    // Check type prior
     const typePrior = typePriors[category] ?? 0.5;
     if (typePrior < 0.3) {
       return { decision: "reject", reason: `low type prior for ${category} (${typePrior})`, similarityToExisting: 0 };
     }
 
     // Check for duplicates via name match
-    const existing = searchNodes(this.db, name, 5);
+    const existing = this.storage.searchNodes(name, 5);
     if (existing.length > 0) {
-      // Check content overlap via simple token overlap
       const candidateTokens = tokenizeText(content);
       let maxOverlap = 0;
       for (const ex of existing) {
@@ -97,7 +84,7 @@ export class AdmissionController {
     // Check for duplicates via vector similarity
     if (vector && this.embedFn) {
       try {
-        const scored = vectorSearchWithScore(this.db, vector, 5);
+        const scored = this.storage.vectorSearchWithScore(vector, 5);
         if (scored.length > 0 && scored[0].score > duplicateThreshold) {
           return { decision: "reject", reason: `high vector similarity (${scored[0].score.toFixed(2)} > ${duplicateThreshold})`, similarityToExisting: scored[0].score };
         }
@@ -108,6 +95,4 @@ export class AdmissionController {
   }
 }
 
-// tokenize, jaccardSimilarity imported from ../utils/text.ts
-// Local alias for backward compatibility with evaluate() usage
 function tokenizeText(text: string): Set<string> { return tokenize(text); }

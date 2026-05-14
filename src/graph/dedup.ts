@@ -2,12 +2,14 @@
  * brain-memory — Vector cosine dedup
  *
  * Finds and merges semantically duplicate nodes.
+ *
+ * v1.1.0 F-2: Uses IStorageAdapter instead of DatabaseSyncInstance.
+ *
  * Authors: adoresever (graph-memory), brain-memory contributors
  */
 
-import { type DatabaseSyncInstance } from "@photostructure/sqlite";
 import type { BmConfig } from "../types";
-import { findById, mergeNodes, getAllVectors } from "../store/store";
+import type { IStorageAdapter } from "../store/adapter";
 
 export interface DedupResult {
   pairs: Array<{ nodeA: string; nodeB: string; nameA: string; nameB: string; similarity: number }>;
@@ -41,7 +43,6 @@ function buildLshBuckets(
     const v = vectors[i].embedding;
     let sig = "";
     for (let b = 0; b < numBits; b++) {
-      // Deterministic pseudo-random index from vector components
       const idx = ((b * 131 + 7) * 3) % v.length;
       sig += v[idx] !== undefined && v[idx] >= 0 ? "1" : "0";
     }
@@ -51,13 +52,12 @@ function buildLshBuckets(
   return buckets;
 }
 
-export function detectDuplicates(db: DatabaseSyncInstance, cfg: BmConfig): DedupResult["pairs"] {
-  const vectors = getAllVectors(db);
+export function detectDuplicates(storage: IStorageAdapter, cfg: BmConfig): DedupResult["pairs"] {
+  const vectors = storage.loadAllVectors();
   if (vectors.length < 2) return [];
   const threshold = cfg.dedupThreshold;
   const pairs: DedupResult["pairs"] = [];
 
-  // LSH bucketing: only compare vectors in the same bucket
   const buckets = buildLshBuckets(vectors);
   const compared = new Set<string>();
 
@@ -78,8 +78,8 @@ export function detectDuplicates(db: DatabaseSyncInstance, cfg: BmConfig): Dedup
           const nodeIdA = vectors[aIdx]?.nodeId;
           const nodeIdB = vectors[bIdx]?.nodeId;
           if (!nodeIdA || !nodeIdB) continue;
-          const nodeA = findById(db, nodeIdA);
-          const nodeB = findById(db, nodeIdB);
+          const nodeA = storage.findNodeById(nodeIdA);
+          const nodeB = storage.findNodeById(nodeIdB);
           if (nodeA && nodeB) {
             pairs.push({ nodeA: nodeA.id, nodeB: nodeB.id, nameA: nodeA.name || '', nameB: nodeB.name || '', similarity: sim });
           }
@@ -90,18 +90,18 @@ export function detectDuplicates(db: DatabaseSyncInstance, cfg: BmConfig): Dedup
   return pairs.sort((a, b) => b.similarity - a.similarity);
 }
 
-export function dedup(db: DatabaseSyncInstance, cfg: BmConfig): DedupResult {
-  const pairs = detectDuplicates(db, cfg);
+export function dedup(storage: IStorageAdapter, cfg: BmConfig): DedupResult {
+  const pairs = detectDuplicates(storage, cfg);
   let merged = 0;
   const consumed = new Set<string>();
   for (const pair of pairs) {
     if (consumed.has(pair.nodeA) || consumed.has(pair.nodeB)) continue;
-    const a = findById(db, pair.nodeA);
-    const b = findById(db, pair.nodeB);
+    const a = storage.findNodeById(pair.nodeA);
+    const b = storage.findNodeById(pair.nodeB);
     if (!a || !b || a?.type !== b?.type) continue;
     const keepId = a.validatedCount >= b.validatedCount ? a.id : b.id;
     const mergeId = keepId === a.id ? b.id : a.id;
-    mergeNodes(db, keepId, mergeId);
+    storage.mergeNodes(keepId, mergeId);
     consumed.add(mergeId);
     merged++;
   }

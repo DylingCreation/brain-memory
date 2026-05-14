@@ -18,7 +18,7 @@ import { reflectOnSession } from "../src/reflection/extractor.ts";
 import { runReasoning, shouldRunReasoning } from "../src/reasoning/engine.ts";
 import { runFusion, shouldRunFusion, findFusionCandidates, decideFusion } from "../src/fusion/analyzer.ts";
 import { saveVector } from "../src/store/store.ts";
-import { DatabaseSync } from "@photostructure/sqlite";
+import { createTestStorage, cleanupTestDb } from "./helpers";
 
 // ─── Test Configuration ──────────────────────────────────────────
 
@@ -153,38 +153,20 @@ describe.skipIf(!LLM_ENABLED)("Reasoning (LLM)", () => {
 // Moved outside skipIf so it always runs.
 describe("Fusion Candidate Detection", () => {
   it("finds similar node pairs from vector DB", () => {
-    const db = new DatabaseSync(":memory:");
-    const SCHEMA = `
-      CREATE TABLE bm_nodes (
-        id TEXT PRIMARY KEY, type TEXT NOT NULL, category TEXT NOT NULL,
-        name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', content TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'active', validated_count INTEGER NOT NULL DEFAULT 1,
-        source_sessions TEXT NOT NULL DEFAULT '[]', community_id TEXT,
-        pagerank REAL NOT NULL DEFAULT 0, importance REAL NOT NULL DEFAULT 0.5,
-        access_count INTEGER NOT NULL DEFAULT 0, last_accessed INTEGER NOT NULL DEFAULT 0,
-        temporal_type TEXT NOT NULL DEFAULT 'static', scope_session TEXT, scope_agent TEXT,
-        scope_workspace TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-      );
-      CREATE TABLE bm_vectors (node_id TEXT PRIMARY KEY, embedding BLOB NOT NULL, hash TEXT NOT NULL);
-      CREATE TABLE bm_edges (
-        id TEXT PRIMARY KEY, from_id TEXT NOT NULL, to_id TEXT NOT NULL,
-        type TEXT NOT NULL, instruction TEXT NOT NULL, condition TEXT,
-        session_id TEXT NOT NULL, created_at INTEGER NOT NULL
-      );
-    `;
-    db.exec(SCHEMA);
+    const storage = createTestStorage();
+    const db = storage.getDb();
 
     // Insert two very similar nodes + 8 filler nodes to meet min count (10)
     const now = Date.now();
     db.exec(`
-      INSERT INTO bm_nodes VALUES ('n1','TASK','tasks','docker-port-fix','Fix Docker port conflict','Change container port from 8080 to 8081','active',1,'[]',null,0,0.5,0,0,'static',null,null,null,${now},${now});
-      INSERT INTO bm_nodes VALUES ('n2','TASK','tasks','docker-port-fix-solution','Docker port fix solution','Change container port from 8080 to 8081','active',1,'[]',null,0,0.5,0,0,'static',null,null,null,${now},${now});
+      INSERT INTO bm_nodes VALUES ('n1','TASK','tasks','docker-port-fix','Fix Docker port conflict','Change container port from 8080 to 8081','active',1,'[]',null,0,0.5,0,0,'static','user',null,null,null,${now},${now});
+      INSERT INTO bm_nodes VALUES ('n2','TASK','tasks','docker-port-fix-solution','Docker port fix solution','Change container port from 8080 to 8081','active',1,'[]',null,0,0.5,0,0,'static','user',null,null,null,${now},${now});
     `);
 
     // Add 8 filler nodes
     for (let i = 3; i <= 10; i++) {
       db.exec(`
-        INSERT INTO bm_nodes VALUES ('n${i}','TASK','tasks','filler-node-${i}','Filler node ${i}','Unrelated content for node ${i}','active',1,'[]',null,0,0.5,0,0,'static',null,null,null,${now},${now});
+        INSERT INTO bm_nodes VALUES ('n${i}','TASK','tasks','filler-node-${i}','Filler node ${i}','Unrelated content for node ${i}','active',1,'[]',null,0,0.5,0,0,'static','user',null,null,null,${now},${now});
       `);
     }
 
@@ -198,10 +180,11 @@ describe("Fusion Candidate Detection", () => {
       fusion: { enabled: true, similarityThreshold: 0.5, minNodes: 1, minCommunities: 0 },
     };
 
-    const candidates = findFusionCandidates(db, cfg, null);
+    const candidates = findFusionCandidates(storage, cfg, null);
 
     expect(candidates.length).toBeGreaterThan(0);
     expect(candidates[0].nameScore).toBeGreaterThan(0);
+    cleanupTestDb(storage);
   });
 });
 

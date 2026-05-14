@@ -8,8 +8,8 @@
  *   store + extractor + recaller + decay + noise + graph (PPR + community)
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
-import { createTestDb, insertNode, insertEdge, insertVector } from "./helpers.ts";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { createTestStorage, cleanupTestDb, insertNode, insertEdge, insertVector } from "./helpers.ts";
 import {
   saveMessage, getUnextracted, markExtracted,
   upsertNode, upsertEdge, findByName, allActiveNodes,
@@ -27,9 +27,11 @@ import { DEFAULT_CONFIG } from "../src/types.ts";
 import { scoreDecay, applyTimeDecay } from "../src/decay/engine.ts";
 import { Extractor } from "../src/extractor/extract.ts";
 
+let storage: ReturnType<typeof createTestStorage>;
 let db: ReturnType<typeof createTestDb>;
 
-beforeEach(() => { db = createTestDb(); });
+beforeEach(() => { storage = createTestStorage(); db = storage.getDb(); });
+afterEach(() => { cleanupTestDb(storage); });
 
 // ─── Mock LLM for integration tests ──────────────────────────
 
@@ -170,7 +172,7 @@ describe("Lifecycle: recaller integration", () => {
     insertEdge(db, { fromId: t1, toId: s1, type: "USED_SKILL", sessionId: "s1" });
     insertEdge(db, { fromId: e1, toId: s1, type: "SOLVED_BY", sessionId: "s1" });
 
-    const recaller = new Recaller(db, DEFAULT_CONFIG);
+    const recaller = new Recaller(storage, DEFAULT_CONFIG);
     const result = await recaller.recall("docker");
 
     expect(result.nodes.length).toBeGreaterThanOrEqual(1);
@@ -185,7 +187,7 @@ describe("Lifecycle: recaller integration", () => {
     const s1 = insertNode(db, { name: "gunicorn", type: "SKILL", category: "skills", content: "Use gunicorn as WSGI server for Flask", sessions: ["s1"] });
     insertEdge(db, { fromId: t1, toId: s1, type: "USED_SKILL", sessionId: "s1" });
 
-    const hybrid = new HybridRecaller(db, DEFAULT_CONFIG);
+    const hybrid = new HybridRecaller(storage, DEFAULT_CONFIG);
     const result = await hybrid.recall("flask deploy");
 
     expect(result.nodes.length).toBeGreaterThanOrEqual(1);
@@ -199,7 +201,7 @@ describe("Lifecycle: recaller integration", () => {
     });
 
     const cfg = { ...DEFAULT_CONFIG, decay: { ...DEFAULT_CONFIG.decay, enabled: true } };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     await recaller.recall("access test content");
 
     const node = db.prepare("SELECT access_count FROM bm_nodes WHERE id=?").get(id) as any;
@@ -409,7 +411,7 @@ describe("Full lifecycle: ingest → extract → assemble → maintain", () => {
     insertEdge(db, { fromId: t1, toId: s1, type: "USED_SKILL", sessionId: "s1" });
 
     const cfg = DEFAULT_CONFIG;
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const recall = await recaller.recall("docker flask");
 
     const { xml, systemPrompt, tokens, episodicXml, episodicTokens } = assembleContext(db, {
@@ -442,7 +444,7 @@ describe("Full lifecycle: ingest → extract → assemble → maintain", () => {
 
     // Run maintenance
     invalidateGraphCache();
-    const result = await runMaintenance(db, DEFAULT_CONFIG, null, undefined);
+    const result = await runMaintenance(storage, DEFAULT_CONFIG, null, undefined);
 
     expect(result.dedup).toBeTruthy();
     expect(result.community).toBeTruthy();
@@ -500,7 +502,7 @@ describe("Full lifecycle: ingest → extract → assemble → maintain", () => {
     markExtracted(db, "e2e-session", 4);
 
     // Phase 3: Recall for a follow-up query
-    const recaller = new Recaller(db, DEFAULT_CONFIG);
+    const recaller = new Recaller(storage, DEFAULT_CONFIG);
     const recall = await recaller.recall("Docker port mapping Flask");
     expect(recall.nodes.length).toBeGreaterThanOrEqual(1);
 
@@ -517,7 +519,7 @@ describe("Full lifecycle: ingest → extract → assemble → maintain", () => {
 
     // Phase 5: Run maintenance
     invalidateGraphCache();
-    const maintResult = await runMaintenance(db, DEFAULT_CONFIG, null, undefined);
+    const maintResult = await runMaintenance(storage, DEFAULT_CONFIG, null, undefined);
     expect(maintResult.community.count).toBeGreaterThanOrEqual(1);
 
     // Verify final state
@@ -548,7 +550,7 @@ describe("Full lifecycle: decay-aware pipeline", () => {
     });
 
     const cfg = { ...DEFAULT_CONFIG, decay: { ...DEFAULT_CONFIG.decay, enabled: true } };
-    const recaller = new Recaller(db, cfg);
+    const recaller = new Recaller(storage, cfg);
     const result = await recaller.recall("Docker setup");
 
     expect(result.nodes.length).toBeGreaterThanOrEqual(2);

@@ -3,16 +3,19 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { createTestDb, insertNode, insertVector } from "./helpers.ts";
+import { createTestStorage, cleanupTestDb, createTestDb, insertNode, insertVector } from "./helpers.ts";
 import { AdmissionController, DEFAULT_ADMISSION_CONFIG } from "../src/retriever/admission-control.ts";
 
 let db: ReturnType<typeof createTestDb>;
+let storage: ReturnType<typeof createTestStorage>;
 
-beforeEach(() => { db = createTestDb(); });
+beforeEach(() => { storage = createTestStorage(); db = storage.getDb(); });
+
+afterEach(() => { cleanupTestDb(storage); });
 
 describe("AdmissionController — disabled", () => {
   it("accepts everything when disabled", () => {
-    const ctrl = new AdmissionController(db, { ...DEFAULT_ADMISSION_CONFIG, enabled: false });
+    const ctrl = new AdmissionController(storage, { ...DEFAULT_ADMISSION_CONFIG, enabled: false });
     const result = ctrl.evaluate({ name: "test", content: "short", category: "tasks" });
     expect(result.decision).toBe("accept");
   });
@@ -20,14 +23,14 @@ describe("AdmissionController — disabled", () => {
 
 describe("AdmissionController — content length", () => {
   it("rejects short content", () => {
-    const ctrl = new AdmissionController(db, { ...DEFAULT_ADMISSION_CONFIG, enabled: true, minContentLength: 10 });
+    const ctrl = new AdmissionController(storage, { ...DEFAULT_ADMISSION_CONFIG, enabled: true, minContentLength: 10 });
     const result = ctrl.evaluate({ name: "test", content: "short", category: "tasks" });
     expect(result.decision).toBe("reject");
     expect(result.reason).toContain("content too short");
   });
 
   it("accepts content above threshold", () => {
-    const ctrl = new AdmissionController(db, { ...DEFAULT_ADMISSION_CONFIG, enabled: true, minContentLength: 10 });
+    const ctrl = new AdmissionController(storage, { ...DEFAULT_ADMISSION_CONFIG, enabled: true, minContentLength: 10 });
     const result = ctrl.evaluate({ name: "test", content: "this is a longer content string", category: "tasks" });
     expect(result.decision).toBe("accept");
   });
@@ -35,13 +38,13 @@ describe("AdmissionController — content length", () => {
 
 describe("AdmissionController — type priors", () => {
   it("accepts high-priority types", () => {
-    const ctrl = new AdmissionController(db, { ...DEFAULT_ADMISSION_CONFIG, enabled: true });
+    const ctrl = new AdmissionController(storage, { ...DEFAULT_ADMISSION_CONFIG, enabled: true });
     const result = ctrl.evaluate({ name: "test", content: "some content here", category: "profile" });
     expect(result.decision).toBe("accept");
   });
 
   it("accepts medium-priority types", () => {
-    const ctrl = new AdmissionController(db, { ...DEFAULT_ADMISSION_CONFIG, enabled: true });
+    const ctrl = new AdmissionController(storage, { ...DEFAULT_ADMISSION_CONFIG, enabled: true });
     const result = ctrl.evaluate({ name: "test", content: "some content here", category: "events" });
     // events has typePrior 0.45 which is > 0.3
     expect(result.decision).toBe("accept");
@@ -57,7 +60,7 @@ describe("AdmissionController — duplicate detection", () => {
       sessions: ["s1"],
     });
 
-    const ctrl = new AdmissionController(db, {
+    const ctrl = new AdmissionController(storage, {
       ...DEFAULT_ADMISSION_CONFIG, enabled: true,
       duplicateThreshold: 0.5, // Low threshold for testing
     });
@@ -79,7 +82,7 @@ describe("AdmissionController — duplicate detection", () => {
       sessions: ["s1"],
     });
 
-    const ctrl = new AdmissionController(db, {
+    const ctrl = new AdmissionController(storage, {
       ...DEFAULT_ADMISSION_CONFIG, enabled: true,
       duplicateThreshold: 0.85,
     });

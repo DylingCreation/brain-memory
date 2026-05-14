@@ -3,15 +3,18 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { createTestDb, insertNode, insertEdge } from "./helpers.ts";
+import { createTestStorage, cleanupTestDb, createTestDb, insertNode, insertEdge } from "./helpers.ts";
 import { computeGlobalPageRank, personalizedPageRank, invalidateGraphCache } from "../src/graph/pagerank.ts";
 import { detectCommunities, communityRepresentatives } from "../src/graph/community.ts";
 import { dedup, detectDuplicates } from "../src/graph/dedup.ts";
 import { DEFAULT_CONFIG } from "../src/types.ts";
 
 let db: ReturnType<typeof createTestDb>;
+let storage: ReturnType<typeof createTestStorage>;
 
-beforeEach(() => { db = createTestDb(); });
+beforeEach(() => { storage = createTestStorage(); db = storage.getDb(); });
+
+afterEach(() => { cleanupTestDb(storage); });
 
 describe("PageRank", () => {
   it("computes global PageRank", () => {
@@ -21,7 +24,7 @@ describe("PageRank", () => {
     insertEdge(db, { fromId: a, toId: b, type: "USED_SKILL", sessionId: "s1" });
     insertEdge(db, { fromId: b, toId: c, type: "REQUIRES", sessionId: "s1" });
 
-    const result = computeGlobalPageRank(db, DEFAULT_CONFIG);
+    const result = computeGlobalPageRank(storage, DEFAULT_CONFIG);
     expect(result.scores.size).toBe(3);
     expect(result.topK.length).toBeGreaterThanOrEqual(1);
     // Check that pagerank is stored in DB
@@ -31,7 +34,7 @@ describe("PageRank", () => {
 
   it("handles empty graph", () => {
     invalidateGraphCache();
-    const result = computeGlobalPageRank(db, DEFAULT_CONFIG);
+    const result = computeGlobalPageRank(storage, DEFAULT_CONFIG);
     expect(result.scores.size).toBe(0);
     expect(result.topK.length).toBe(0);
   });
@@ -42,7 +45,7 @@ describe("PageRank", () => {
     const b = insertNode(db, { name: "other", type: "SKILL", category: "skills", sessions: ["s1"] });
     insertEdge(db, { fromId: a, toId: b, type: "REQUIRES", sessionId: "s1" });
 
-    const result = personalizedPageRank(db, [a], [a, b], DEFAULT_CONFIG);
+    const result = personalizedPageRank(storage, [a], [a, b], DEFAULT_CONFIG);
     expect(result.scores.has(a)).toBe(true);
     expect(result.scores.has(b)).toBe(true);
     expect(result.scores.get(a)!).toBeGreaterThan(result.scores.get(b)!);
@@ -50,16 +53,16 @@ describe("PageRank", () => {
 
   it("PPR returns empty for invalid seeds", () => {
     insertNode(db, { name: "orphan", type: "TASK", category: "tasks", sessions: ["s1"] });
-    const result = personalizedPageRank(db, ["nonexistent"], ["orphan"], DEFAULT_CONFIG);
+    const result = personalizedPageRank(storage, ["nonexistent"], ["orphan"], DEFAULT_CONFIG);
     expect(result.scores.size).toBe(0);
   });
 
   it("cache invalidation works", () => {
     insertNode(db, { name: "x", type: "TASK", category: "tasks", sessions: ["s1"] });
-    computeGlobalPageRank(db, DEFAULT_CONFIG); // caches
+    computeGlobalPageRank(storage, DEFAULT_CONFIG); // caches
     invalidateGraphCache();
     // After invalidation, next compute should rebuild
-    const result = computeGlobalPageRank(db, DEFAULT_CONFIG);
+    const result = computeGlobalPageRank(storage, DEFAULT_CONFIG);
     expect(result.scores.size).toBe(1);
   });
 });
@@ -79,7 +82,7 @@ describe("Community Detection", () => {
     insertEdge(db, { fromId: a2, toId: a3, type: "REQUIRES", sessionId: "s1" });
     insertEdge(db, { fromId: b1, toId: b2, type: "USED_SKILL", sessionId: "s1" });
 
-    const result = detectCommunities(db, 50);
+    const result = detectCommunities(storage, 50);
     expect(result.count).toBeGreaterThanOrEqual(1);
     // All nodes should have community_id set
     const nodesWithCommunity = db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE community_id IS NOT NULL").get() as any;
@@ -87,7 +90,7 @@ describe("Community Detection", () => {
   });
 
   it("handles empty graph", () => {
-    const result = detectCommunities(db);
+    const result = detectCommunities(storage);
     expect(result.count).toBe(0);
     expect(result.labels.size).toBe(0);
   });
@@ -99,7 +102,7 @@ describe("Community Detection", () => {
     db.prepare("UPDATE bm_nodes SET community_id='c-1' WHERE id=?").run(a1);
     db.prepare("UPDATE bm_nodes SET community_id='c-1' WHERE id=?").run(a2);
 
-    const reps = communityRepresentatives(db, 2);
+    const reps = communityRepresentatives(storage, 2);
     expect(reps.length).toBe(2); // 2 nodes in 1 community, 2 per community
   });
 });
@@ -115,7 +118,7 @@ describe("Dedup", () => {
     db.prepare("INSERT INTO bm_vectors(node_id, embedding, hash) VALUES(?,?,?)").run(a, blob, "h1");
     db.prepare("INSERT INTO bm_vectors(node_id, embedding, hash) VALUES(?,?,?)").run(b, blob, "h2");
 
-    const pairs = detectDuplicates(db, { ...DEFAULT_CONFIG, dedupThreshold: 0.95 });
+    const pairs = detectDuplicates(storage, { ...DEFAULT_CONFIG, dedupThreshold: 0.95 });
     expect(pairs.length).toBe(1);
     expect(pairs[0].similarity).toBeCloseTo(1, 5);
   });
@@ -129,7 +132,7 @@ describe("Dedup", () => {
     db.prepare("INSERT INTO bm_vectors(node_id, embedding, hash) VALUES(?,?,?)").run(a, blob, "h1");
     db.prepare("INSERT INTO bm_vectors(node_id, embedding, hash) VALUES(?,?,?)").run(b, blob, "h2");
 
-    const result = dedup(db, { ...DEFAULT_CONFIG, dedupThreshold: 0.95 });
+    const result = dedup(storage, { ...DEFAULT_CONFIG, dedupThreshold: 0.95 });
     expect(result.merged).toBe(1);
     // The one with higher validatedCount should survive
     const remaining = db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE status='active'").get() as any;
@@ -138,7 +141,7 @@ describe("Dedup", () => {
 
   it("returns empty for no vectors", () => {
     insertNode(db, { name: "no-vec", type: "TASK", category: "tasks", sessions: ["s1"] });
-    const pairs = detectDuplicates(db, DEFAULT_CONFIG);
+    const pairs = detectDuplicates(storage, DEFAULT_CONFIG);
     expect(pairs.length).toBe(0);
   });
 });

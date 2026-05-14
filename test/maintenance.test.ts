@@ -2,40 +2,30 @@
  * brain-memory — Maintenance tests
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { runMaintenance } from '../src/graph/maintenance';
-import { createTestDb, insertNode, insertEdge } from './helpers';
+import { createTestStorage, cleanupTestDb, insertNode, insertEdge } from './helpers';
 import { DEFAULT_CONFIG } from '../src/types';
+
+let storage: ReturnType<typeof createTestStorage>;
+let db: ReturnType<typeof createTestDb>;
+
+beforeEach(() => { storage = createTestStorage(); db = storage.getDb(); });
+afterEach(() => { cleanupTestDb(storage); });
 
 describe('runMaintenance', () => {
   it('should run maintenance without errors', async () => {
-    const db = createTestDb();
-    
-    // Create test nodes
     const nodeId1 = insertNode(db, { name: 'maint-node1', content: 'content1' });
     const nodeId2 = insertNode(db, { name: 'maint-node2', content: 'content2' });
+    insertEdge(db, { fromId: nodeId1, toId: nodeId2, type: 'USED_SKILL' });
     
-    // Create test edges
-    insertEdge(db, { fromId: nodeId1, toId: nodeId2, type: 'RELATED' });
-    
-    // Run maintenance
-    await runMaintenance(db, DEFAULT_CONFIG);
-    
-    // Basic expectation - it should not throw
-    expect(true).toBe(true);
-    
-    db.close();
+    const result = await runMaintenance(storage, DEFAULT_CONFIG);
+    expect(result).toBeDefined();
   });
 
   it('should handle empty database', async () => {
-    const db = createTestDb();
-    
-    // Run maintenance on empty database
-    await runMaintenance(db, DEFAULT_CONFIG);
-    
-    // Basic expectation - it should not throw
-    expect(true).toBe(true);
-    
-    db.close();
+    const result = await runMaintenance(storage, DEFAULT_CONFIG);
+    expect(result).toBeDefined();
+    expect(result.dedup.merged).toBe(0);
   });
 });

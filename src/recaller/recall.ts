@@ -9,20 +9,16 @@
  * Precise path seeds: vector/FTS5 → community expansion
  * Generalized path seeds: community vector match → members
  *
+ * v1.1.0 F-2: Uses IStorageAdapter instead of DatabaseSyncInstance.
+ *
  * Authors: adoresever (graph-memory), brain-memory contributors
  */
 
-import { type DatabaseSyncInstance } from "@photostructure/sqlite";
 import { createHash } from "crypto";
 import type { BmConfig, RecallResult, BmNode, BmEdge } from "../types";
 import type { EmbedFn, BatchEmbedFn } from "../engine/embed";
 import type { ScopeFilter } from "../scope/isolation";
-import {
-  searchNodes, vectorSearchWithScore, graphWalk,
-  communityVectorSearch, nodesByCommunityIds, saveVector, getVectorHash,
-  updateAccess,
-} from "../store/store";
-import { getCommunityPeers, communityRepresentatives } from "../graph/community";
+import type { IStorageAdapter, StorageFilter } from "../store/adapter";
 import { personalizedPageRank } from "../graph/pagerank";
 import { applyTimeDecay } from "../decay/engine";
 import { estimateNodeTokens } from "../utils/tokens";
@@ -30,6 +26,19 @@ import { logger } from "../utils/logger";
 // B-4: retriever module integration
 import { analyzeIntent } from "../retriever/intent-analyzer";
 import { expandQuery } from "../retriever/query-expander";
+
+/** Convert ScopeFilter to StorageFilter for adapter calls */
+function toStorageFilter(filter?: ScopeFilter): StorageFilter | undefined {
+  if (!filter) return undefined;
+  return {
+    includeScopes: filter.includeScopes,
+    excludeScopes: filter.excludeScopes,
+    sharingMode: filter.sharingMode,
+    sharedCategories: filter.sharedCategories,
+    currentAgentId: filter.currentAgentId,
+    allowedAgents: filter.allowedAgents,
+  };
+}
 
 interface RecallPathResult {
   seeds: string[];
@@ -41,7 +50,7 @@ export class Recaller {
   private embed: EmbedFn | null = null;
   private batchEmbed: BatchEmbedFn | null = null;
 
-  constructor(private db: DatabaseSyncInstance, private cfg: BmConfig) {}
+  constructor(private storage: IStorageAdapter, private cfg: BmConfig) {}
 
   setEmbedFn(fn: EmbedFn): void { this.embed = fn; }
   setBatchEmbedFn(fn: BatchEmbedFn): void { this.batchEmbed = fn; }
@@ -49,18 +58,17 @@ export class Recaller {
   async recall(query: string, scopeFilter?: ScopeFilter, sourceFilter?: "user" | "assistant" | "both"): Promise<RecallResult> {
     const limit = this.cfg.recallMaxNodes;
 
-    // B-4: Intent analysis for diagnostics (optional, doesn't change graph recall behavior yet)
+    // B-4: Intent analysis for diagnostics
     const intent = analyzeIntent(query);
     logger.debug("recall", `intent=${intent.intent} scores=${JSON.stringify(intent.scores)}`);
 
     // B-4: Query expansion for FTS5 seed acquisition
     const expandedQuery = expandQuery(query);
-    const usedExpanded = expandedQuery !== query;
-    if (usedExpanded) {
+    if (expandedQuery !== query) {
       logger.debug("recall", `query expanded: "${query}" → "${expandedQuery}"`);
     }
 
-    // Phase 2 (#6 fix): Get seeds from both paths, but defer graphWalk + PPR
+    // Phase 2: Get seeds from both paths
     const preciseSeeds = await this.getPreciseSeeds(expandedQuery, limit, scopeFilter, sourceFilter);
     const generalizedSeeds = await this.getGeneralizedSeeds(query, limit, scopeFilter, sourceFilter);
 
@@ -68,22 +76,20 @@ export class Recaller {
       return { nodes: [], edges: [], tokenEstimate: 0 };
     }
 
-    // Phase 2 (#6 fix): Unified seed set — deduplicate across paths
+    // Unified seed set — deduplicate across paths
     const unifiedSeeds = [...preciseSeeds];
     const preciseSeedSet = new Set(preciseSeeds);
     for (const id of generalizedSeeds) {
       if (!preciseSeedSet.has(id)) unifiedSeeds.push(id);
     }
 
-    // Phase 2 (#6 fix): Single graphWalk from unified seeds
-    // Use max depth from precise path (generalized always uses depth 1, which is ≤ maxDepth)
-    const { nodes, edges } = graphWalk(this.db, unifiedSeeds, this.cfg.recallMaxDepth);
+    // Single graphWalk from unified seeds
+    const { nodes, edges } = this.storage.graphWalk(unifiedSeeds, this.cfg.recallMaxDepth);
     if (!nodes.length) return { nodes: [], edges: [], tokenEstimate: 0 };
 
-    // Phase 2 (#13 fix): Single PPR over merged candidate set
-    // Unified seeds from both paths → comparable PPR scores
+    // Single PPR over merged candidate set
     const candidateIds = nodes.map(n => n.id);
-    const { scores: pprScores } = personalizedPageRank(this.db, unifiedSeeds, candidateIds, this.cfg);
+    const { scores: pprScores } = personalizedPageRank(this.storage, unifiedSeeds, candidateIds, this.cfg);
 
     // Sort by unified PPR + time decay + validatedCount + updatedAt
     let filtered = nodes
@@ -101,7 +107,7 @@ export class Recaller {
 
     // Update access counts for decay tracking
     if (this.cfg.decay.enabled) {
-      for (const node of filtered) updateAccess(this.db, node.id);
+      for (const node of filtered) this.storage.updateAccess(node.id);
     }
 
     const ids = new Set(filtered.map(n => n.id));
@@ -115,16 +121,17 @@ export class Recaller {
     };
   }
 
-  // ─── Seed Acquisition (no graphWalk here) ─────────────────────
+  // ─── Seed Acquisition ───────────────────────────────────────
 
   /** Get precise path seeds: vector/FTS5 → community expansion */
   private async getPreciseSeeds(query: string, limit: number, scopeFilter?: ScopeFilter, sourceFilter?: "user" | "assistant" | "both"): Promise<string[]> {
     let seeds: BmNode[] = [];
+    const sf = toStorageFilter(scopeFilter);
 
     if (this.embed) {
       try {
         const vec = await this.embed(query);
-        const scored = vectorSearchWithScore(this.db, vec, Math.ceil(limit / 2), scopeFilter);
+        const scored = this.storage.vectorSearchWithScore(vec, Math.ceil(limit / 2), sf);
         seeds = scored.map(s => s.node);
         if (seeds.length < 2) {
           const fts = this.searchNodesWithSourceFilter(query, limit, scopeFilter, sourceFilter);
@@ -141,7 +148,7 @@ export class Recaller {
     // Community expansion
     const expandedIds = new Set<string>(seeds.map(n => n.id));
     for (const seed of seeds) {
-      const peers = getCommunityPeers(this.db, seed.id, 2);
+      const peers = this.storage.findCommunityPeers(seed.id, 2);
       for (const p of peers) expandedIds.add(p);
     }
 
@@ -155,15 +162,15 @@ export class Recaller {
     if (this.embed) {
       try {
         const vec = await this.embed(query);
-        const scoredCommunities = communityVectorSearch(this.db, vec);
+        const scoredCommunities = this.storage.communityVectorSearch(vec, 0.15);
         if (scoredCommunities.length > 0) {
           const communityIds = scoredCommunities.map(c => c.id);
-          seeds = nodesByCommunityIds(this.db, communityIds, 3);
+          seeds = this.storage.findNodesByCommunities(communityIds, 3);
         }
       } catch { /* fallback */ }
     }
 
-    if (!seeds.length) seeds = communityRepresentatives(this.db, 2);
+    if (!seeds.length) seeds = this.storage.findCommunityRepresentatives(2);
 
     // Filter by scope and source
     if (scopeFilter) {
@@ -178,28 +185,25 @@ export class Recaller {
 
   // ─── Helpers ──────────────────────────────────────────────────
 
-  // #21 fix: use language-aware token estimation
   private estimateTokens(nodes: BmNode[]): number {
     return nodes.reduce((s, n) => s + estimateNodeTokens(n), 0);
   }
 
-  /** #12/#14: Batch embed multiple nodes at once (reduces API calls) */
+  /** #12/#14: Batch embed multiple nodes at once */
   async batchSyncEmbed(nodes: BmNode[]): Promise<void> {
     if (!this.embed || nodes.length === 0) return;
-    
-    // Filter nodes that need embedding
+
     const needEmbed: BmNode[] = [];
     for (const node of nodes) {
       const hash = createHash("md5").update(node.content).digest("hex");
-      if (getVectorHash(this.db, node.id) !== hash) needEmbed.push(node);
+      if (this.storage.getVectorHash(node.id) !== hash) needEmbed.push(node);
     }
     if (needEmbed.length === 0) return;
-    
+
     try {
-      // #14: chunk all texts, then batch embed
       const allChunks: string[] = [];
-      const nodeChunkMap: Map<string, number[]> = new Map(); // nodeId -> chunk indices
-      
+      const nodeChunkMap: Map<string, number[]> = new Map();
+
       for (const node of needEmbed) {
         const text = this.buildEmbeddingText(node);
         const chunks = this.chunkText(text, 400);
@@ -207,43 +211,38 @@ export class Recaller {
         nodeChunkMap.set(node.id, chunks.map((_, i) => startIdx + i));
         allChunks.push(...chunks);
       }
-      
-      // Batch embed all chunks
+
       const vectors = this.batchEmbed
         ? await this.batchEmbed(allChunks)
         : await Promise.all(allChunks.map(c => this.embed!(c)));
-      
-      // Aggregate per-node vectors and save
+
       for (const node of needEmbed) {
         const indices = nodeChunkMap.get(node.id)!;
         const nodeVectors = indices.map(i => vectors[i]).filter(v => v && v.length > 0);
         if (nodeVectors.length > 0) {
           const vec = nodeVectors.length === 1 ? nodeVectors[0] : this.meanAggregate(nodeVectors);
-          saveVector(this.db, node.id, node.content, vec);
+          this.storage.saveVector(node.id, node.content, vec);
         }
       }
     } catch { /* 不影响主流程 */ }
   }
 
-  /** 异步同步 embedding，不阻塞主流程 (#14: chunked embedding) */
+  /** Async sync embedding, doesn't block main flow */
   async syncEmbed(node: BmNode): Promise<void> {
     if (!this.embed) return;
     const hash = createHash("md5").update(node.content).digest("hex");
-    if (getVectorHash(this.db, node.id) === hash) return;
+    if (this.storage.getVectorHash(node.id) === hash) return;
     try {
       const text = this.buildEmbeddingText(node);
-      const chunks = this.chunkText(text, 400); // #14: chunk at 400 chars instead of hard 500
-      
+      const chunks = this.chunkText(text, 400);
+
       let vec: number[];
       if (chunks.length === 1) {
-        // Short content — direct embed
         vec = await this.embed(chunks[0]);
       } else if (this.batchEmbed) {
-        // #12 + #14: batch embed chunks then mean-aggregate
         const vectors = await this.batchEmbed(chunks);
         vec = this.meanAggregate(vectors);
       } else {
-        // Fallback: embed chunks sequentially and aggregate
         const vectors: number[][] = [];
         for (const chunk of chunks) {
           const v = await this.embed(chunk);
@@ -251,25 +250,23 @@ export class Recaller {
         }
         vec = vectors.length > 0 ? this.meanAggregate(vectors) : [];
       }
-      
-      if (vec.length) saveVector(this.db, node.id, node.content, vec);
+
+      if (vec.length) this.storage.saveVector(node.id, node.content, vec);
     } catch { /* 不影响主流程 */ }
   }
 
-  /** #14: Build embedding text with smart truncation instead of hard slice */
+  /** Build embedding text with smart truncation */
   private buildEmbeddingText(node: BmNode): string {
     const header = `${node.name}: ${node.description}\n`;
-    const maxContentLen = 1200; // Increased from 500, with chunking handles longer content
+    const maxContentLen = 1200;
     const content = node.content;
     if (content.length <= maxContentLen) return header + content;
-    
-    // Smart truncate at paragraph/sentence boundary
+
     let cutPoint = maxContentLen;
     const paragraphBreak = content.lastIndexOf('\n\n', cutPoint);
     if (paragraphBreak > cutPoint * 0.6) {
       cutPoint = paragraphBreak + 2;
     } else {
-      // Find sentence boundary by searching backwards from cutPoint
       let sentenceBreak = -1;
       for (let i = cutPoint; i > cutPoint * 0.5; i--) {
         if (/[.!?。！？]/.test(content[i]) && (i + 1 >= content.length || /\s/.test(content[i + 1]))) {
@@ -282,21 +279,19 @@ export class Recaller {
     return header + content.slice(0, cutPoint);
   }
 
-  /** #14: Chunk text at natural boundaries */
+  /** Chunk text at natural boundaries */
   private chunkText(text: string, maxChunkSize: number): string[] {
     if (text.length <= maxChunkSize) return [text];
-    
+
     const chunks: string[] = [];
     let pos = 0;
     while (pos < text.length) {
       let end = Math.min(pos + maxChunkSize, text.length);
       if (end < text.length) {
-        // Try to split at paragraph boundary
         const paragraphBreak = text.lastIndexOf('\n\n', end);
         if (paragraphBreak > pos + maxChunkSize * 0.5) {
           end = paragraphBreak + 2;
         } else {
-          // Try sentence boundary by scanning backwards
           let sentenceBreak = -1;
           for (let i = end; i > pos + maxChunkSize * 0.5; i--) {
             if (/[.!?。！？]/.test(text[i]) && (i + 1 >= text.length || /\s/.test(text[i + 1]))) {
@@ -313,7 +308,7 @@ export class Recaller {
     return chunks;
   }
 
-  /** #12/#14: Mean-aggregate multiple vectors */
+  /** Mean-aggregate multiple vectors */
   private meanAggregate(vectors: number[][]): number[] {
     if (vectors.length === 0) return [];
     if (vectors.length === 1) return vectors[0];
@@ -323,14 +318,13 @@ export class Recaller {
       for (let i = 0; i < dim; i++) sum[i] += vec[i];
     }
     const avg = Array.from(sum).map(v => v / vectors.length);
-    // L2 normalize
     const norm = Math.sqrt(avg.reduce((s, v) => s + v * v, 0)) || 1;
     return avg.map(v => v / norm);
   }
 
-  /** Helper method to search nodes with source filter */
+  /** Helper: search nodes with source filter */
   private searchNodesWithSourceFilter(query: string, limit: number, scopeFilter?: ScopeFilter, sourceFilter?: "user" | "assistant" | "both"): BmNode[] {
-    const nodes = searchNodes(this.db, query, limit, scopeFilter);
+    const nodes = this.storage.searchNodes(query, limit, toStorageFilter(scopeFilter));
     if (sourceFilter && sourceFilter !== "both") {
       return nodes.filter(n => n.source === sourceFilter);
     }
@@ -339,7 +333,6 @@ export class Recaller {
 }
 
 function matchesScope(node: BmNode, filter: ScopeFilter): boolean {
-  // exclude: node must NOT match any excluded scope
   for (const ex of filter.excludeScopes) {
     if (
       (!ex.sessionId || node.scopeSession === ex.sessionId) &&
@@ -347,7 +340,6 @@ function matchesScope(node: BmNode, filter: ScopeFilter): boolean {
       (!ex.workspaceId || node.scopeWorkspace === ex.workspaceId)
     ) return false;
   }
-  // include: if set, node must match at least one included scope
   if (filter.includeScopes.length > 0) {
     return filter.includeScopes.some(
       inc =>
