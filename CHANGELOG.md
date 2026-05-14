@@ -9,6 +9,32 @@ All notable changes to the brain-memory project.
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-05-14
+
+> **版本主题**：探索 + 收尾  
+> **Commit**: 待提交
+
+### Added
+
+#### LanceDB POC (F-13)
+- LanceDBStorageAdapter 实现 IStorageAdapter 接口（~300 行）
+- POC 验证脚本 + 4 个测试用例
+- 图算法（PageRank/LPA）改为内存执行
+
+#### 工程收尾 (F-14/F-15)
+- .gitignore 精简：61 → 41 行
+- npm pack 排除 docs/api/
+
+#### 性能验证 (F-16)
+- 1k 节点 PageRank：增量 4.4x 快于全量
+- 1k 节点 LPA：增量 2.1x 快于全量
+
+### Changed
+- package.json 版本号 1.0.0 → 1.3.0
+
+### Tests
+- 全量 623 passed / 58 files
+
 ## [1.2.0] — 2026-05-14
 
 > **版本主题**：开发者体验 + 质量打磨  
