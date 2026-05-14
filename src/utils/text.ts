@@ -6,6 +6,7 @@
  */
 
 /** Tokenize text into a set of normalized words */
+/** 分词：将文本切分为词元集合。 */
 export function tokenize(text: string): Set<string> {
   return new Set(
     text.toLowerCase()
@@ -16,6 +17,7 @@ export function tokenize(text: string): Set<string> {
 }
 
 /** Jaccard similarity between two token sets */
+/** Jaccard 相似度：两个集合的交集与并集之比。 */
 export function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
   if (a.size === 0 && b.size === 0) return 1;
   let intersection = 0;

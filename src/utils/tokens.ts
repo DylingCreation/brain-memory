@@ -12,6 +12,7 @@
  *   Mixed:   ~2.5 chars/token
  *   English: ~3.5 chars/token (conservative)
  */
+/** 估算 token 数量（中英文感知）。 */
 export function estimateTokens(text: string): number {
   if (!text) return 0;
   const chineseRatio = (text.match(/[\u4e00-\u9fff]/g) || []).length / text.length;
@@ -23,6 +24,7 @@ export function estimateTokens(text: string): number {
 /**
  * Estimate token count for a node (name + description + content + XML overhead).
  */
+/** 估算节点的 token 数量。 */
 export function estimateNodeTokens(node: { name: string; description: string; content: string }): number {
   const text = node.name + node.description + node.content;
   return estimateTokens(text) + 20; // ~20 tokens for XML tags

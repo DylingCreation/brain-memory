@@ -15,6 +15,7 @@
 
 import type { MemoryCategory } from "../types";
 
+/** 偏好槽：用户偏好的结构化存储单元。 */
 export interface PreferenceSlot {
   category: string;
   key: string;

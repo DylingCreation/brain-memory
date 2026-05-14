@@ -39,6 +39,7 @@ const STATIC_PATTERNS = [
   /\b(always|never|prefer|like to|hate|dislike|must|should)\b/i,
 ];
 
+/** 时间分类：将节点分为静态或动态类型。 */
 export function classifyTemporal(text: string, description: string = ""): TemporalType {
   const combined = `${text} ${description}`;
 

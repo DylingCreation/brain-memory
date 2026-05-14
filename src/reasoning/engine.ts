@@ -30,6 +30,7 @@ export interface ReasoningResult {
 
 // ─── Threshold Check ──────────────────────────────────────────
 
+/** 判断是否应执行推理（节点数达到阈值）。 */
 export function shouldRunReasoning(
   nodes: BmNode[],
   cfg: BmConfig,

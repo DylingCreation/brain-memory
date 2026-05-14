@@ -11,6 +11,7 @@ const GREETING_RE = /^(hi|hello|hey|hallo|ohayo|こん|안녕|ciao|bonjour|halo|
 const THANKS_RE = /^(thanks?|thank you|thx|ty|谢谢|感谢|多谢|merci|gracias|danke)/i;
 const NOISE_RE = /^(ok|okay|k|yes|no|yep|nope|sure|好的|收到|嗯嗯|哈哈|呵呵|👍|👌|✅|❤️)/i;
 
+/** 噪声检测：判断消息是否太短或无意义。 */
 export function isNoise(text: string, cfg: NoiseFilterConfig): boolean {
   const trimmed = text.trim();
   if (trimmed.length < cfg.minContentLength) return true;

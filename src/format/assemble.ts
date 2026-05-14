@@ -53,6 +53,7 @@ export function buildSystemPromptAddition(params: {
   return lines.join("\n");
 }
 
+/** 组装记忆上下文：将召回的记忆格式化为 XML/文本，控制 token 预算。 */
 export function assembleContext(
   db: DatabaseSyncInstance,
   params: {

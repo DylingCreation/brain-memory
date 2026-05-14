@@ -22,6 +22,7 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 /** Cosine similarity for Float32Array vectors (used by fusion/dedup) */
+/** 余弦相似度：两个 Float32Array 向量的相似度。 */
 export function cosineSimilarityF32(a: Float32Array, b: Float32Array): number {
   if (!a || !b || a.length === 0 || b.length === 0) return 0;
   const len = Math.min(a.length, b.length);

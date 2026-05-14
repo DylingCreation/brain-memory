@@ -19,6 +19,7 @@ export interface SmartTruncateOptions {
  * Smart truncation at natural boundaries.
  * Priority: paragraph break > sentence break > space break > hard cut.
  */
+/** 智能截断：在段落或句子边界处截断文本。 */
 export function smartTruncate(text: string, options: SmartTruncateOptions): string {
   const { maxChars, suffix = '...', hint } = options;
   if (!text || text.length <= maxChars) return text;
