@@ -1,0 +1,11 @@
+{
+  "entryPoints": ["index.ts"],
+  "entryPointStrategy": "expand",
+  "out": "docs/api",
+  "exclude": ["**/node_modules/**", "**/test/**", "**/dist/**", "**/scripts/**", "**/benchmark/**"],
+  "excludePrivate": true,
+  "includeVersion": true,
+  "readme": "README.md",
+  "name": "memory-likehuman-pro",
+  "logLevel": "Warn"
+}

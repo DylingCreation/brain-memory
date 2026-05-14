@@ -1,0 +1,397 @@
+<!DOCTYPE html><html class="default" lang="en"><head><meta charSet="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>memory-likehuman-pro - v1.0.0</title><meta name="description" content="Documentation for memory-likehuman-pro"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="assets/style.css"/><link rel="stylesheet" href="assets/highlight.css"/><script defer src="assets/main.js"></script><script async src="assets/icons.js" id="tsd-icons-script"></script><script async src="assets/search.js" id="tsd-search-script"></script><script async src="assets/navigation.js" id="tsd-nav-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar"><div class="tsd-toolbar-contents container"><div class="table-cell" id="tsd-search" data-base="."><div class="field"><label for="tsd-search-field" class="tsd-widget tsd-toolbar-icon search no-caption"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><use href="assets/icons.svg#icon-search"></use></svg></label><input type="text" id="tsd-search-field" aria-label="Search"/></div><div class="field"><div id="tsd-toolbar-links"></div></div><ul class="results"><li class="state loading">Preparing search index...</li><li class="state failure">The search index is not available</li></ul><a href="index.html" class="title">memory-likehuman-pro - v1.0.0</a></div><div class="table-cell" id="tsd-widgets"><a href="#" class="tsd-widget tsd-toolbar-icon menu no-caption" data-toggle="menu" aria-label="Menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><use href="assets/icons.svg#icon-menu"></use></svg></a></div></div></header><div class="container container-main"><div class="col-content"><div class="tsd-page-title"><h2>memory-likehuman-pro - v1.0.0</h2></div><div class="tsd-panel tsd-typography"><p align="center">
+  <h1 align="center">🧠 brain-memory</h1>
+  <p align="center">为 AI Agent 打造的大脑级记忆系统</p>
+  <p align="center"><em>让 Agent 像人一样记住 · 遗忘 · 反思 · 推理</em></p>
+</p>
+
+<p align="center">
+  <a href="#-features">Features</a> •
+  <a href="#-architecture">Architecture</a> •
+  <a href="#-installation">Installation</a> •
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-memory-categories">Memory Categories</a> •
+  <a href="#-recall-strategies">Recall Strategies</a> •
+  <a href="#-api">API</a> •
+  <a href="#-license">License</a>
+</p>
+
+<p align="center">
+  <strong>Unified knowledge graph + vector memory system for AI agents.</strong><br>
+  Merges graph-memory with memory-lancedb-pro into an 8-category system with intelligent decay and reflection.
+</p>
+
+<hr>
+<a id="md:🧠-core-philosophy" class="tsd-anchor"></a><h2><a href="#md:🧠-core-philosophy">🧠 Core Philosophy</a></h2><p>brain-memory simulates human brain memory mechanisms:</p>
+<table>
+<thead>
+<tr>
+<th align="center">🧬 Human Mechanism</th>
+<th align="left">⚡ Code Implementation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center"><strong>Short-term → Long-term</strong></td>
+<td align="left">Working Memory → Knowledge Graph persistence</td>
+</tr>
+<tr>
+<td align="center"><strong>Forgetting Curve</strong></td>
+<td align="left">Weibull decay model (3-tier + dynamic acceleration)</td>
+</tr>
+<tr>
+<td align="center"><strong>Knowledge Association</strong></td>
+<td align="left">Personalized PageRank + Community detection</td>
+</tr>
+<tr>
+<td align="center"><strong>Reflection</strong></td>
+<td align="left">Turn reflection (lightweight) + Session reflection (deep)</td>
+</tr>
+<tr>
+<td align="center"><strong>Inductive Reasoning</strong></td>
+<td align="left">4-type reasoning engine (path / implicit / pattern / contradiction)</td>
+</tr>
+</tbody></table>
+<hr>
+<a id="md:✨-features" class="tsd-anchor"></a><h2><a href="#md:✨-features">✨ Features</a></h2><details>
+<summary><b>📦 Memory System</b> — 8 categories · Bidirectional extraction · Graph structure · Time decay</summary>
+
+<ul>
+<li><strong>8-Category Memory</strong> — <code>profile</code> / <code>preferences</code> / <code>entities</code> / <code>events</code> / <code>tasks</code> / <code>skills</code> / <code>cases</code> / <code>patterns</code></li>
+<li><strong>Bidirectional Knowledge Extraction</strong> — Extracts both user messages and AI replies (suggestions, code, tool recommendations)</li>
+<li><strong>Graph Nodes + Edges</strong> — 3 node types (TASK / SKILL / EVENT) × 11 edge types with strict direction constraints</li>
+<li><strong>Time Decay</strong> — Weibull model with static/dynamic differentiated decay</li>
+</ul>
+</details>
+
+<details>
+<summary><b>🔍 Recall Engine</b> — Dual-path · Hybrid fusion · Intent analysis · Query expansion · Reranking</summary>
+
+<ul>
+<li><strong>Dual-Path Recall</strong> — Precise path (vector → community expansion → graph walk → PPR) + Generalized path (community match → graph walk → PPR)</li>
+<li><strong>Hybrid Recall</strong> — Graph + vector recall in parallel, Min-Max normalization + RRF fusion</li>
+<li><strong>Vector-Only Mode</strong> — Vector search + BM25 full-text + RRF fusion, no graph dependency</li>
+<li><strong>Intent Analysis</strong> — 5 intent types (technical / preference / factual / task / general)</li>
+<li><strong>Query Expansion</strong> — 14 bilingual synonym mappings (Chinese/English)</li>
+<li><strong>Cross-Encoder Reranking</strong> — Supports Jina / SiliconFlow / Voyage / DashScope / TEI / Pinecone</li>
+</ul>
+</details>
+
+<details>
+<summary><b>🕸️ Knowledge Graph</b> — Community detection · PageRank · Fusion · Graph walk</summary>
+
+<ul>
+<li><strong>Community Detection</strong> — Label Propagation Algorithm (LPA), LLM-generated community summaries</li>
+<li><strong>Personalized PageRank</strong> — Query-dependent ranking based on seed nodes</li>
+<li><strong>Knowledge Fusion</strong> — Two-phase dedup (name overlap + vector similarity), LLM decides merge/link/none</li>
+<li><strong>Graph Walk</strong> — Recursive CTE from seed nodes, builds related subgraphs</li>
+</ul>
+</details>
+
+<details>
+<summary><b>🔄 Smart Maintenance</b> — Reflection · Compression · Pipeline maintenance</summary>
+
+<ul>
+<li><strong>Session-End Reflection</strong> — LLM full analysis, 4 insight types (user model / agent lessons / experience / decisions)</li>
+<li><strong>Turn Reflection</strong> — Lightweight evaluation, dynamically boosts node importance</li>
+<li><strong>Graph Maintenance Pipeline</strong> — Dedup → PageRank → Community detection → Community summaries</li>
+<li><strong>Session Compression</strong> — Knowledge density evaluation, auto-summarize low-value sessions</li>
+</ul>
+</details>
+
+<details>
+<summary><b>🛡️ Engineering</b> — Scope isolation · Working memory · Noise filtering · Security</summary>
+
+<ul>
+<li><strong>Multi-Scope Isolation</strong> — Isolate by session / agent / workspace, parameterized queries prevent SQL injection</li>
+<li><strong>Working Memory</strong> — Zero LLM overhead, tracks current tasks / decisions / constraints / attention</li>
+<li><strong>Noise Filtering</strong> — Multilingual regex filtering (EN / CN / JP / KR / FR / ES / DE / IT)</li>
+<li><strong>Prompt Injection Protection</strong> — 6-rule safety filter for reflection content</li>
+</ul>
+</details>
+
+<hr>
+<a id="md:🏗️-architecture" class="tsd-anchor"></a><h2><a href="#md:🏗️-architecture">🏗️ Architecture</a></h2><pre><code><span class="hl-0">┌─────────────────────────────────────────────────────────────────┐</span><br/><span class="hl-0">│                        🌐 </span><span class="hl-1">API</span><span class="hl-0"> </span><span class="hl-2">Layer</span><span class="hl-0">                             │</span><br/><span class="hl-0">│              </span><span class="hl-3">ContextEngine</span><span class="hl-0"> (</span><span class="hl-2">Unified</span><span class="hl-0"> </span><span class="hl-2">Facade</span><span class="hl-0"> </span><span class="hl-2">Interface</span><span class="hl-0">)             │</span><br/><span class="hl-0">│     </span><span class="hl-2">processTurn</span><span class="hl-0"> │ </span><span class="hl-2">recall</span><span class="hl-0"> │ </span><span class="hl-2">performFusion</span><span class="hl-0"> │ </span><span class="hl-2">reflectOnSession</span><span class="hl-0">      │</span><br/><span class="hl-0">└────────────────────────┬────────────────────────────────────────┘</span><br/><span class="hl-0">                         │</span><br/><span class="hl-0">┌────────────────────────┴────────────────────────────────────────┐</span><br/><span class="hl-0">│                     🎛️ </span><span class="hl-2">Control</span><span class="hl-0"> </span><span class="hl-2">Layer</span><span class="hl-0">                            │</span><br/><span class="hl-0">│  ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐ ┌─────────┐ │</span><br/><span class="hl-0">│  │ </span><span class="hl-2">Extractor</span><span class="hl-0">│ │ </span><span class="hl-2">Recaller</span><span class="hl-0"> │ │ </span><span class="hl-2">Fusion</span><span class="hl-0"> │ │</span><span class="hl-2">Reflection</span><span class="hl-0">│ │</span><span class="hl-2">Reasoning</span><span class="hl-0">│ │</span><br/><span class="hl-0">│  └──────────┘ └──────────┘ └────────┘ └──────────┘ └─────────┘ │</span><br/><span class="hl-0">│  ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐ ┌─────────┐ │</span><br/><span class="hl-0">│  │  </span><span class="hl-2">Hybrid</span><span class="hl-0">  │ │  </span><span class="hl-2">Vector</span><span class="hl-0">  │ │ </span><span class="hl-2">Rerank</span><span class="hl-0"> │ │</span><span class="hl-2">Admission</span><span class="hl-0"> │ │ </span><span class="hl-2">Working</span><span class="hl-0"> │ │</span><br/><span class="hl-0">│  │  </span><span class="hl-2">Recall</span><span class="hl-0">  │ │  </span><span class="hl-2">Recall</span><span class="hl-0">  │ │  </span><span class="hl-2">er</span><span class="hl-0">    │ │ </span><span class="hl-2">Control</span><span class="hl-0">  │ │ </span><span class="hl-2">Memory</span><span class="hl-0">  │ │</span><br/><span class="hl-0">│  └──────────┘ └──────────┘ └────────┘ └──────────┘ └─────────┘ │</span><br/><span class="hl-0">└────────────────────────┬────────────────────────────────────────┘</span><br/><span class="hl-0">                         │</span><br/><span class="hl-0">┌────────────────────────┴────────────────────────────────────────┐</span><br/><span class="hl-0">│                    ⚙️ </span><span class="hl-2">Algorithm</span><span class="hl-0"> </span><span class="hl-2">Layer</span><span class="hl-0">                           │</span><br/><span class="hl-0">│  ┌────────────┐ ┌──────────────┐ ┌───────────┐ ┌────────────┐  │</span><br/><span class="hl-0">│  │  </span><span class="hl-2">PageRank</span><span class="hl-0">  │ │  </span><span class="hl-2">Community</span><span class="hl-0">   │ │   </span><span class="hl-1">LSH</span><span class="hl-0">     │ │  </span><span class="hl-2">Temporal</span><span class="hl-0">  │  │</span><br/><span class="hl-0">│  │  (</span><span class="hl-1">PPR</span><span class="hl-0">)     │ │ </span><span class="hl-2">Detection</span><span class="hl-0">    │ │  </span><span class="hl-2">Dedup</span><span class="hl-0">    │ │ </span><span class="hl-2">Classifier</span><span class="hl-0"> │  │</span><br/><span class="hl-0">│  └────────────┘ └──────────────┘ └───────────┘ └────────────┘  │</span><br/><span class="hl-0">│  ┌────────────┐ ┌──────────────┐ ┌───────────┐                 │</span><br/><span class="hl-0">│  │   </span><span class="hl-2">Decay</span><span class="hl-0">    │ │  </span><span class="hl-2">Intent</span><span class="hl-0">      │ │  </span><span class="hl-2">Query</span><span class="hl-0">    │                 │</span><br/><span class="hl-0">│  │  (</span><span class="hl-2">Weibull</span><span class="hl-0">) │ │  </span><span class="hl-2">Analyzer</span><span class="hl-0">    │ │  </span><span class="hl-2">Expander</span><span class="hl-0"> │                 │</span><br/><span class="hl-0">│  └────────────┘ └──────────────┘ └───────────┘                 │</span><br/><span class="hl-0">└────────────────────────┬────────────────────────────────────────┘</span><br/><span class="hl-0">                         │</span><br/><span class="hl-0">┌────────────────────────┴────────────────────────────────────────┐</span><br/><span class="hl-0">│                     💾 </span><span class="hl-2">Storage</span><span class="hl-0"> </span><span class="hl-2">Layer</span><span class="hl-0">                            │</span><br/><span class="hl-0">│    </span><span class="hl-4">SQLite</span><span class="hl-0">: </span><span class="hl-5">6</span><span class="hl-0"> </span><span class="hl-2">tables</span><span class="hl-0"> + </span><span class="hl-1">FTS5</span><span class="hl-0"> + </span><span class="hl-2">Triggers</span><span class="hl-0"> + </span><span class="hl-5">8</span><span class="hl-0"> </span><span class="hl-2">indexes</span><span class="hl-0">               │</span><br/><span class="hl-0">│    </span><span class="hl-2">bm_nodes</span><span class="hl-0"> │ </span><span class="hl-2">bm_edges</span><span class="hl-0"> │ </span><span class="hl-2">bm_vectors</span><span class="hl-0"> │ </span><span class="hl-2">bm_messages</span><span class="hl-0">               │</span><br/><span class="hl-0">│    </span><span class="hl-2">bm_communities</span><span class="hl-0"> │ </span><span class="hl-2">bm_nodes_fts</span><span class="hl-0">                                │</span><br/><span class="hl-0">└─────────────────────────────────────────────────────────────────┘</span>
+</code><button>Copy</button></pre>
+<hr>
+<a id="md:📦-installation" class="tsd-anchor"></a><h2><a href="#md:📦-installation">📦 Installation</a></h2><a id="md:option-1-npm-published-package" class="tsd-anchor"></a><h3><a href="#md:option-1-npm-published-package">Option 1: npm (Published Package)</a></h3><pre><code class="language-bash"><span class="hl-3">npm</span><span class="hl-0"> </span><span class="hl-6">install</span><span class="hl-0"> </span><span class="hl-6">memory-likehuman-pro</span>
+</code><button>Copy</button></pre>
+<blockquote>
+<p><strong>Note:</strong> The published npm package contains the compiled <code>dist/</code> output. Source files (<code>src/</code>, <code>test/</code>, etc.) are not included in the npm package.</p>
+</blockquote>
+<a id="md:option-2-clone-from-git-full-source" class="tsd-anchor"></a><h3><a href="#md:option-2-clone-from-git-full-source">Option 2: Clone from Git (Full Source)</a></h3><pre><code class="language-bash"><span class="hl-3">git</span><span class="hl-0"> </span><span class="hl-6">clone</span><span class="hl-0"> </span><span class="hl-6">https://github.com/DylingCreation/brain-memory.git</span><br/><span class="hl-3">cd</span><span class="hl-0"> </span><span class="hl-6">brain-memory</span><br/><span class="hl-3">npm</span><span class="hl-0"> </span><span class="hl-6">install</span>
+</code><button>Copy</button></pre>
+<a id="md:option-3-download-zip" class="tsd-anchor"></a><h3><a href="#md:option-3-download-zip">Option 3: Download ZIP</a></h3><ol>
+<li>Visit <a href="https://github.com/DylingCreation/brain-memory">https://github.com/DylingCreation/brain-memory</a></li>
+<li>Click <strong>Code → Download ZIP</strong></li>
+<li>Extract and install dependencies:</li>
+</ol>
+<pre><code class="language-bash"><span class="hl-3">cd</span><span class="hl-0"> </span><span class="hl-6">brain-memory</span><br/><span class="hl-3">npm</span><span class="hl-0"> </span><span class="hl-6">install</span>
+</code><button>Copy</button></pre>
+<hr>
+<a id="md:🚀-quick-start" class="tsd-anchor"></a><h2><a href="#md:🚀-quick-start">🚀 Quick Start</a></h2><a id="md:💻-standalone-library-usage" class="tsd-anchor"></a><h3><a href="#md:💻-standalone-library-usage">💻 Standalone Library Usage</a></h3><pre><code class="language-typescript"><span class="hl-7">import</span><span class="hl-0"> { </span><span class="hl-2">ContextEngine</span><span class="hl-0">, </span><span class="hl-2">DEFAULT_CONFIG</span><span class="hl-0"> } </span><span class="hl-7">from</span><span class="hl-0"> </span><span class="hl-6">&#39;memory-likehuman-pro&#39;</span><span class="hl-0">;</span><br/><br/><span class="hl-8">const</span><span class="hl-0"> </span><span class="hl-1">config</span><span class="hl-0"> = {</span><br/><span class="hl-0">  ...</span><span class="hl-1">DEFAULT_CONFIG</span><span class="hl-0">,</span><br/><span class="hl-0">  </span><span class="hl-2">dbPath:</span><span class="hl-0"> </span><span class="hl-6">&#39;~/.openclaw/brain-memory.db&#39;</span><span class="hl-0">,</span><br/><span class="hl-0">  </span><span class="hl-2">llm:</span><span class="hl-0"> {</span><br/><span class="hl-0">    </span><span class="hl-2">apiKey:</span><span class="hl-0"> </span><span class="hl-2">process</span><span class="hl-0">.</span><span class="hl-2">env</span><span class="hl-0">.</span><span class="hl-1">LLM_API_KEY</span><span class="hl-0">,</span><br/><span class="hl-0">    </span><span class="hl-2">baseURL:</span><span class="hl-0"> </span><span class="hl-6">&#39;https://your-ll-api-endpoint/v1&#39;</span><span class="hl-0">,</span><br/><span class="hl-0">    </span><span class="hl-2">model:</span><span class="hl-0"> </span><span class="hl-6">&#39;your-model-name&#39;</span><br/><span class="hl-0">  },</span><br/><span class="hl-0">  </span><span class="hl-2">embedding:</span><span class="hl-0"> {</span><br/><span class="hl-0">    </span><span class="hl-2">apiKey:</span><span class="hl-0"> </span><span class="hl-2">process</span><span class="hl-0">.</span><span class="hl-2">env</span><span class="hl-0">.</span><span class="hl-1">EMBEDDING_API_KEY</span><span class="hl-0">,</span><br/><span class="hl-0">    </span><span class="hl-2">baseURL:</span><span class="hl-0"> </span><span class="hl-6">&#39;https://your-embedding-api-endpoint/v1&#39;</span><span class="hl-0">,</span><br/><span class="hl-0">    </span><span class="hl-2">model:</span><span class="hl-0"> </span><span class="hl-6">&#39;your-embedding-model&#39;</span><br/><span class="hl-0">  }</span><br/><span class="hl-0">};</span><br/><br/><span class="hl-8">const</span><span class="hl-0"> </span><span class="hl-1">engine</span><span class="hl-0"> = </span><span class="hl-8">new</span><span class="hl-0"> </span><span class="hl-3">ContextEngine</span><span class="hl-0">(</span><span class="hl-2">config</span><span class="hl-0">);</span><br/><br/><span class="hl-9">// 📝 Process conversation turns, extract knowledge</span><br/><span class="hl-8">const</span><span class="hl-0"> </span><span class="hl-1">result</span><span class="hl-0"> = </span><span class="hl-7">await</span><span class="hl-0"> </span><span class="hl-2">engine</span><span class="hl-0">.</span><span class="hl-3">processTurn</span><span class="hl-0">({</span><br/><span class="hl-0">  </span><span class="hl-2">sessionId:</span><span class="hl-0"> </span><span class="hl-6">&#39;session-1&#39;</span><span class="hl-0">,</span><br/><span class="hl-0">  </span><span class="hl-2">agentId:</span><span class="hl-0"> </span><span class="hl-6">&#39;agent-1&#39;</span><span class="hl-0">,</span><br/><span class="hl-0">  </span><span class="hl-2">workspaceId:</span><span class="hl-0"> </span><span class="hl-6">&#39;workspace-1&#39;</span><span class="hl-0">,</span><br/><span class="hl-0">  </span><span class="hl-2">messages:</span><span class="hl-0"> [{</span><br/><span class="hl-0">    </span><span class="hl-2">role:</span><span class="hl-0"> </span><span class="hl-6">&#39;user&#39;</span><span class="hl-0">,</span><br/><span class="hl-0">    </span><span class="hl-2">content:</span><span class="hl-0"> </span><span class="hl-6">&#39;I need to implement a memory system in TypeScript&#39;</span><br/><span class="hl-0">  }]</span><br/><span class="hl-0">});</span><br/><br/><span class="hl-2">console</span><span class="hl-0">.</span><span class="hl-3">log</span><span class="hl-0">(</span><span class="hl-6">`Extracted </span><span class="hl-8">${</span><span class="hl-2">result</span><span class="hl-10">.</span><span class="hl-2">extractedNodes</span><span class="hl-10">.</span><span class="hl-2">length</span><span class="hl-8">}</span><span class="hl-6"> nodes, </span><span class="hl-8">${</span><span class="hl-2">result</span><span class="hl-10">.</span><span class="hl-2">extractedEdges</span><span class="hl-10">.</span><span class="hl-2">length</span><span class="hl-8">}</span><span class="hl-6"> edges`</span><span class="hl-0">);</span><br/><br/><span class="hl-9">// 🔍 Recall relevant memories</span><br/><span class="hl-8">const</span><span class="hl-0"> </span><span class="hl-1">recall</span><span class="hl-0"> = </span><span class="hl-7">await</span><span class="hl-0"> </span><span class="hl-2">engine</span><span class="hl-0">.</span><span class="hl-3">recall</span><span class="hl-0">(</span><span class="hl-6">&#39;TypeScript memory system&#39;</span><span class="hl-0">, </span><span class="hl-6">&#39;session-1&#39;</span><span class="hl-0">, </span><span class="hl-6">&#39;agent-1&#39;</span><span class="hl-0">, </span><span class="hl-6">&#39;workspace-1&#39;</span><span class="hl-0">);</span><br/><span class="hl-2">console</span><span class="hl-0">.</span><span class="hl-3">log</span><span class="hl-0">(</span><span class="hl-6">`Recalled </span><span class="hl-8">${</span><span class="hl-2">recall</span><span class="hl-10">.</span><span class="hl-2">nodes</span><span class="hl-10">.</span><span class="hl-2">length</span><span class="hl-8">}</span><span class="hl-6"> relevant memories`</span><span class="hl-0">);</span>
+</code><button>Copy</button></pre>
+<a id="md:🔌-openclaw-plugin-usage" class="tsd-anchor"></a><h3><a href="#md:🔌-openclaw-plugin-usage">🔌 OpenClaw Plugin Usage</a></h3><p>brain-memory is designed as an <strong>OpenClaw</strong> plugin. Configure it in your OpenClaw config file (default: <code>~/.openclaw/openclaw.json</code>):</p>
+<pre><code class="language-json"><span class="hl-0">{</span><br/><span class="hl-0">  </span><span class="hl-11">&quot;plugins&quot;</span><span class="hl-0">: {</span><br/><span class="hl-0">    </span><span class="hl-11">&quot;entries&quot;</span><span class="hl-0">: {</span><br/><span class="hl-0">      </span><span class="hl-11">&quot;brain-memory&quot;</span><span class="hl-0">: {</span><br/><span class="hl-0">        </span><span class="hl-11">&quot;enabled&quot;</span><span class="hl-0">: </span><span class="hl-8">true</span><span class="hl-0">,</span><br/><span class="hl-0">        </span><span class="hl-11">&quot;config&quot;</span><span class="hl-0">: {</span><br/><span class="hl-0">          </span><span class="hl-11">&quot;llm&quot;</span><span class="hl-0">: {</span><br/><span class="hl-0">            </span><span class="hl-11">&quot;apiKey&quot;</span><span class="hl-0">: </span><span class="hl-6">&quot;your-api-key-here&quot;</span><span class="hl-0">,</span><br/><span class="hl-0">            </span><span class="hl-11">&quot;baseURL&quot;</span><span class="hl-0">: </span><span class="hl-6">&quot;https://your-ll-api-endpoint/v1&quot;</span><span class="hl-0">,</span><br/><span class="hl-0">            </span><span class="hl-11">&quot;model&quot;</span><span class="hl-0">: </span><span class="hl-6">&quot;your-model-name&quot;</span><br/><span class="hl-0">          },</span><br/><span class="hl-0">          </span><span class="hl-11">&quot;embedding&quot;</span><span class="hl-0">: {</span><br/><span class="hl-0">            </span><span class="hl-11">&quot;apiKey&quot;</span><span class="hl-0">: </span><span class="hl-6">&quot;your-embedding-api-key&quot;</span><span class="hl-0">,</span><br/><span class="hl-0">            </span><span class="hl-11">&quot;baseURL&quot;</span><span class="hl-0">: </span><span class="hl-6">&quot;https://your-embedding-api-endpoint/v1&quot;</span><span class="hl-0">,</span><br/><span class="hl-0">            </span><span class="hl-11">&quot;model&quot;</span><span class="hl-0">: </span><span class="hl-6">&quot;your-embedding-model&quot;</span><br/><span class="hl-0">          },</span><br/><span class="hl-0">          </span><span class="hl-11">&quot;engine&quot;</span><span class="hl-0">: </span><span class="hl-6">&quot;hybrid&quot;</span><span class="hl-0">,</span><br/><span class="hl-0">          </span><span class="hl-11">&quot;storage&quot;</span><span class="hl-0">: </span><span class="hl-6">&quot;sqlite&quot;</span><span class="hl-0">,</span><br/><span class="hl-0">          </span><span class="hl-11">&quot;dbPath&quot;</span><span class="hl-0">: </span><span class="hl-6">&quot;~/.openclaw/brain-memory.db&quot;</span><br/><span class="hl-0">        }</span><br/><span class="hl-0">      }</span><br/><span class="hl-0">    }</span><br/><span class="hl-0">  }</span><br/><span class="hl-0">}</span>
+</code><button>Copy</button></pre>
+<p><strong>Plugin hooks registered automatically:</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">🔗 Hook</th>
+<th align="left">⏰ Trigger</th>
+<th align="left">🎯 Function</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left"><code>message_received</code></td>
+<td align="left">After user sends a message</td>
+<td align="left">Extract knowledge from user messages</td>
+</tr>
+<tr>
+<td align="left"><code>message_sent</code> ✨</td>
+<td align="left">After AI sends a reply</td>
+<td align="left">Extract suggestions / code / commitments from AI replies</td>
+</tr>
+<tr>
+<td align="left"><code>before_message_write</code></td>
+<td align="left">Before AI sends a reply</td>
+<td align="left">Inject relevant memories into context</td>
+</tr>
+<tr>
+<td align="left"><code>session_start</code></td>
+<td align="left">New session starts</td>
+<td align="left">Warm up memory cache</td>
+</tr>
+<tr>
+<td align="left"><code>session_end</code></td>
+<td align="left">Session ends</td>
+<td align="left">Run reflection + graph maintenance</td>
+</tr>
+</tbody></table>
+<a id="md:🛠️-interactive-configuration-optional" class="tsd-anchor"></a><h3><a href="#md:🛠️-interactive-configuration-optional">🛠️ Interactive Configuration (Optional)</a></h3><p>The project includes interactive configuration scripts. These are <strong>generic setup tools</strong> (not platform-specific) that generate basic LLM/Embedding API config files:</p>
+<pre><code class="language-bash"><span class="hl-9"># Interactive config — generates config.js, .env, llm_client.js</span><br/><span class="hl-3">npm</span><span class="hl-0"> </span><span class="hl-6">run</span><span class="hl-0"> </span><span class="hl-6">configure</span><br/><br/><span class="hl-9"># OpenClaw integration — writes config into ~/.openclaw/openclaw.json</span><br/><span class="hl-3">npm</span><span class="hl-0"> </span><span class="hl-6">run</span><span class="hl-0"> </span><span class="hl-6">setup-openclaw</span>
+</code><button>Copy</button></pre>
+<blockquote>
+<p><strong>Important:</strong> The interactive config scripts only set up <strong>core API credentials</strong> (LLM endpoint, API key, model name, embedding settings). They do <strong>not</strong> configure advanced brain-memory features such as decay parameters, reflection settings, fusion thresholds, or working memory limits. Those must be configured manually in your OpenClaw config file or programmatically via <code>BmConfig</code>.</p>
+</blockquote>
+<a id="md:🩺-cli-diagnostic-tool-new-in-v020" class="tsd-anchor"></a><h3><a href="#md:🩺-cli-diagnostic-tool-new-in-v020">🩺 CLI Diagnostic Tool (new in v0.2.0)</a></h3><p>Quickly check your environment, dependencies, configuration, and database status:</p>
+<pre><code class="language-bash"><span class="hl-3">npm</span><span class="hl-0"> </span><span class="hl-6">run</span><span class="hl-0"> </span><span class="hl-6">doctor</span><br/><span class="hl-9"># or: npx brain-memory-doctor</span>
+</code><button>Copy</button></pre>
+<p>Checks: Node.js version, dependency installation, LLM/Embedding config, database file/schema version/table stats, WAL/SHM residual files.</p>
+<hr>
+<a id="md:📋-memory-categories" class="tsd-anchor"></a><h2><a href="#md:📋-memory-categories">📋 Memory Categories</a></h2><p>brain-memory uses <strong>8 memory categories</strong> to cover all valuable conversation information:</p>
+<table>
+<thead>
+<tr>
+<th align="left">🏷️ Category</th>
+<th align="left">📖 Meaning</th>
+<th align="left">💡 Example</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left"><strong><code>profile</code></strong></td>
+<td align="left">User identity / role / background</td>
+<td align="left">&quot;User is a full-stack engineer&quot;</td>
+</tr>
+<tr>
+<td align="left"><strong><code>preferences</code></strong></td>
+<td align="left">Likes / dislikes / habits</td>
+<td align="left">&quot;User prefers concise replies&quot;</td>
+</tr>
+<tr>
+<td align="left"><strong><code>entities</code></strong></td>
+<td align="left">Projects / tools / environments</td>
+<td align="left">&quot;Project uses SQLite&quot;</td>
+</tr>
+<tr>
+<td align="left"><strong><code>events</code></strong></td>
+<td align="left">Errors / exceptions that occurred</td>
+<td align="left">&quot;Docker port conflict&quot;</td>
+</tr>
+<tr>
+<td align="left"><strong><code>tasks</code></strong></td>
+<td align="left">Completed tasks / discussion topics</td>
+<td align="left">&quot;Implement memory system&quot;</td>
+</tr>
+<tr>
+<td align="left"><strong><code>skills</code></strong></td>
+<td align="left">Reusable procedures (how-to)</td>
+<td align="left">&quot;npm install command&quot;</td>
+</tr>
+<tr>
+<td align="left"><strong><code>cases</code></strong></td>
+<td align="left">Case experience (success / failure)</td>
+<td align="left">&quot;Check port before deploying&quot;</td>
+</tr>
+<tr>
+<td align="left"><strong><code>patterns</code></strong></td>
+<td align="left">Cross-case abstract patterns</td>
+<td align="left">&quot;Checking port before deploy is a general rule&quot;</td>
+</tr>
+</tbody></table>
+<hr>
+<a id="md:🔍-recall-strategies" class="tsd-anchor"></a><h2><a href="#md:🔍-recall-strategies">🔍 Recall Strategies</a></h2><a id="md:three-engine-modes" class="tsd-anchor"></a><h3><a href="#md:three-engine-modes">Three Engine Modes</a></h3><table>
+<thead>
+<tr>
+<th align="left">🚀 Mode</th>
+<th align="left">📝 Description</th>
+<th align="left">🎯 Use Case</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left"><strong><code>graph</code></strong> <em>(default)</em></td>
+<td align="left">Knowledge graph + Community + PPR</td>
+<td align="left">When relationship context matters</td>
+</tr>
+<tr>
+<td align="left"><strong><code>vector</code></strong></td>
+<td align="left">Pure vector + BM25 + RRF</td>
+<td align="left">Lightweight deployment, no graph dependency</td>
+</tr>
+<tr>
+<td align="left"><strong><code>hybrid</code></strong></td>
+<td align="left">Graph + vector recall in parallel fusion</td>
+<td align="left">Best recall quality</td>
+</tr>
+</tbody></table>
+<a id="md:recall-flow-details" class="tsd-anchor"></a><h3><a href="#md:recall-flow-details">Recall Flow Details</a></h3><p><strong>🎯 Precise Path</strong> (graph mode):</p>
+<pre><code><span class="hl-2">Query</span><span class="hl-0"> → </span><span class="hl-2">Vector</span><span class="hl-0"> </span><span class="hl-2">search</span><span class="hl-0"> / </span><span class="hl-1">FTS5</span><span class="hl-0"> → </span><span class="hl-2">Community</span><span class="hl-0"> </span><span class="hl-3">expansion</span><span class="hl-0"> (</span><span class="hl-2">distance</span><span class="hl-0"> </span><span class="hl-5">2</span><span class="hl-0">) → </span><span class="hl-2">Graph</span><span class="hl-0"> </span><span class="hl-3">walk</span><span class="hl-0"> (</span><span class="hl-2">maxDepth</span><span class="hl-0">) → </span><span class="hl-1">PPR</span><span class="hl-0"> </span><span class="hl-2">ranking</span><span class="hl-0"> → </span><span class="hl-2">Time</span><span class="hl-0"> </span><span class="hl-2">decay</span><span class="hl-0"> → </span><span class="hl-2">Return</span><span class="hl-0"> </span><span class="hl-2">Top</span><span class="hl-0"> </span><span class="hl-1">N</span>
+</code><button>Copy</button></pre>
+<p><strong>🌐 Generalized Path</strong> (graph mode):</p>
+<pre><code><span class="hl-2">Query</span><span class="hl-0"> → </span><span class="hl-2">Community</span><span class="hl-0"> </span><span class="hl-2">vector</span><span class="hl-0"> </span><span class="hl-2">match</span><span class="hl-0"> → </span><span class="hl-2">Community</span><span class="hl-0"> </span><span class="hl-2">members</span><span class="hl-0"> → </span><span class="hl-2">Graph</span><span class="hl-0"> </span><span class="hl-3">walk</span><span class="hl-0"> (</span><span class="hl-5">1</span><span class="hl-0"> </span><span class="hl-2">layer</span><span class="hl-0">) → </span><span class="hl-1">PPR</span><span class="hl-0"> </span><span class="hl-2">ranking</span><span class="hl-0"> → </span><span class="hl-2">Merge</span><span class="hl-0"> </span><span class="hl-7">with</span><span class="hl-0"> </span><span class="hl-2">precise</span><span class="hl-0"> </span><span class="hl-2">path</span>
+</code><button>Copy</button></pre>
+<p><strong>🔀 Hybrid Fusion</strong>:</p>
+<pre><code><span class="hl-2">Graph</span><span class="hl-0"> </span><span class="hl-3">recall</span><span class="hl-0"> (</span><span class="hl-1">PPR</span><span class="hl-0"> </span><span class="hl-2">score</span><span class="hl-0">) ──┐</span><br/><span class="hl-0">                             ├──→ </span><span class="hl-2">Min</span><span class="hl-0">-</span><span class="hl-2">Max</span><span class="hl-0"> </span><span class="hl-2">normalization</span><span class="hl-0"> → </span><span class="hl-1">RRF</span><span class="hl-0"> </span><span class="hl-2">fusion</span><span class="hl-0"> → </span><span class="hl-2">Sort</span><span class="hl-0"> → </span><span class="hl-2">Return</span><br/><span class="hl-2">Vector</span><span class="hl-0"> </span><span class="hl-3">recall</span><span class="hl-0"> (</span><span class="hl-1">RRF</span><span class="hl-0"> </span><span class="hl-2">score</span><span class="hl-0">) ──┘</span>
+</code><button>Copy</button></pre>
+<hr>
+<a id="md:⚙️-configuration-reference" class="tsd-anchor"></a><h2><a href="#md:⚙️-configuration-reference">⚙️ Configuration Reference</a></h2><a id="md:full-configuration" class="tsd-anchor"></a><h3><a href="#md:full-configuration">Full Configuration</a></h3><details>
+<summary>📋 Click to expand full configuration reference</summary>
+
+<pre><code class="language-typescript"><span class="hl-8">interface</span><span class="hl-0"> </span><span class="hl-12">BmConfig</span><span class="hl-0"> {</span><br/><span class="hl-0">  </span><span class="hl-9">// 🚀 Engine mode: graph(default) | vector | hybrid</span><br/><span class="hl-0">  </span><span class="hl-2">engine</span><span class="hl-0">: </span><span class="hl-6">&#39;graph&#39;</span><span class="hl-0"> | </span><span class="hl-6">&#39;vector&#39;</span><span class="hl-0"> | </span><span class="hl-6">&#39;hybrid&#39;</span><span class="hl-0">;</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 💾 Storage backend: sqlite(default) | lancedb</span><br/><span class="hl-0">  </span><span class="hl-2">storage</span><span class="hl-0">: </span><span class="hl-6">&#39;sqlite&#39;</span><span class="hl-0"> | </span><span class="hl-6">&#39;lancedb&#39;</span><span class="hl-0">;</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 📁 Database path</span><br/><span class="hl-0">  </span><span class="hl-2">dbPath</span><span class="hl-0">: </span><span class="hl-12">string</span><span class="hl-0">;</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 🗜️ Session compression turn count</span><br/><span class="hl-0">  </span><span class="hl-2">compactTurnCount</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 🔍 Recall settings</span><br/><span class="hl-0">  </span><span class="hl-2">recallMaxNodes</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;     </span><span class="hl-9">// default: 6</span><br/><span class="hl-0">  </span><span class="hl-2">recallMaxDepth</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;     </span><span class="hl-9">// default: 2</span><br/><span class="hl-0">  </span><span class="hl-2">recallStrategy</span><span class="hl-0">: </span><span class="hl-6">&#39;full&#39;</span><span class="hl-0"> | </span><span class="hl-6">&#39;summary&#39;</span><span class="hl-0"> | </span><span class="hl-6">&#39;adaptive&#39;</span><span class="hl-0"> | </span><span class="hl-6">&#39;off&#39;</span><span class="hl-0">;</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 🤖 LLM settings</span><br/><span class="hl-0">  </span><span class="hl-2">llm</span><span class="hl-0">: {</span><br/><span class="hl-0">    </span><span class="hl-2">apiKey</span><span class="hl-0">?: </span><span class="hl-12">string</span><span class="hl-0">;</span><br/><span class="hl-0">    </span><span class="hl-2">baseURL</span><span class="hl-0">?: </span><span class="hl-12">string</span><span class="hl-0">;</span><br/><span class="hl-0">    </span><span class="hl-2">model</span><span class="hl-0">?: </span><span class="hl-12">string</span><span class="hl-0">;</span><br/><span class="hl-0">  };</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 🔢 Embedding settings</span><br/><span class="hl-0">  </span><span class="hl-2">embedding</span><span class="hl-0">: {</span><br/><span class="hl-0">    </span><span class="hl-2">apiKey</span><span class="hl-0">?: </span><span class="hl-12">string</span><span class="hl-0">;</span><br/><span class="hl-0">    </span><span class="hl-2">baseURL</span><span class="hl-0">?: </span><span class="hl-12">string</span><span class="hl-0">;</span><br/><span class="hl-0">    </span><span class="hl-2">model</span><span class="hl-0">?: </span><span class="hl-12">string</span><span class="hl-0">;</span><br/><span class="hl-0">    </span><span class="hl-2">dimensions</span><span class="hl-0">?: </span><span class="hl-12">number</span><span class="hl-0">;</span><br/><span class="hl-0">  };</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 🔄 Dedup threshold</span><br/><span class="hl-0">  </span><span class="hl-2">dedupThreshold</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;     </span><span class="hl-9">// default: 0.90</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 📊 PageRank settings</span><br/><span class="hl-0">  </span><span class="hl-2">pagerankDamping</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;    </span><span class="hl-9">// default: 0.85</span><br/><span class="hl-0">  </span><span class="hl-2">pagerankIterations</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">; </span><span class="hl-9">// default: 20</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// ⏳ Decay settings</span><br/><span class="hl-0">  </span><span class="hl-2">decay</span><span class="hl-0">: {</span><br/><span class="hl-0">    </span><span class="hl-2">enabled</span><span class="hl-0">: </span><span class="hl-12">boolean</span><span class="hl-0">;                    </span><span class="hl-9">// default: false</span><br/><span class="hl-0">    </span><span class="hl-2">recencyHalfLifeDays</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;         </span><span class="hl-9">// default: 30</span><br/><span class="hl-0">    </span><span class="hl-2">recencyWeight</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;               </span><span class="hl-9">// default: 0.4</span><br/><span class="hl-0">    </span><span class="hl-2">frequencyWeight</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;             </span><span class="hl-9">// default: 0.3</span><br/><span class="hl-0">    </span><span class="hl-2">intrinsicWeight</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;             </span><span class="hl-9">// default: 0.3</span><br/><span class="hl-0">    </span><span class="hl-2">timeDecayHalfLifeDays</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;       </span><span class="hl-9">// default: 60</span><br/><span class="hl-0">    </span><span class="hl-2">betaCore</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">; </span><span class="hl-2">betaWorking</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">; </span><span class="hl-2">betaPeripheral</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;</span><br/><span class="hl-0">    </span><span class="hl-2">coreDecayFloor</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">; </span><span class="hl-2">workingDecayFloor</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">; </span><span class="hl-2">peripheralDecayFloor</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;</span><br/><span class="hl-0">  };</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 🔇 Noise filter</span><br/><span class="hl-0">  </span><span class="hl-2">noiseFilter</span><span class="hl-0">: {</span><br/><span class="hl-0">    </span><span class="hl-2">enabled</span><span class="hl-0">: </span><span class="hl-12">boolean</span><span class="hl-0">;       </span><span class="hl-9">// default: true</span><br/><span class="hl-0">    </span><span class="hl-2">minContentLength</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">; </span><span class="hl-9">// default: 10</span><br/><span class="hl-0">  };</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 💭 Reflection</span><br/><span class="hl-0">  </span><span class="hl-2">reflection</span><span class="hl-0">: {</span><br/><span class="hl-0">    </span><span class="hl-2">enabled</span><span class="hl-0">: </span><span class="hl-12">boolean</span><span class="hl-0">;          </span><span class="hl-9">// default: true</span><br/><span class="hl-0">    </span><span class="hl-2">turnReflection</span><span class="hl-0">: </span><span class="hl-12">boolean</span><span class="hl-0">;   </span><span class="hl-9">// default: false</span><br/><span class="hl-0">    </span><span class="hl-2">sessionReflection</span><span class="hl-0">: </span><span class="hl-12">boolean</span><span class="hl-0">; </span><span class="hl-9">// default: true</span><br/><span class="hl-0">    </span><span class="hl-2">safetyFilter</span><span class="hl-0">: </span><span class="hl-12">boolean</span><span class="hl-0">;     </span><span class="hl-9">// default: true</span><br/><span class="hl-0">    </span><span class="hl-2">maxInsights</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;       </span><span class="hl-9">// default: 8</span><br/><span class="hl-0">    </span><span class="hl-2">importanceBoost</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;   </span><span class="hl-9">// default: 0.15</span><br/><span class="hl-0">    </span><span class="hl-2">minConfidence</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;     </span><span class="hl-9">// default: 0.6</span><br/><span class="hl-0">  };</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 🧠 Working memory</span><br/><span class="hl-0">  </span><span class="hl-2">workingMemory</span><span class="hl-0">: {</span><br/><span class="hl-0">    </span><span class="hl-2">enabled</span><span class="hl-0">: </span><span class="hl-12">boolean</span><span class="hl-0">;     </span><span class="hl-9">// default: true</span><br/><span class="hl-0">    </span><span class="hl-2">maxTasks</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;     </span><span class="hl-9">// default: 3</span><br/><span class="hl-0">    </span><span class="hl-2">maxDecisions</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">; </span><span class="hl-9">// default: 5</span><br/><span class="hl-0">    </span><span class="hl-2">maxConstraints</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">; </span><span class="hl-9">// default: 5</span><br/><span class="hl-0">  };</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 🔗 Knowledge fusion</span><br/><span class="hl-0">  </span><span class="hl-2">fusion</span><span class="hl-0">: {</span><br/><span class="hl-0">    </span><span class="hl-2">enabled</span><span class="hl-0">: </span><span class="hl-12">boolean</span><span class="hl-0">;            </span><span class="hl-9">// default: true</span><br/><span class="hl-0">    </span><span class="hl-2">similarityThreshold</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">; </span><span class="hl-9">// default: 0.75</span><br/><span class="hl-0">    </span><span class="hl-2">minNodes</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;            </span><span class="hl-9">// default: 20</span><br/><span class="hl-0">    </span><span class="hl-2">minCommunities</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;      </span><span class="hl-9">// default: 3</span><br/><span class="hl-0">  };</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 🧩 Reasoning</span><br/><span class="hl-0">  </span><span class="hl-2">reasoning</span><span class="hl-0">: {</span><br/><span class="hl-0">    </span><span class="hl-2">enabled</span><span class="hl-0">: </span><span class="hl-12">boolean</span><span class="hl-0">;         </span><span class="hl-9">// default: true</span><br/><span class="hl-0">    </span><span class="hl-2">maxHops</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;          </span><span class="hl-9">// default: 2</span><br/><span class="hl-0">    </span><span class="hl-2">maxConclusions</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;   </span><span class="hl-9">// default: 3</span><br/><span class="hl-0">    </span><span class="hl-2">minRecallNodes</span><span class="hl-0">: </span><span class="hl-12">number</span><span class="hl-0">;   </span><span class="hl-9">// default: 3</span><br/><span class="hl-0">  };</span><br/><span class="hl-0">}</span>
+</code><button>Copy</button></pre>
+</details>
+
+<hr>
+<a id="md:🧩-core-api" class="tsd-anchor"></a><h2><a href="#md:🧩-core-api">🧩 Core API</a></h2><a id="md:contextengine" class="tsd-anchor"></a><h3><a href="#md:contextengine">ContextEngine</a></h3><p>The unified context engine — main entry point for all features.</p>
+<pre><code class="language-typescript"><span class="hl-8">class</span><span class="hl-0"> </span><span class="hl-12">ContextEngine</span><span class="hl-0"> {</span><br/><span class="hl-0">  </span><span class="hl-9">// 📝 Process conversation turn, extract knowledge</span><br/><span class="hl-0">  </span><span class="hl-3">processTurn</span><span class="hl-0">(</span><span class="hl-2">params</span><span class="hl-0">: {</span><br/><span class="hl-0">    </span><span class="hl-2">sessionId</span><span class="hl-0">: </span><span class="hl-12">string</span><span class="hl-0">; </span><span class="hl-2">agentId</span><span class="hl-0">: </span><span class="hl-12">string</span><span class="hl-0">; </span><span class="hl-2">workspaceId</span><span class="hl-0">: </span><span class="hl-12">string</span><span class="hl-0">;</span><br/><span class="hl-0">    </span><span class="hl-2">messages</span><span class="hl-0">: </span><span class="hl-12">Array</span><span class="hl-0">&lt;{ </span><span class="hl-2">role</span><span class="hl-0">: </span><span class="hl-12">string</span><span class="hl-0">; </span><span class="hl-2">content</span><span class="hl-0">: </span><span class="hl-12">string</span><span class="hl-0"> }&gt;;</span><br/><span class="hl-0">  }): </span><span class="hl-12">Promise</span><span class="hl-0">&lt;{</span><br/><span class="hl-0">    </span><span class="hl-2">extractedNodes</span><span class="hl-0">: </span><span class="hl-12">BmNode</span><span class="hl-0">[]; </span><span class="hl-2">extractedEdges</span><span class="hl-0">: </span><span class="hl-12">BmEdge</span><span class="hl-0">[];</span><br/><span class="hl-0">    </span><span class="hl-2">reflections</span><span class="hl-0">: </span><span class="hl-12">ReflectionInsight</span><span class="hl-0">[]; </span><span class="hl-2">workingMemory</span><span class="hl-0">: </span><span class="hl-12">WorkingMemoryState</span><span class="hl-0">;</span><br/><span class="hl-0">  }&gt;;</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 🔍 Recall relevant memories</span><br/><span class="hl-0">  </span><span class="hl-3">recall</span><span class="hl-0">(</span><span class="hl-2">query</span><span class="hl-0">: </span><span class="hl-12">string</span><span class="hl-0">, </span><span class="hl-2">sessionId</span><span class="hl-0">?: </span><span class="hl-12">string</span><span class="hl-0">, </span><span class="hl-2">agentId</span><span class="hl-0">?: </span><span class="hl-12">string</span><span class="hl-0">, </span><span class="hl-2">workspaceId</span><span class="hl-0">?: </span><span class="hl-12">string</span><span class="hl-0">): </span><span class="hl-12">Promise</span><span class="hl-0">&lt;</span><span class="hl-12">RecallResult</span><span class="hl-0">&gt;;</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 🔗 Knowledge fusion (merge duplicate nodes)</span><br/><span class="hl-0">  </span><span class="hl-3">performFusion</span><span class="hl-0">(</span><span class="hl-2">sessionId</span><span class="hl-0">?: </span><span class="hl-12">string</span><span class="hl-0">): </span><span class="hl-12">Promise</span><span class="hl-0">&lt;</span><span class="hl-12">FusionResult</span><span class="hl-0">&gt;;</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 💭 Session reflection</span><br/><span class="hl-0">  </span><span class="hl-3">reflectOnSession</span><span class="hl-0">(</span><span class="hl-2">sessionId</span><span class="hl-0">: </span><span class="hl-12">string</span><span class="hl-0">, </span><span class="hl-2">messages</span><span class="hl-0">: </span><span class="hl-12">Array</span><span class="hl-0">&lt;{ </span><span class="hl-2">role</span><span class="hl-0">: </span><span class="hl-12">string</span><span class="hl-0">; </span><span class="hl-2">content</span><span class="hl-0">: </span><span class="hl-12">string</span><span class="hl-0"> }&gt;): </span><span class="hl-12">Promise</span><span class="hl-0">&lt;</span><span class="hl-12">ReflectionInsight</span><span class="hl-0">[]&gt;;</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 🧩 Reasoning engine</span><br/><span class="hl-0">  </span><span class="hl-3">performReasoning</span><span class="hl-0">(</span><span class="hl-2">query</span><span class="hl-0">?: </span><span class="hl-12">string</span><span class="hl-0">): </span><span class="hl-12">Promise</span><span class="hl-0">&lt;</span><span class="hl-12">ReasoningConclusion</span><span class="hl-0">[]&gt;;</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 🔄 Maintenance (dedup + PageRank + community detection)</span><br/><span class="hl-0">  </span><span class="hl-3">runMaintenance</span><span class="hl-0">(): </span><span class="hl-12">Promise</span><span class="hl-0">&lt;</span><span class="hl-12">void</span><span class="hl-0">&gt;;</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 🧠 Working memory context</span><br/><span class="hl-0">  </span><span class="hl-3">getWorkingMemoryContext</span><span class="hl-0">(): </span><span class="hl-12">string</span><span class="hl-0"> | </span><span class="hl-12">null</span><span class="hl-0">;</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 🔎 Node search</span><br/><span class="hl-0">  </span><span class="hl-3">searchNodes</span><span class="hl-0">(</span><span class="hl-2">query</span><span class="hl-0">: </span><span class="hl-12">string</span><span class="hl-0">, </span><span class="hl-2">limit</span><span class="hl-0">?: </span><span class="hl-12">number</span><span class="hl-0">): </span><span class="hl-12">BmNode</span><span class="hl-0">[];</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 📊 Statistics (enhanced in v0.2.0)</span><br/><span class="hl-0">  </span><span class="hl-3">getStats</span><span class="hl-0">(): </span><span class="hl-12">EngineStats</span><span class="hl-0">; </span><span class="hl-9">// nodes by type/status/source, communities, vectors, dbSizeBytes, schemaVersion, uptimeMs, embedCache, queryTimeMs</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// 🩺 Health check (new in v0.2.0)</span><br/><span class="hl-0">  </span><span class="hl-3">healthCheck</span><span class="hl-0">(): </span><span class="hl-12">HealthStatus</span><span class="hl-0">; </span><span class="hl-9">// overall status, component status (db/llm/embedding), stats, uptime, schemaVersion</span><br/><br/><span class="hl-0">  </span><span class="hl-9">// ❌ Close database</span><br/><span class="hl-0">  </span><span class="hl-3">close</span><span class="hl-0">(): </span><span class="hl-12">void</span><span class="hl-0">;</span><br/><span class="hl-0">}</span>
+</code><button>Copy</button></pre>
+<hr>
+<a id="md:📊-database-schema" class="tsd-anchor"></a><h2><a href="#md:📊-database-schema">📊 Database Schema</a></h2><p>brain-memory uses <strong>SQLite</strong> with <strong>6 tables + FTS5 full-text index</strong>:</p>
+<table>
+<thead>
+<tr>
+<th align="left">📋 Table</th>
+<th align="left">📝 Purpose</th>
+<th align="left">🔑 Key Fields</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left"><strong><code>bm_nodes</code></strong></td>
+<td align="left">Memory nodes</td>
+<td align="left">id, type, category, name, content, pagerank, importance, scope_*</td>
+</tr>
+<tr>
+<td align="left"><strong><code>bm_edges</code></strong></td>
+<td align="left">Knowledge edges</td>
+<td align="left">from_id, to_id, type, instruction, condition</td>
+</tr>
+<tr>
+<td align="left"><strong><code>bm_vectors</code></strong></td>
+<td align="left">Vector embeddings</td>
+<td align="left">node_id(FK), embedding(BLOB), hash</td>
+</tr>
+<tr>
+<td align="left"><strong><code>bm_messages</code></strong></td>
+<td align="left">Conversation messages</td>
+<td align="left">session_id, turn_index, role, content, extracted</td>
+</tr>
+<tr>
+<td align="left"><strong><code>bm_communities</code></strong></td>
+<td align="left">Community summaries</td>
+<td align="left">id, summary, node_count, embedding</td>
+</tr>
+<tr>
+<td align="left"><strong><code>bm_nodes_fts</code></strong></td>
+<td align="left">FTS5 index</td>
+<td align="left">name, description, content <em>(auto-synced via triggers)</em></td>
+</tr>
+</tbody></table>
+<hr>
+<a id="md:🔐-security" class="tsd-anchor"></a><h2><a href="#md:🔐-security">🔐 Security</a></h2><table>
+<thead>
+<tr>
+<th align="left">🛡️ Feature</th>
+<th align="left">📝 Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left"><strong>Parameterized SQL</strong></td>
+<td align="left">All DB operations use <code>?</code> placeholders — no SQL injection</td>
+</tr>
+<tr>
+<td align="left"><strong>Scope Isolation</strong></td>
+<td align="left">Memory isolated by session / agent / workspace with cross-scope authorization</td>
+</tr>
+<tr>
+<td align="left"><strong>Prompt Injection Protection</strong></td>
+<td align="left">6-rule safety filter on reflection content (ignore-instruction / key-leak / role-switch / HTML-inject / role-prefix / disable-safety)</td>
+</tr>
+<tr>
+<td align="left"><strong>Input Validation</strong></td>
+<td align="left">Strict validation on node types / edge types / memory categories</td>
+</tr>
+</tbody></table>
+<hr>
+<a id="md:🧪-testing" class="tsd-anchor"></a><h2><a href="#md:🧪-testing">🧪 Testing</a></h2><pre><code class="language-bash"><span class="hl-3">npm</span><span class="hl-0"> </span><span class="hl-6">test</span>
+</code><button>Copy</button></pre>
+<p>Comprehensive test coverage (v1.0.0):</p>
+<ul>
+<li>✅ <strong>531 test cases</strong> — 48 test files, 0 failures</li>
+<li>✅ <strong>83.2% code coverage</strong> — Core modules (recall, llm, embed, plugin) &gt; 90%</li>
+<li>✅ <strong>Unit tests</strong> — Individual components</li>
+<li>✅ <strong>Integration tests</strong> — Full workflows</li>
+<li>✅ <strong>Performance benchmarks</strong> — 0.44ms recall avg, 7.21ms vector search</li>
+<li>✅ <strong>Error handling</strong> — Graceful degradation, edge case coverage</li>
+</ul>
+<hr>
+<a id="md:🛠️-build-commands" class="tsd-anchor"></a><h2><a href="#md:🛠️-build-commands">🛠️ Build Commands</a></h2><pre><code class="language-bash"><span class="hl-9"># Build the project</span><br/><span class="hl-3">npm</span><span class="hl-0"> </span><span class="hl-6">run</span><span class="hl-0"> </span><span class="hl-6">build</span><br/><br/><span class="hl-9"># Clean build artifacts</span><br/><span class="hl-3">npm</span><span class="hl-0"> </span><span class="hl-6">run</span><span class="hl-0"> </span><span class="hl-6">clean</span><br/><br/><span class="hl-9"># Run linting</span><br/><span class="hl-3">npm</span><span class="hl-0"> </span><span class="hl-6">run</span><span class="hl-0"> </span><span class="hl-6">lint</span><br/><br/><span class="hl-9"># Generate API docs</span><br/><span class="hl-3">npm</span><span class="hl-0"> </span><span class="hl-6">run</span><span class="hl-0"> </span><span class="hl-6">docs</span>
+</code><button>Copy</button></pre>
+<hr>
+<a id="md:📁-project-structure" class="tsd-anchor"></a><h2><a href="#md:📁-project-structure">📁 Project Structure</a></h2><details>
+<summary>📂 Click to expand directory structure</summary>
+
+<pre><code><span class="hl-2">brain</span><span class="hl-0">-</span><span class="hl-2">memory</span><span class="hl-0">/</span><br/><span class="hl-0">├── </span><span class="hl-2">src</span><span class="hl-0">/                 # </span><span class="hl-2">Source</span><span class="hl-0"> </span><span class="hl-2">code</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">store</span><span class="hl-0">/          # </span><span class="hl-2">Database</span><span class="hl-0"> </span><span class="hl-3">operations</span><span class="hl-0"> (</span><span class="hl-1">CRUD</span><span class="hl-0"> + </span><span class="hl-1">FTS5</span><span class="hl-0"> + </span><span class="hl-2">vectors</span><span class="hl-0">)</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">extractor</span><span class="hl-0">/      # </span><span class="hl-2">Knowledge</span><span class="hl-0"> </span><span class="hl-3">extraction</span><span class="hl-0"> (</span><span class="hl-1">LLM</span><span class="hl-0"> </span><span class="hl-2">node</span><span class="hl-0">/</span><span class="hl-2">edge</span><span class="hl-0"> </span><span class="hl-2">extraction</span><span class="hl-0">)</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">recaller</span><span class="hl-0">/       # </span><span class="hl-2">Dual</span><span class="hl-0">-</span><span class="hl-2">path</span><span class="hl-0"> </span><span class="hl-2">recall</span><span class="hl-0"> </span><span class="hl-2">engine</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">retriever</span><span class="hl-0">/      # </span><span class="hl-2">Hybrid</span><span class="hl-0"> </span><span class="hl-2">recall</span><span class="hl-0"> / </span><span class="hl-2">Vector</span><span class="hl-0"> </span><span class="hl-2">recall</span><span class="hl-0"> / </span><span class="hl-2">Reranker</span><span class="hl-0"> / </span><span class="hl-2">Admission</span><span class="hl-0"> </span><span class="hl-2">control</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">reasoning</span><span class="hl-0">/      # </span><span class="hl-2">Reasoning</span><span class="hl-0"> </span><span class="hl-2">engine</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">reflection</span><span class="hl-0">/     # </span><span class="hl-2">Reflection</span><span class="hl-0"> </span><span class="hl-2">system</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">fusion</span><span class="hl-0">/         # </span><span class="hl-2">Knowledge</span><span class="hl-0"> </span><span class="hl-2">fusion</span><span class="hl-0"> &amp; </span><span class="hl-2">dedup</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">decay</span><span class="hl-0">/          # </span><span class="hl-2">Weibull</span><span class="hl-0"> </span><span class="hl-2">forgetting</span><span class="hl-0"> </span><span class="hl-2">algorithm</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">scope</span><span class="hl-0">/          # </span><span class="hl-2">Multi</span><span class="hl-0">-</span><span class="hl-2">scope</span><span class="hl-0"> </span><span class="hl-2">isolation</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">temporal</span><span class="hl-0">/       # </span><span class="hl-2">Temporal</span><span class="hl-0"> </span><span class="hl-3">classification</span><span class="hl-0"> (</span><span class="hl-2">static</span><span class="hl-0">/</span><span class="hl-2">dynamic</span><span class="hl-0">)</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">noise</span><span class="hl-0">/          # </span><span class="hl-2">Noise</span><span class="hl-0"> </span><span class="hl-2">filtering</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">working</span><span class="hl-0">-</span><span class="hl-2">memory</span><span class="hl-0">/ # </span><span class="hl-2">Working</span><span class="hl-0"> </span><span class="hl-2">memory</span><span class="hl-0"> </span><span class="hl-2">management</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">format</span><span class="hl-0">/         # </span><span class="hl-2">Context</span><span class="hl-0"> </span><span class="hl-2">formatting</span><span class="hl-0"> &amp; </span><span class="hl-2">assembly</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">engine</span><span class="hl-0">/         # </span><span class="hl-2">Core</span><span class="hl-0"> </span><span class="hl-3">engines</span><span class="hl-0"> (</span><span class="hl-1">LLM</span><span class="hl-0"> + </span><span class="hl-2">Embedding</span><span class="hl-0"> + </span><span class="hl-2">ContextEngine</span><span class="hl-0">)</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">graph</span><span class="hl-0">/          # </span><span class="hl-2">Graph</span><span class="hl-0"> </span><span class="hl-3">algorithms</span><span class="hl-0"> (</span><span class="hl-2">PageRank</span><span class="hl-0"> / </span><span class="hl-2">Community</span><span class="hl-0"> / </span><span class="hl-2">Dedup</span><span class="hl-0"> / </span><span class="hl-2">Maintenance</span><span class="hl-0">)</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">preferences</span><span class="hl-0">/    # </span><span class="hl-2">Preference</span><span class="hl-0"> </span><span class="hl-2">slot</span><span class="hl-0"> </span><span class="hl-2">extraction</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">session</span><span class="hl-0">/        # </span><span class="hl-2">Session</span><span class="hl-0"> </span><span class="hl-2">compression</span><br/><span class="hl-0">│   ├── </span><span class="hl-2">plugin</span><span class="hl-0">/         # </span><span class="hl-2">OpenClaw</span><span class="hl-0"> </span><span class="hl-2">plugin</span><span class="hl-0"> </span><span class="hl-2">interfaces</span><br/><span class="hl-0">│   └── </span><span class="hl-2">utils</span><span class="hl-0">/          # </span><span class="hl-3">Utilities</span><span class="hl-0"> (</span><span class="hl-1">JSON</span><span class="hl-0"> / </span><span class="hl-2">Similarity</span><span class="hl-0"> / </span><span class="hl-2">Text</span><span class="hl-0"> / </span><span class="hl-1">XML</span><span class="hl-0">)</span><br/><span class="hl-0">│</span><br/><span class="hl-0">├── </span><span class="hl-2">test</span><span class="hl-0">/               # </span><span class="hl-2">Test</span><span class="hl-0"> </span><span class="hl-2">files</span><br/><span class="hl-0">│   ├── *.</span><span class="hl-2">test</span><span class="hl-0">.</span><span class="hl-2">ts</span><span class="hl-0">       # </span><span class="hl-2">Unit</span><span class="hl-0"> </span><span class="hl-2">tests</span><br/><span class="hl-0">│   └── </span><span class="hl-2">integration</span><span class="hl-0">/    # </span><span class="hl-2">Integration</span><span class="hl-0"> </span><span class="hl-2">tests</span><br/><span class="hl-0">│</span><br/><span class="hl-0">├── </span><span class="hl-2">docs</span><span class="hl-0">/               # </span><span class="hl-2">Documentation</span><br/><span class="hl-0">├── </span><span class="hl-2">scripts</span><span class="hl-0">/            # </span><span class="hl-2">Configuration</span><span class="hl-0"> </span><span class="hl-2">scripts</span><br/><span class="hl-0">├── </span><span class="hl-2">openclaw</span><span class="hl-0">-*.</span><span class="hl-2">ts</span><span class="hl-0">       # </span><span class="hl-2">OpenClaw</span><span class="hl-0"> </span><span class="hl-2">plugin</span><span class="hl-0"> </span><span class="hl-2">entry</span><span class="hl-0"> </span><span class="hl-2">points</span><br/><span class="hl-0">└── </span><span class="hl-2">index</span><span class="hl-0">.</span><span class="hl-2">ts</span><span class="hl-0">            # </span><span class="hl-2">Module</span><span class="hl-0"> </span><span class="hl-7">export</span><span class="hl-0"> </span><span class="hl-2">entry</span>
+</code><button>Copy</button></pre>
+</details>
+
+<hr>
+<a id="md:📝-changelog" class="tsd-anchor"></a><h2><a href="#md:📝-changelog">📝 Changelog</a></h2><a id="md:🆕-latest-release" class="tsd-anchor"></a><h3><a href="#md:🆕-latest-release">🆕 Latest Release</a></h3><table>
+<thead>
+<tr>
+<th align="center">Badge</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">✨</td>
+<td align="left"><strong>Bidirectional Knowledge Extraction</strong> — New <code>message_sent</code> hook extracts both user messages and AI replies</td>
+</tr>
+<tr>
+<td align="center">🎯</td>
+<td align="left"><strong>AI Reply Smart Filtering</strong> — Skips replies under 50 characters, focuses on valuable content</td>
+</tr>
+<tr>
+<td align="center">🔄</td>
+<td align="left"><strong>Role-Differentiated Processing</strong> — User messages extract intent/preferences, AI replies extract suggestions/code/tools</td>
+</tr>
+<tr>
+<td align="center">🌐</td>
+<td align="left"><strong>Cross-Session Memory Sharing</strong> — Agent-level cache, new sessions auto-reuse historical memory</td>
+</tr>
+<tr>
+<td align="center">🔥</td>
+<td align="left"><strong>Session Warm-Up</strong> — Preloads relevant memories on session start</td>
+</tr>
+</tbody></table>
+<hr>
+<a id="md:📄-license" class="tsd-anchor"></a><h2><a href="#md:📄-license">📄 License</a></h2><p><a href="LICENSE">MIT</a> · Made with ❤️ for AI Agents</p>
+</div></div><div class="col-sidebar"><div class="page-menu"><div class="tsd-navigation settings"><details class="tsd-index-accordion"><summary class="tsd-accordion-summary"><h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><use href="assets/icons.svg#icon-chevronDown"></use></svg>Settings</h3></summary><div class="tsd-accordion-details"><div class="tsd-filter-visibility"><h4 class="uppercase">Member Visibility</h4><form><ul id="tsd-filter-options"><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-protected" name="protected"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Protected</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-inherited" name="inherited" checked/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Inherited</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-external" name="external"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>External</span></label></li></ul></form></div><div class="tsd-theme-toggle"><h4 class="uppercase">Theme</h4><select id="tsd-theme"><option value="os">OS</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div></details></div><details open class="tsd-index-accordion tsd-page-navigation"><summary class="tsd-accordion-summary"><h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><use href="assets/icons.svg#icon-chevronDown"></use></svg>On This Page</h3></summary><div class="tsd-accordion-details"><a href="#md:🧠-core-philosophy"><span>🧠 <wbr/>Core <wbr/>Philosophy</span></a><a href="#md:✨-features"><span>✨ <wbr/>Features</span></a><a href="#md:🏗️-architecture"><span>🏗️ <wbr/>Architecture</span></a><a href="#md:📦-installation"><span>📦 <wbr/>Installation</span></a><ul><li><a href="#md:option-1-npm-published-package"><span>Option 1: npm (<wbr/>Published <wbr/>Package)</span></a></li><li><a href="#md:option-2-clone-from-git-full-source"><span>Option 2: <wbr/>Clone from <wbr/>Git (<wbr/>Full <wbr/>Source)</span></a></li><li><a href="#md:option-3-download-zip"><span>Option 3: <wbr/>Download ZIP</span></a></li></ul><a href="#md:🚀-quick-start"><span>🚀 <wbr/>Quick <wbr/>Start</span></a><ul><li><a href="#md:💻-standalone-library-usage"><span>💻 <wbr/>Standalone <wbr/>Library <wbr/>Usage</span></a></li><li><a href="#md:🔌-openclaw-plugin-usage"><span>🔌 <wbr/>Open<wbr/>Claw <wbr/>Plugin <wbr/>Usage</span></a></li><li><a href="#md:🛠️-interactive-configuration-optional"><span>🛠️ <wbr/>Interactive <wbr/>Configuration (<wbr/>Optional)</span></a></li><li><a href="#md:🩺-cli-diagnostic-tool-new-in-v020"><span>🩺 CLI <wbr/>Diagnostic <wbr/>Tool (new in v0.2.0)</span></a></li></ul><a href="#md:📋-memory-categories"><span>📋 <wbr/>Memory <wbr/>Categories</span></a><a href="#md:🔍-recall-strategies"><span>🔍 <wbr/>Recall <wbr/>Strategies</span></a><ul><li><a href="#md:three-engine-modes"><span>Three <wbr/>Engine <wbr/>Modes</span></a></li><li><a href="#md:recall-flow-details"><span>Recall <wbr/>Flow <wbr/>Details</span></a></li></ul><a href="#md:⚙️-configuration-reference"><span>⚙️ <wbr/>Configuration <wbr/>Reference</span></a><ul><li><a href="#md:full-configuration"><span>Full <wbr/>Configuration</span></a></li></ul><a href="#md:🧩-core-api"><span>🧩 <wbr/>Core API</span></a><ul><li><a href="#md:contextengine"><span>Context<wbr/>Engine</span></a></li></ul><a href="#md:📊-database-schema"><span>📊 <wbr/>Database <wbr/>Schema</span></a><a href="#md:🔐-security"><span>🔐 <wbr/>Security</span></a><a href="#md:🧪-testing"><span>🧪 <wbr/>Testing</span></a><a href="#md:🛠️-build-commands"><span>🛠️ <wbr/>Build <wbr/>Commands</span></a><a href="#md:📁-project-structure"><span>📁 <wbr/>Project <wbr/>Structure</span></a><a href="#md:📝-changelog"><span>📝 <wbr/>Changelog</span></a><ul><li><a href="#md:🆕-latest-release"><span>🆕 <wbr/>Latest <wbr/>Release</span></a></li></ul><a href="#md:📄-license"><span>📄 <wbr/>License</span></a></div></details></div><div class="site-menu"><nav class="tsd-navigation"><a href="modules.html" class="current"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="assets/icons.svg#icon-1"></use></svg><span>memory-likehuman-pro - v1.0.0</span></a><ul class="tsd-small-nested-navigation" id="tsd-nav-container" data-base="."><li>Loading...</li></ul></nav></div></div></div><footer><p class="tsd-generator">Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p></footer><div class="overlay"></div></body></html>

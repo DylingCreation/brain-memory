@@ -22,7 +22,7 @@
     "build": "tsc",
     "build:plugin": "tsc -p tsconfig.plugin.json",
     "build:all": "npm run clean && npm run build && npm run build:plugin",
-    "docs": "typedoc --out docs/api src/",
+    "docs": "typedoc",
     "clean": "npx rimraf dist coverage",
     "prebuild": "npm run clean",
     "postinstall": "echo 'brain-memory installation complete'",
