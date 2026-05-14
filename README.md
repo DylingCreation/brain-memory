@@ -518,8 +518,8 @@ brain-memory uses **SQLite** with **6 tables + FTS5 full-text index**:
 npm test
 ```
 
-Comprehensive test coverage (v1.0.0):
-- ✅ **531 test cases** — 48 test files, 0 failures
+Comprehensive test coverage (v1.5.0):
+- ✅ **625+ test cases** — 59 test files, 0 failures (LLM timeout excluded)
 - ✅ **83.2% code coverage** — Core modules (recall, llm, embed, plugin) > 90%
 - ✅ **Unit tests** — Individual components
 - ✅ **Integration tests** — Full workflows

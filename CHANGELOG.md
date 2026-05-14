@@ -30,7 +30,7 @@ All notable changes to the brain-memory project.
 - 1k 节点 LPA：增量 2.1x 快于全量
 
 ### Changed
-- package.json 版本号 1.0.0 → 1.3.0
+- package.json 版本号 1.0.0 → 1.5.0
 
 ### Tests
 - 含 LLM：623 passed / 58 files / 14 timeout
