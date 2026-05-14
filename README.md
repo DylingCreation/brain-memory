@@ -76,6 +76,7 @@ brain-memory simulates human brain memory mechanisms:
 - **Session-End Reflection** — LLM full analysis, 4 insight types (user model / agent lessons / experience / decisions)
 - **Turn Reflection** — Lightweight evaluation, dynamically boosts node importance
 - **Graph Maintenance Pipeline** — Dedup → PageRank → Community detection → Community summaries
+- **Incremental Maintenance** — Dirty-node marking + subgraph PageRank/LPA + smart threshold trigger (v1.1.0)
 - **Session Compression** — Knowledge density evaluation, auto-summarize low-value sessions
 
 </details>
@@ -126,7 +127,7 @@ brain-memory simulates human brain memory mechanisms:
                          │
 ┌────────────────────────┴────────────────────────────────────────┐
 │                     💾 Storage Layer                            │
-│    SQLite: 6 tables + FTS5 + Triggers + 8 indexes               │
+│    SQLite: 6 tables + FTS5 + Triggers + 8 indexes (v1.1.0: IStorageAdapter abstraction, supports LanceDB POC)               │
 │    bm_nodes │ bm_edges │ bm_vectors │ bm_messages               │
 │    bm_communities │ bm_nodes_fts                                │
 └─────────────────────────────────────────────────────────────────┘
@@ -230,6 +231,7 @@ brain-memory is designed as an **OpenClaw** plugin. Configure it in your OpenCla
           },
           "engine": "hybrid",
           "storage": "sqlite",
+          "mode": "full",
           "dbPath": "~/.openclaw/brain-memory.db"
         }
       }
@@ -338,6 +340,10 @@ Vector recall (RRF score) ──┘
 ```typescript
 interface BmConfig {
   // 🚀 Engine mode: graph(default) | vector | hybrid
+  engine: 'graph' | 'vector' | 'hybrid';
+
+  // 🏃 Run mode: full(default) | lite (skips LLM reflection/fusion)
+  mode: 'full' | 'lite';
   engine: 'graph' | 'vector' | 'hybrid';
 
   // 💾 Storage backend: sqlite(default) | lancedb
@@ -520,7 +526,7 @@ npm test
 
 Comprehensive test coverage (v1.5.0):
 - ✅ **625+ test cases** — 59 test files, 0 failures (LLM timeout excluded)
-- ✅ **83.2% code coverage** — Core modules (recall, llm, embed, plugin) > 90%
+- ✅ **comprehensive code coverage** — Core modules (recall, llm, embed, plugin) > 90%
 - ✅ **Unit tests** — Individual components
 - ✅ **Integration tests** — Full workflows
 - ✅ **Performance benchmarks** — 0.44ms recall avg, 7.21ms vector search
@@ -590,18 +596,12 @@ brain-memory/
 
 ## 📝 Changelog
 
-### 🆕 Latest Release
-
-| Badge | Description |
-|:---:|:---|
-| ✨ | **Bidirectional Knowledge Extraction** — New `message_sent` hook extracts both user messages and AI replies |
-| 🎯 | **AI Reply Smart Filtering** — Skips replies under 50 characters, focuses on valuable content |
-| 🔄 | **Role-Differentiated Processing** — User messages extract intent/preferences, AI replies extract suggestions/code/tools |
-| 🌐 | **Cross-Session Memory Sharing** — Agent-level cache, new sessions auto-reuse historical memory |
-| 🔥 | **Session Warm-Up** — Preloads relevant memories on session start |
+,
 
 ---
 
 ## 📄 License
 
-[MIT](LICENSE) · Made with ❤️ for AI Agents
+[MIT](LICENSE) · See [CHANGELOG.md](CHANGELOG.md) for full release history.
+
+Made with ❤️ for AI Agents
