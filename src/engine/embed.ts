@@ -11,9 +11,12 @@
  * Authors: adoresever (graph-memory), brain-memory contributors
  */
 
+/** 嵌入函数：输入文本，返回向量。 */
 export type EmbedFn = (text: string) => Promise<number[]>;
+/** 批量嵌入函数：输入多个文本，返回向量列表。 */
 export type BatchEmbedFn = (texts: string[]) => Promise<number[][]>;
 
+/** Embedding 服务运行配置。 */
 export interface EmbeddingConfig {
   apiKey?: string;
   baseURL?: string;
@@ -82,6 +85,7 @@ function purgeExpired(): void {
   for (const key of expired) embedCache.delete(key);
 }
 
+/** Embedding 缓存统计信息。 */
 export interface EmbedCacheStats {
   size: number;
   hits: number;
@@ -89,6 +93,7 @@ export interface EmbedCacheStats {
   hitRate: number;
 }
 
+/** 获取 Embedding 缓存统计。 */
 export function getEmbedCacheStats(): EmbedCacheStats {
   const total = cacheHits + cacheMisses;
   return {
@@ -100,12 +105,14 @@ export function getEmbedCacheStats(): EmbedCacheStats {
 }
 
 /** Reset cache stats counters (useful for testing or per-session tracking). */
+/** 重置 Embedding 缓存统计。 */
 export function resetEmbedCacheStats(): void {
   cacheHits = 0;
   cacheMisses = 0;
 }
 
 /** Clear the entire embedding cache (useful for testing isolation). */
+/** 清空 Embedding 缓存。 */
 export function clearEmbedCache(): void {
   embedCache.clear();
   cacheHits = 0;
@@ -133,6 +140,7 @@ function isOllama(cfg?: EmbeddingConfig): boolean {
   return cfg.baseURL.includes("11434") || cfg.baseURL.includes("localhost:11434");
 }
 
+/** 创建嵌入函数。支持 Ollama (端口 11434) 和 OpenAI 兼容 API。 */
 export function createEmbedFn(cfg?: EmbeddingConfig): EmbedFn | null {
   // Ollama doesn't require an API key; other providers do
   if (!cfg?.apiKey && !isOllama(cfg)) return null;
@@ -203,6 +211,7 @@ export function createEmbedFn(cfg?: EmbeddingConfig): EmbedFn | null {
 
 // ─── Batch embedding (#12) ────────────────────────────────────
 
+/** 创建批量嵌入函数，减少 API 调用次数。 */
 export function createBatchEmbedFn(cfg?: EmbeddingConfig): BatchEmbedFn | null {
   // Ollama doesn't require an API key; other providers do
   if (!cfg?.apiKey && !isOllama(cfg)) return null;

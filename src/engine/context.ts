@@ -41,6 +41,17 @@ import { runReasoning } from "../reasoning/engine";
 import { runMaintenance } from "../graph/maintenance";
 import { createHookRegistry, type HookRegistry, type BeforeExtractHook, type AfterExtractHook, type BeforeRecallHook, type AfterRecallHook, type BeforeFusionHook, type AfterFusionHook } from "../plugin/hooks";
 
+/**
+ * 统一上下文引擎 — brain-memory 主入口。
+ *
+ * 整合提取、召回、融合、反思、推理和工作记忆。
+ * 通过 IStorageAdapter 实现存储抽象，Recaller 处理双路径召回。
+ *
+ * @example
+ * const engine = new ContextEngine({ dbPath: ":memory:" });
+ * await engine.processTurn({ ... });
+ * const result = await engine.recall("query");
+ */
 export class ContextEngine {
   private storage: IStorageAdapter;
   private config: BmConfig;
@@ -285,6 +296,7 @@ export class ContextEngine {
     this.storage.markDirty(expanded);
   }
 
+  /** 召回与查询相关的记忆节点和边。 */
   async recall(query: string, sessionId?: string, agentId?: string, workspaceId?: string): Promise<RecallResult> {
     try {
       // v1.2.0 F-7: Before-recall hook
@@ -329,6 +341,7 @@ export class ContextEngine {
     }
   }
 
+  /** 执行知识融合，合并重复节点或链接相关节点。 */
   async performFusion(sessionId: string = "fusion"): Promise<FusionResult> {
     if (!this.config.fusion.enabled) return { candidates: [], merged: 0, linked: 0, durationMs: 0 };
     try {
@@ -381,6 +394,7 @@ export class ContextEngine {
   }
 
   /** v1.1.0 F-4: Clears dirty marks after full maintenance */
+  /** 运行图维护任务（去重 → PageRank → 社区检测 → 衰减归档）。v1.1.0 F-4：智能触发增量/全量路径。 */
   async runMaintenance(): Promise<void> {
     try {
       await runMaintenance(this.storage, this.config);
@@ -403,6 +417,7 @@ export class ContextEngine {
     try { this.storage.close(); } catch (error) { logger.error("context", "Failed to close database:", error); }
   }
 
+  /** 获取引擎统计信息（节点数、边数、社区数、各类分布）。 */
   getStats(): EngineStats {
     const startMs = Date.now();
     const stats = this.storage.getStats();
@@ -436,6 +451,7 @@ export class ContextEngine {
     };
   }
 
+  /** 健康检查：数据库、LLM、Embedding 组件状态。 */
   healthCheck(): HealthStatus {
     let dbStatus: HealthComponentStatus = "ok";
     let dbDetail: string | undefined;
@@ -473,6 +489,7 @@ export class ContextEngine {
   }
 }
 
+/** 引擎统计信息接口。包含节点、边、社区、向量、会话等完整统计。 */
 export interface EngineStats {
   nodeCount: number; edgeCount: number; sessionCount: number;
   nodes: {
@@ -487,13 +504,19 @@ export interface EngineStats {
   embedCache: EmbedCacheStats; queryTimeMs: number;
 }
 
+/** 组件健康状态：ok=正常, error=异常。 */
 export type HealthComponentStatus = "ok" | "error";
+/** LLM 健康状态：ok=正常, not_configured=未配置, error=异常。 */
 export type HealthLlmStatus = "ok" | "not_configured" | "error";
+/** Embedding 健康状态：ok=正常, not_configured=未配置, error=异常。 */
 export type HealthEmbedStatus = "ok" | "not_configured" | "error";
+/** 引擎整体健康状态：healthy=健康, degraded=降级, unhealthy=不健康。 */
 export type HealthOverallStatus = "healthy" | "degraded" | "unhealthy";
 
+/** 健康检查统计信息。 */
 export interface HealthStats { nodeCount: number; edgeCount: number; vectorCount: number; communityCount: number; dbSizeBytes: number; }
 
+/** 健康检查完整响应。包含引擎状态、各组件状态和统计信息。 */
 export interface HealthStatus {
   status: HealthOverallStatus; uptimeMs: number; schemaVersion: number;
   components: {
@@ -504,6 +527,7 @@ export interface HealthStatus {
   stats?: HealthStats;
 }
 
+/** 工厂函数：创建 ContextEngine 实例。 */
 export async function createContextEngine(config: BmConfig): Promise<ContextEngine> {
   return new ContextEngine(config);
 }

@@ -6,8 +6,10 @@
  * Authors: adoresever (graph-memory), brain-memory contributors
  */
 
+/** LLM 补全函数：输入 system prompt 和 user prompt，返回文本响应。 */
 export type CompleteFn = (system: string, user: string) => Promise<string>;
 
+/** LLM 客户端配置。支持 OpenAI 兼容 API 和 Anthropic API。 */
 export interface LlmConfig {
   apiKey?: string;
   baseURL?: string;
@@ -19,6 +21,7 @@ import { logger } from "../utils/logger";
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 1000;
 
+/** 创建 LLM 补全函数。支持重试（指数退避）、Qwen thinking 优化和请求超时。 */
 export function createCompleteFn(cfg?: LlmConfig): CompleteFn | null {
   const apiKey = cfg?.apiKey || process.env.ANTHROPIC_API_KEY || "";
   const baseURL = cfg?.baseURL || "https://api.openai.com/v1";
