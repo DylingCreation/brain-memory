@@ -67,6 +67,7 @@ export class ContextEngine {
   constructor(config: BmConfig) {
     this.config = config;
     try {
+      const isLite = (this.config.mode ?? "full") === "lite";
       this.storage = new SQLiteStorageAdapter(config.dbPath);
       this.storage.initialize();
     } catch (error) {
@@ -83,6 +84,7 @@ export class ContextEngine {
     let embed: any;
     let batchEmbed: any;
     try {
+      const isLite = (this.config.mode ?? "full") === "lite";
       embed = createEmbedFn(config.embedding);
       batchEmbed = createBatchEmbedFn(config.embedding);
     } catch (error) {
@@ -92,6 +94,7 @@ export class ContextEngine {
     }
 
     try {
+      const isLite = (this.config.mode ?? "full") === "lite";
       this.extractor = new Extractor(config, llm);
       this.recaller = new Recaller(this.storage, config);
       if (embed) {
@@ -107,6 +110,7 @@ export class ContextEngine {
     this.createdAt = Date.now();
 
     try {
+      const isLite = (this.config.mode ?? "full") === "lite";
       this.workingMemory = createWorkingMemory();
     } catch (error) {
       logger.error("context", "Failed to initialize working memory:", error);
@@ -132,6 +136,7 @@ export class ContextEngine {
     workingMemory: WorkingMemoryState;
   }> {
     try {
+      const isLite = (this.config.mode ?? "full") === "lite";
       const existingNodes = this.storage.findAllActive();
       const existingNames = existingNodes.map(n => n.name);
 
@@ -146,6 +151,7 @@ export class ContextEngine {
       let hookNames = existingNames;
       for (const hook of this.hooks.beforeExtract) {
         try {
+      const isLite = (this.config.mode ?? "full") === "lite";
           const result = await hook({ messages: hookMessages as any, existingNames: hookNames });
           if (result) { hookMessages = result.messages as any; hookNames = result.existingNames; }
         } catch (err) { logger.warn("context", `beforeExtract hook failed: ${err}`); }
@@ -167,6 +173,7 @@ export class ContextEngine {
       const upsertedNodes: BmNode[] = [];
       for (const nodeData of extractionResult.nodes) {
         try {
+      const isLite = (this.config.mode ?? "full") === "lite";
           let source: "user" | "assistant" = "user";
           if (assistantMessages.length > 0 && userMessages.length === 0) {
             source = "assistant";
@@ -197,6 +204,7 @@ export class ContextEngine {
 
       if (upsertedNodes.length > 0) {
         try {
+      const isLite = (this.config.mode ?? "full") === "lite";
           await this.recaller.batchSyncEmbed(upsertedNodes);
         } catch (embedError) {
           logger.warn("context", "Batch embedding failed:", embedError);
@@ -206,6 +214,7 @@ export class ContextEngine {
       const upsertedEdges: BmEdge[] = [];
       for (const edgeData of extractionResult.edges) {
         try {
+      const isLite = (this.config.mode ?? "full") === "lite";
           const fromNode = existingNodes.find(n => n.name === edgeData.from) ||
                           upsertedNodes.find(n => n.name === edgeData.from);
           const toNode = existingNodes.find(n => n.name === edgeData.to) ||
@@ -232,8 +241,9 @@ export class ContextEngine {
 
       // Turn reflection (LLM-dependent)
       let reflections: ReflectionInsight[] = [];
-      if (this.llmEnabled && this.config.reflection.enabled && this.config.reflection.turnReflection) {
+      if (!isLite && this.llmEnabled && this.config.reflection.enabled && this.config.reflection.turnReflection) {
         try {
+      const isLite = (this.config.mode ?? "full") === "lite";
           const turnReflections = await reflectOnTurn(
             this.config.reflection,
             createCompleteFn(this.config.llm)!,
@@ -256,6 +266,7 @@ export class ContextEngine {
 
       // Update working memory
       try {
+      const isLite = (this.config.mode ?? "full") === "lite";
         const userMsg = params.messages.filter(m => m.role === "user");
         const assistantMsg = params.messages.filter(m => m.role === "assistant");
         this.workingMemory = updateWorkingMemory(
@@ -299,10 +310,12 @@ export class ContextEngine {
   /** 召回与查询相关的记忆节点和边。 */
   async recall(query: string, sessionId?: string, agentId?: string, workspaceId?: string): Promise<RecallResult> {
     try {
+      const isLite = (this.config.mode ?? "full") === "lite";
       // v1.2.0 F-7: Before-recall hook
       let hookQuery = query;
       for (const hook of this.hooks.beforeRecall) {
         try {
+      const isLite = (this.config.mode ?? "full") === "lite";
           const result = await hook({ query: hookQuery, scopeFilter: undefined });
           if (result) hookQuery = result.query;
         } catch (err) { logger.warn("context", `beforeRecall hook failed: ${err}`); }
@@ -343,8 +356,9 @@ export class ContextEngine {
 
   /** 执行知识融合，合并重复节点或链接相关节点。 */
   async performFusion(sessionId: string = "fusion"): Promise<FusionResult> {
-    if (!this.config.fusion.enabled) return { candidates: [], merged: 0, linked: 0, durationMs: 0 };
+    if ((this.config.mode ?? "full") === "lite" || !this.config.fusion.enabled) return { candidates: [], merged: 0, linked: 0, durationMs: 0 };
     try {
+      const isLite = (this.config.mode ?? "full") === "lite";
       // v1.2.0 F-7: Before-fusion hook
       for (const hook of this.hooks.beforeFusion) {
         try { await hook([]); } catch (err) { logger.warn("context", `beforeFusion hook failed: ${err}`); }
@@ -365,9 +379,10 @@ export class ContextEngine {
   }
 
   async reflectOnSession(sessionId: string, messages: Array<{ role?: string; content: string }>): Promise<ReflectionInsight[]> {
-    if (!this.config.reflection.enabled || !this.config.reflection.sessionReflection) return [];
+    if ((this.config.mode ?? "full") === "lite" || !this.config.reflection.enabled || !this.config.reflection.sessionReflection) return [];
     if (!this.llmEnabled) { logger.warn("context", "Session reflection skipped — LLM not configured"); return []; }
     try {
+      const isLite = (this.config.mode ?? "full") === "lite";
       const sessionNodes = this.storage.findAllActive().filter(n => n.sourceSessions.includes(sessionId));
       return await reflectOnSession(this.config.reflection, createCompleteFn(this.config.llm)!, {
         sessionMessages: messages.map(m => m.content).join("\n"),
@@ -380,9 +395,10 @@ export class ContextEngine {
   }
 
   async performReasoning(query?: string): Promise<any[]> {
-    if (!this.config.reasoning.enabled) return [];
+    if ((this.config.mode ?? "full") === "lite" || !this.config.reasoning.enabled) return [];
     if (!this.llmEnabled) { logger.warn("context", "Reasoning skipped — LLM not configured"); return []; }
     try {
+      const isLite = (this.config.mode ?? "full") === "lite";
       const nodes = this.storage.findAllActive();
       const edges = this.storage.findAllEdges();
       const reasoningResult = await runReasoning(createCompleteFn(this.config.llm)!, nodes, edges, query || "", this.config);
@@ -397,6 +413,7 @@ export class ContextEngine {
   /** 运行图维护任务（去重 → PageRank → 社区检测 → 衰减归档）。v1.1.0 F-4：智能触发增量/全量路径。 */
   async runMaintenance(): Promise<void> {
     try {
+      const isLite = (this.config.mode ?? "full") === "lite";
       await runMaintenance(this.storage, this.config);
       this.storage.clearDirty();
     } catch (error) {
@@ -456,6 +473,7 @@ export class ContextEngine {
     let dbStatus: HealthComponentStatus = "ok";
     let dbDetail: string | undefined;
     try {
+      const isLite = (this.config.mode ?? "full") === "lite";
       if (!this.storage.isConnected()) { dbStatus = "error"; dbDetail = "Storage not connected"; }
     } catch (error) { dbStatus = "error"; dbDetail = (error as Error).message; }
     let llmStatus: HealthLlmStatus = this.llmEnabled ? "ok" : "not_configured";
