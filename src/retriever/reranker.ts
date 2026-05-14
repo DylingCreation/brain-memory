@@ -9,8 +9,10 @@ import type { BmConfig, BmNode } from "../types";
 import type { EmbedFn } from "../engine/embed";
 import { cosineSimilarity } from "../utils/similarity";
 
+/** 重排序服务提供商。 */
 export type RerankProvider = "jina" | "siliconflow" | "voyage" | "dashscope" | "tei" | "pinecone";
 
+/** 重排序器配置：包含 API 密钥、模型、端点等。 */
 export interface RerankerConfig {
   enabled: boolean;
   apiKey?: string;
@@ -21,12 +23,15 @@ export interface RerankerConfig {
   timeoutMs?: number;
 }
 
+/** 重排序结果：包含排序后的节点列表和使用的服务信息。 */
 export interface RerankResult {
   nodes: BmNode[];
   rerankScores: Map<string, number>;
   apiUsed: boolean;
 }
 
+/** 重排序器：对召回结果使用余弦相似度或外部 API 重新排序。 */
+/** 重排序器：支持 API 重排序和余弦相似度回退。 */
 export class Reranker {
   private config: RerankerConfig;
 

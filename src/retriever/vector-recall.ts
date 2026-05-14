@@ -26,6 +26,7 @@ function toStorageFilter(filter?: ScopeFilter): StorageFilter | undefined {
   };
 }
 
+/** 纯向量召回结果：包含节点列表和诊断信息。 */
 export interface VectorRecallResult {
   nodes: BmNode[];
   edges: BmEdge[];
@@ -47,6 +48,7 @@ interface ScoredNode {
   fusedScore: number;
 }
 
+/** 纯向量召回引擎：向量搜索 + FTS5 搜索 + RRF 融合。不依赖图结构。 */
 export class VectorRecaller {
   private embed: EmbedFn | null = null;
 

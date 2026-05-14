@@ -11,6 +11,7 @@
 import type { BmConfig } from "../types";
 import type { IStorageAdapter } from "../store/adapter";
 
+/** 去重结果：包含重复节点对和合并数量。 */
 export interface DedupResult {
   pairs: Array<{ nodeA: string; nodeB: string; nameA: string; nameB: string; similarity: number }>;
   merged: number;
@@ -52,6 +53,7 @@ function buildLshBuckets(
   return buckets;
 }
 
+/** 检测重复节点对（LSH + 余弦相似度）。 */
 export function detectDuplicates(storage: IStorageAdapter, cfg: BmConfig): DedupResult["pairs"] {
   const vectors = storage.loadAllVectors();
   if (vectors.length < 2) return [];
@@ -90,6 +92,7 @@ export function detectDuplicates(storage: IStorageAdapter, cfg: BmConfig): Dedup
   return pairs.sort((a, b) => b.similarity - a.similarity);
 }
 
+/** 执行去重：检测并合并语义重复的节点。 */
 export function dedup(storage: IStorageAdapter, cfg: BmConfig): DedupResult {
   const pairs = detectDuplicates(storage, cfg);
   let merged = 0;

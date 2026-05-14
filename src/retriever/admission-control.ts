@@ -12,6 +12,7 @@ import type { IStorageAdapter } from "../store/adapter";
 import type { EmbedFn } from "../engine/embed";
 import { tokenize, jaccardSimilarity } from "../utils/text";
 
+/** 准入控制配置：控制低质量或重复内容的过滤阈值。 */
 export interface AdmissionConfig {
   enabled: boolean;
   duplicateThreshold: number;
@@ -19,6 +20,7 @@ export interface AdmissionConfig {
   typePriors: Record<string, number>;
 }
 
+/** 默认准入控制配置：禁用状态，阈值 0.85。 */
 export const DEFAULT_ADMISSION_CONFIG: AdmissionConfig = {
   enabled: false,
   duplicateThreshold: 0.85,
@@ -29,12 +31,14 @@ export const DEFAULT_ADMISSION_CONFIG: AdmissionConfig = {
   },
 };
 
+/** 准入评估结果：包含决策（accept/reject）、原因和相似度。 */
 export interface AdmissionResult {
   decision: "accept" | "reject";
   reason: string;
   similarityToExisting: number;
 }
 
+/** 准入控制器：评估候选记忆是否应写入，拒绝低质量或重复内容。 */
 export class AdmissionController {
   constructor(
     private storage: IStorageAdapter,

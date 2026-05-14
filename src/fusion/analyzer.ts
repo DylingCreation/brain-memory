@@ -56,6 +56,7 @@ export interface FusionResult {
 
 // ─── Threshold Check ──────────────────────────────────────────
 
+/** 判断是否应执行知识融合（节点数和社区数达到阈值）。 */
 export function shouldRunFusion(storage: IStorageAdapter, cfg: BmConfig): boolean {
   const stats = storage.getStats();
   const minNodes = cfg.fusion?.minNodes ?? 20;
@@ -65,6 +66,7 @@ export function shouldRunFusion(storage: IStorageAdapter, cfg: BmConfig): boolea
 
 // ─── Candidate Discovery ──────────────────────────────────────
 
+/** 查找候选融合节点对：名标 Jaccard 相似度 + 向量余弦相似度。 */
 export function findFusionCandidates(
   storage: IStorageAdapter,
   cfg: BmConfig,
@@ -117,6 +119,7 @@ export function findFusionCandidates(
 
 // ─── LLM Decision ─────────────────────────────────────────────
 
+/** 使用 LLM 决策融合策略：对每一对候选节点决定 merge/link/none。 */
 export async function decideFusion(
   llm: CompleteFn,
   candidates: FusionCandidate[],
@@ -145,6 +148,7 @@ export async function decideFusion(
 
 // ─── Execute Fusion ───────────────────────────────────────────
 
+/** 执行融合操作：合并节点或链接跨社区节点。 */
 export function executeFusion(
   storage: IStorageAdapter,
   candidates: FusionCandidate[],
@@ -184,6 +188,7 @@ export function executeFusion(
 
 // ─── Full Fusion Pipeline ─────────────────────────────────────
 
+/** 完整的知识融合流程：阈值检查 → 候选发现 → LLM 决策 → 执行。 */
 export async function runFusion(
   storage: IStorageAdapter,
   cfg: BmConfig,
@@ -221,6 +226,7 @@ export async function runFusion(
 
 // ─── Helpers ──────────────────────────────────────────────────
 
+/** 计算两个节点名称的相似度（Jaccard + 精确匹配）。 */
 export function computeNameSimilarity(a: string, b: string): number {
   const tokensA = tokenize(a);
   const tokensB = tokenize(b);
@@ -232,6 +238,7 @@ export function computeNameSimilarity(a: string, b: string): number {
 export { tokenize, jaccardSimilarity } from "../utils/text";
 export { cosineSimilarityF32 as cosineSimilarity } from "../utils/similarity";
 
+/** 解析 LLM 融合决策输出（提取 JSON 中的 decision 和 reason）。 */
 export function parseFusionDecision(raw: string): { decision: "merge" | "link" | "none"; reason: string } {
   try {
     let s = raw.trim();

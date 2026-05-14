@@ -2,6 +2,7 @@
  * brain-memory — Knowledge Fusion prompts
  */
 
+/** 融合决策的系统 prompt 模板。 */
 export const FUSION_DECIDE_SYS = `你是一个知识融合引擎，判断两个节点是否应该融合或关联。
 
 ## 判断标准

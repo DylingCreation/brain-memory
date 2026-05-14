@@ -46,6 +46,7 @@ interface RecallPathResult {
   edges: BmEdge[];
 }
 
+/** 双路径召回引擎：精确路径（向量/FTS5） + 泛化路径（社区向量匹配），统一 PPR 排序。 */
 export class Recaller {
   private embed: EmbedFn | null = null;
   private batchEmbed: BatchEmbedFn | null = null;

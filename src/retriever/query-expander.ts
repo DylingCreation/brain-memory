@@ -35,6 +35,7 @@ function buildWordBoundaryRegex(term: string): RegExp {
   return new RegExp(`\\b${escaped}\\b`, "i");
 }
 
+/** 查询扩展：将短查询扩展为更丰富的搜索词。 */
 export function expandQuery(query: string): string {
   if (!query || query.trim().length < 2) return query;
 

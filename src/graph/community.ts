@@ -15,12 +15,14 @@ import type { CompleteFn } from "../engine/llm";
 import type { EmbedFn } from "../engine/embed";
 import { logger } from "../utils/logger";
 
+/** 社区检测结果：包含标签、社区分组和社区数。 */
 export interface CommunityResult {
   labels: Map<string, string>;
   communities: Map<string, string[]>;
   count: number;
 }
 
+/** Label Propagation 社区检测：迭代传播标签直到收敛。 */
 export function detectCommunities(storage: IStorageAdapter, maxIter = 50): CommunityResult {
   const nodes = storage.findAllActive();
   if (nodes.length === 0) return { labels: new Map(), communities: new Map(), count: 0 };
@@ -99,6 +101,7 @@ export function detectCommunities(storage: IStorageAdapter, maxIter = 50): Commu
 
 // ─── Incremental Community Detection (v1.1.0 F-3) ─────────────
 
+/** 增量社区检测结果：包含变更数、是否跳过等信息。 */
 export interface IncrementalCommunityResult {
   labels: Map<string, string>;
   communities: Map<string, string[]>;
@@ -118,6 +121,7 @@ export interface IncrementalCommunityResult {
  *
  * Returns skipped=true if dirty ratio > threshold.
  */
+/** 增量社区检测（v1.1.0 F-3）：冻结非脏节点标签，仅在脏节点上迭代。 */
 export function runIncrementalCommunities(
   storage: IStorageAdapter,
   maxIter = 50,
@@ -246,16 +250,19 @@ export function runIncrementalCommunities(
   return { labels: renamedLabels, communities: renamedCommunities, count: renamedCommunities.size, changedCount, skipped: false };
 }
 
+/** 获取同一社区的其他节点。 */
 export function getCommunityPeers(storage: IStorageAdapter, nodeId: string, limit = 5): string[] {
   return storage.findCommunityPeers(nodeId, limit);
 }
 
+/** 获取每个社区的代表节点（按 validated_count 排序）。 */
 export function communityRepresentatives(storage: IStorageAdapter, perCommunity = 2): any[] {
   return storage.findCommunityRepresentatives(perCommunity);
 }
 
 const COMMUNITY_SUMMARY_SYS = `你是知识图谱摘要引擎。根据节点列表，用简短描述概括这组节点的主题领域。只返回短语，不要解释。不要使用"社区"这个词。`;
 
+/** 使用 LLM 为社区生成摘要，可选生成嵌入向量。 */
 export async function summarizeCommunities(
   storage: IStorageAdapter,
   communities: Map<string, string[]>,

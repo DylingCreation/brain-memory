@@ -41,12 +41,15 @@ function loadGraph(storage: IStorageAdapter): GraphStructure {
   return _cached;
 }
 
+/** 清除缓存的图结构，强制下次重新加载。 */
 export function invalidateGraphCache(): void { _cached = null; }
 
+/** 个性化 PageRank 结果。 */
 export interface PPRResult {
   scores: Map<string, number>;
 }
 
+/** 个性化 PageRank：以种子节点为偏置，计算候选节点的相对重要性。 */
 export function personalizedPageRank(
   storage: IStorageAdapter, seedIds: string[], candidateIds: string[], cfg: BmConfig,
 ): PPRResult {
@@ -93,11 +96,13 @@ export function personalizedPageRank(
   return { scores: result };
 }
 
+/** 全局 PageRank 结果：包含完整分数和 Top-K 节点。 */
 export interface GlobalPageRankResult {
   scores: Map<string, number>;
   topK: Array<{ id: string; name: string; score: number }>;
 }
 
+/** 全局 PageRank：对所有活跃节点计算 PageRank 分数并写入存储。 */
 export function computeGlobalPageRank(storage: IStorageAdapter, cfg: BmConfig): GlobalPageRankResult {
   // Clear cache first to avoid stale graph data (ISSUE 8.1)
   invalidateGraphCache();
@@ -144,6 +149,7 @@ export function computeGlobalPageRank(storage: IStorageAdapter, cfg: BmConfig): 
 
 // ─── Incremental PageRank (v1.1.0 F-3) ───────────────────────
 
+/** 增量 PageRank 结果：包含脏节点数、子图大小和是否跳过。 */
 export interface IncrementalPRResult {
   scores: Map<string, number>;
   dirtyCount: number;
@@ -163,6 +169,7 @@ export interface IncrementalPRResult {
  *
  * Returns skipped=true if dirty ratio > threshold (caller should run full PR).
  */
+/** 增量 PageRank（v1.1.0 F-3）：仅在脏节点子图上重算，边界保持原值。 */
 export function runIncrementalPageRank(
   storage: IStorageAdapter,
   cfg: BmConfig,

@@ -14,6 +14,7 @@ import type { IStorageAdapter } from "../store/adapter";
 import { Recaller } from "../recaller/recall";
 import { VectorRecaller } from "./vector-recall";
 
+/** 混合召回结果：包含图召回和向量召回的融合结果及诊断信息。 */
 export interface HybridRecallResult {
   nodes: BmNode[];
   edges: BmEdge[];
@@ -33,6 +34,7 @@ interface ScoredItem {
   fusedScore: number;
 }
 
+/** 混合召回引擎：融合图召回（PPR + 社区）和向量召回（RRF）。 */
 export class HybridRecaller {
   private graphRecaller: Recaller;
   private vectorRecaller: VectorRecaller;

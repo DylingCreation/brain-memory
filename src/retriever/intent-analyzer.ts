@@ -5,6 +5,7 @@
  * Rule-based: fast, no LLM needed.
  */
 
+/** 查询意图类型。 */
 export type IntentType =
   | "technical"    // how-to, error, skill — prefer SKILL/EVENT nodes
   | "preference"   // user likes/dislikes — prefer preferences/profile
@@ -38,11 +39,13 @@ const INTENT_RULES: IntentRule[] = [
   { pattern: /(任务|task|进度|status|进展)/i, intent: "task", weight: 1.0 },
 ];
 
+/** 意图分析结果：包含识别出的意图和分类分数。 */
 export interface IntentResult {
   intent: IntentType;
   scores: Record<IntentType, number>;
 }
 
+/** 分析查询意图：识别问题类型（how-to/debug/explain/compare）。 */
 export function analyzeIntent(query: string): IntentResult {
   const scores: Record<IntentType, number> = {
     technical: 0,
