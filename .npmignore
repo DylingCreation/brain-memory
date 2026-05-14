@@ -86,3 +86,7 @@ llm-cost-analysis.md
 # config.template.js and .env.example intentionally NOT ignored — users need reference templates
 # openclaw.plugin.json intentionally NOT ignored — OpenClaw runtime needs plugin manifest
 # tsconfig.json and core-only.tsconfig.json NOT ignored — consumers need for type inference
+
+# ─── Generated API docs (heavy) ─────────────────────────
+docs/api/
+scripts/**
