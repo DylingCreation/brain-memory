@@ -144,6 +144,13 @@ async function configureProject() {
   const embedBaseURL = await ask('Embedding Base URL', provider.embedBaseURL);
   const embedModel = await ask('Embedding Model', provider.embedModel);
 
+  console.log(`\n${C.dim}  ── 运行模式 ──${C.reset}\n`);
+  console.log(`  ${C.gray}  full = 全部功能（LLM 提取 + 反思 + 融合）${C.reset}`);
+  console.log(`  ${C.gray}  lite = 轻量模式（仅启发式提取 + 向量召回，跳过 LLM 调用）${C.reset}`);
+  console.log(`  ${C.gray}  适合本地小模型（如 qwen3.5:9b）的用户${C.reset}\n`);
+  const modeChoice = await ask('选择运行模式 (full/lite)', 'full');
+  const runMode = modeChoice.toLowerCase().startsWith('l') ? 'lite' : 'full';
+
   console.log(`\n${C.green}${S.done}${C.reset}  参数收集完毕\n`);
 
   // Step 3: Review & confirm
@@ -158,6 +165,9 @@ async function configureProject() {
   console.log(`${C.gray}  │${C.reset}    Key:     ${embedKey ? maskKey(embedKey) : C.dim + '(同 LLM 或 未配置)' + C.reset}`);
   console.log(`${C.gray}  │${C.reset}    Base:    ${embedBaseURL || C.dim + '(未配置)' + C.reset}`);
   console.log(`${C.gray}  │${C.reset}    Model:   ${embedModel || C.dim + '(未配置)' + C.reset}`);
+  console.log(`${C.gray}  │${C.reset}`);
+  console.log(`${C.gray}  │${C.reset}  运行模式`);
+  console.log(`${C.gray}  │${C.reset}    Mode:    ${runMode === 'lite' ? C.yellow + 'lite (轻量)' + C.reset : C.green + 'full (全部)' + C.reset}`);
   console.log(`${C.gray}  └─────────────────────────────────────────${C.reset}`);
   console.log('');
 
@@ -171,11 +181,11 @@ async function configureProject() {
   // ─── Generate files ─────────────────────────────────────────
 
   // config.js
-  const configJs = generateConfigJs(llmKey, baseURL, model, embedKey, embedBaseURL, embedModel);
+  const configJs = generateConfigJs(llmKey, baseURL, model, embedKey, embedBaseURL, embedModel, runMode);
   fs.writeFileSync('config.js', configJs);
 
   // .env
-  const envContent = generateEnv(llmKey, baseURL, model, embedKey, embedBaseURL, embedModel);
+  const envContent = generateEnv(llmKey, baseURL, model, embedKey, embedBaseURL, embedModel, runMode);
   fs.writeFileSync('.env', envContent);
 
   // ─── Summary ────────────────────────────────────────────────
@@ -196,7 +206,7 @@ async function configureProject() {
 
 // ─── Templates ──────────────────────────────────────────────────
 
-function generateConfigJs(llmKey, baseURL, model, embedKey, embedBaseURL, embedModel) {
+function generateConfigJs(llmKey, baseURL, model, embedKey, embedBaseURL, embedModel, runMode = 'full') {
   const llmBlock = llmKey || baseURL
     ? `export const LLM_CONFIG = {
   baseURL: '${baseURL}',
@@ -228,13 +238,14 @@ function generateConfigJs(llmKey, baseURL, model, embedKey, embedBaseURL, embedM
  * 此文件包含敏感信息，已被 .gitignore 排除，请勿提交到版本控制。
  */
 
+export const CONFIG = {
+  mode: '${runMode}',
 ${llmBlock}
-
 ${embedBlock}
-`;
+};`;
 }
 
-function generateEnv(llmKey, baseURL, model, embedKey, embedBaseURL, embedModel) {
+function generateEnv(llmKey, baseURL, model, embedKey, embedBaseURL, embedModel, runMode = 'full') {
   return `# brain-memory 环境变量
 # 由交互式配置向导自动生成 — ${new Date().toISOString().slice(0, 10)}
 
@@ -245,6 +256,8 @@ LLM_MODEL=${model}
 EMBEDDING_API_KEY=${embedKey}
 EMBEDDING_BASE_URL=${embedBaseURL}
 EMBEDDING_MODEL=${embedModel}
+
+BM_MODE=${runMode}
 `;
 }
 

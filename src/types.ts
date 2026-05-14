@@ -339,6 +339,9 @@ export type EngineMode = "graph" | "vector" | "hybrid";
 /** 存储后端类型：sqlite=SQLite 轻量级(默认), lancedb=LanceDB 向量数据库。 */
 export type StorageBackend = "sqlite" | "lancedb";
 
+/** 运行模式：full=全部功能(默认), lite=跳过 LLM reflection/fusion。适合本地小模型用户。 */
+export type RunMode = "full" | "lite";
+
 /** 重排序配置。控制召回后是否使用外部 API 对结果重新排序。 */
 export interface RerankConfig {
   enabled: boolean;
@@ -373,6 +376,8 @@ export interface ReflectionConfig {
 export interface BmConfig {
   /** 引擎模式：graph=知识图谱(默认), vector=向量检索, hybrid=双引擎 */
   engine: EngineMode;
+  /** 运行模式：full=全部功能(默认), lite=跳过 LLM reflection/fusion */
+  mode?: RunMode;
   /** 存储后端：sqlite=轻量(默认), lancedb=向量库 */
   storage: StorageBackend;
   dbPath: string;
@@ -409,6 +414,7 @@ export interface BmConfig {
 /** brain-memory 默认配置实例。开箱即用，适用于大多数场景。*/
 export const DEFAULT_CONFIG: BmConfig = {
   engine: "graph",
+  mode: "full",
   storage: "sqlite",
   dbPath: "~/.openclaw/brain-memory.db",
   compactTurnCount: 6,

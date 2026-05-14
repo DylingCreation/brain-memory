@@ -88,9 +88,10 @@ function generateBrainMemoryConfig(preset, apiKey, overrides) {
   const llmModel = overrides?.llmModel || preset.llmModel || "gpt-4o-mini";
   const embedModel = overrides?.embedModel || preset.embedModel || "text-embedding-3-small";
   const embedDims = overrides?.embedDims || preset.embedDims || 512;
+  const mode = overrides?.mode || "full";
 
   return {
-    engine: "graph",
+    mode,
     storage: "sqlite",
     llm: {
       apiKey: apiKey,
@@ -247,6 +248,11 @@ async function main() {
   if (customBaseURL) overrides.baseURL = customBaseURL;
   if (customLlmModel) overrides.llmModel = customLlmModel;
   if (customEmbedModel) overrides.embedModel = customEmbedModel;
+
+  // v1.5.0: Lite mode option
+  console.log("\n💡 运行模式：full=全部功能, lite=轻量(跳过LLM反思/融合,适合本地小模型)");
+  const modeChoice = await ask("选择运行模式 (full/lite)", "full");
+  if (modeChoice.toLowerCase().startsWith("l")) overrides.mode = "lite";
 
   const pluginConfig = generateBrainMemoryConfig(preset, apiKey, overrides);
 

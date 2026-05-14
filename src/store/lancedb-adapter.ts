@@ -177,11 +177,11 @@ export class LanceDBStorageAdapter implements IStorageAdapter {
 
   vectorSearch(queryVec: number[], limit: number, minScore = 0): ScoredNode[] {
     // POC: cosine similarity on cached nodes
-    const active = this.findAllActive().filter(n => n._vector);
+    const active = this.findAllActive().filter(n => (n as any)._vector);
     const results: ScoredNode[] = [];
     for (const node of active) {
-      if (!node._vector) continue;
-      const sim = this._cosineSim(queryVec, node._vector);
+      if (!(node as any)._vector) continue;
+      const sim = this._cosineSim(queryVec, (node as any)._vector);
       if (sim >= minScore) results.push({ node, score: sim });
     }
     return results.sort((a, b) => b.score - a.score).slice(0, limit);
