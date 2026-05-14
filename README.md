@@ -260,7 +260,9 @@ npm run configure
 npm run setup-openclaw
 ```
 
-> **Important:** The interactive config scripts only set up **core API credentials** (LLM endpoint, API key, model name, embedding settings). They do **not** configure advanced brain-memory features such as decay parameters, reflection settings, fusion thresholds, or working memory limits. Those must be configured manually in your OpenClaw config file or programmatically via `BmConfig`.
+> **Important:** The interactive config scripts only set up **core API credentials** (LLM endpoint, API key, model name, embedding settings) and **run mode** (full/lite). They do **not** configure advanced brain-memory features such as decay parameters, reflection settings, fusion thresholds, or working memory limits. Those must be configured manually in your OpenClaw config file or programmatically via `BmConfig`.
+
+> **Lite mode** (`mode: "lite"`): Skips LLM reflection and knowledge fusion. Keeps heuristic extraction + vector recall + working memory. Recommended for local models (e.g. qwen3.5:9b via Ollama) to reduce latency.
 
 ### 🩺 CLI Diagnostic Tool (new in v0.2.0)
 
