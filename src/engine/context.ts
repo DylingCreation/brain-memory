@@ -39,6 +39,7 @@ import { detectCommunities } from "../graph/community";
 import { computeGlobalPageRank } from "../graph/pagerank";
 import { runReasoning } from "../reasoning/engine";
 import { runMaintenance } from "../graph/maintenance";
+import { createHookRegistry, type HookRegistry, type BeforeExtractHook, type AfterExtractHook, type BeforeRecallHook, type AfterRecallHook, type BeforeFusionHook, type AfterFusionHook } from "../plugin/hooks";
 
 export class ContextEngine {
   private storage: IStorageAdapter;
@@ -49,6 +50,8 @@ export class ContextEngine {
   private llmEnabled: boolean;
   private embedEnabled: boolean;
   private readonly createdAt: number;
+  /** v1.2.0 F-7: Developer hook registry */
+  readonly hooks: HookRegistry = createHookRegistry();
 
   constructor(config: BmConfig) {
     this.config = config;
@@ -127,10 +130,25 @@ export class ContextEngine {
         ...(msg.turn_index !== undefined ? { turn_index: msg.turn_index } : {})
       }));
 
+      // v1.2.0 F-7: Before-extract hook
+      let hookMessages = normalizedMessages;
+      let hookNames = existingNames;
+      for (const hook of this.hooks.beforeExtract) {
+        try {
+          const result = await hook({ messages: hookMessages as any, existingNames: hookNames });
+          if (result) { hookMessages = result.messages as any; hookNames = result.existingNames; }
+        } catch (err) { logger.warn("context", `beforeExtract hook failed: ${err}`); }
+      }
+
       const extractionResult = await this.extractor.extract({
-        messages: normalizedMessages,
-        existingNames: existingNames,
+        messages: hookMessages,
+        existingNames: hookNames,
       });
+
+      // v1.2.0 F-7: After-extract hook
+      for (const hook of this.hooks.afterExtract) {
+        try { await hook(extractionResult); } catch (err) { logger.warn("context", `afterExtract hook failed: ${err}`); }
+      }
 
       const userMessages = normalizedMessages.filter(m => m.role === 'user');
       const assistantMessages = normalizedMessages.filter(m => m.role === 'assistant');
@@ -269,6 +287,15 @@ export class ContextEngine {
 
   async recall(query: string, sessionId?: string, agentId?: string, workspaceId?: string): Promise<RecallResult> {
     try {
+      // v1.2.0 F-7: Before-recall hook
+      let hookQuery = query;
+      for (const hook of this.hooks.beforeRecall) {
+        try {
+          const result = await hook({ query: hookQuery, scopeFilter: undefined });
+          if (result) hookQuery = result.query;
+        } catch (err) { logger.warn("context", `beforeRecall hook failed: ${err}`); }
+      }
+
       const excludeScopes: any[] = [];
       const includeScopes: any[] = [];
       if (agentId || workspaceId) {
@@ -285,10 +312,16 @@ export class ContextEngine {
         currentAgentId: agentId,
         allowedAgents: sharingCfg.allowedAgents,
       };
-      let result = await this.recaller.recall(query, scopeFilter);
+      let result = await this.recaller.recall(hookQuery, scopeFilter);
       if (result.nodes.length === 0 && includeScopes.length === 0) {
-        result = await this.recaller.recall(query, { excludeScopes: [], includeScopes: [], allowCrossScope: true } as any);
+        result = await this.recaller.recall(hookQuery, { excludeScopes: [], includeScopes: [], allowCrossScope: true } as any);
       }
+
+      // v1.2.0 F-7: After-recall hook
+      for (const hook of this.hooks.afterRecall) {
+        try { await hook(result); } catch (err) { logger.warn("context", `afterRecall hook failed: ${err}`); }
+      }
+
       return result;
     } catch (error) {
       logger.error("context", "Failed to recall information:", error);
@@ -299,7 +332,19 @@ export class ContextEngine {
   async performFusion(sessionId: string = "fusion"): Promise<FusionResult> {
     if (!this.config.fusion.enabled) return { candidates: [], merged: 0, linked: 0, durationMs: 0 };
     try {
-      return await runFusion(this.storage, this.config, this.llmEnabled ? createCompleteFn(this.config.llm) : null, createEmbedFn(this.config.embedding), sessionId);
+      // v1.2.0 F-7: Before-fusion hook
+      for (const hook of this.hooks.beforeFusion) {
+        try { await hook([]); } catch (err) { logger.warn("context", `beforeFusion hook failed: ${err}`); }
+      }
+
+      const result = await runFusion(this.storage, this.config, this.llmEnabled ? createCompleteFn(this.config.llm) : null, createEmbedFn(this.config.embedding), sessionId);
+
+      // v1.2.0 F-7: After-fusion hook
+      for (const hook of this.hooks.afterFusion) {
+        try { await hook({ merged: result.merged, linked: result.linked }); } catch (err) { logger.warn("context", `afterFusion hook failed: ${err}`); }
+      }
+
+      return result;
     } catch (error) {
       logger.error("context", "Failed to perform fusion:", error);
       throw new Error(`Fusion failed: ${(error as Error).message}`);

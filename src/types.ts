@@ -147,6 +147,7 @@ export interface WorkingMemoryConfig {
   maxConstraints: number;
 }
 
+/** 工作记忆运行时状态。追踪当前任务、决策、约束和关注点。 */
 export interface WorkingMemoryState {
   /** 当前任务目标（从最近提取的 TASK 节点推断） */
   currentTasks: string[];
@@ -222,9 +223,13 @@ export interface MemorySharingConfig {
 
 // ─── 反思系统类型 ─────────────────────────────────────────────
 
+/** 反思洞察的来源类型：invariant=稳定规则(跨会话持续), derived=临时观察(会话级)。 */
 export type ReflectionKind = "invariant" | "derived";
+
+/** 反思洞察的内容类型：user-model=用户画像, agent-model=Agent 能力, lesson=经验教训, decision=决策记录。 */
 export type ReflectionInsightType = "user-model" | "agent-model" | "lesson" | "decision";
 
+/** 单个反思洞察。由 LLM 在 session_end 时生成，用于提炼跨会话的长期记忆。 */
 export interface ReflectionInsight {
   /** 洞察文本 */
   text: string;
@@ -236,6 +241,7 @@ export interface ReflectionInsight {
   confidence: number;
 }
 
+/** 反思系统输出。包含 LLM 生成的洞察列表和原始输出（用于调试）。 */
 export interface ReflectionResult {
   insights: ReflectionInsight[];
   /** 原始 LLM 输出（用于调试） */
@@ -244,6 +250,7 @@ export interface ReflectionResult {
 
 // ─── 提取结果 ─────────────────────────────────────────────────
 
+/** 单轮对话提取结果。包含从用户/AI 对话中提取的节点和边。 */
 export interface ExtractionResult {
   nodes: Array<{
     type: GraphNodeType;
@@ -262,6 +269,7 @@ export interface ExtractionResult {
   }>;
 }
 
+/** 会话结束后的最终处理结果。包含晋升的技能、新建的边和失效的缓存。 */
 export interface FinalizeResult {
   promotedSkills: Array<{
     type: "SKILL";
@@ -280,6 +288,7 @@ export interface FinalizeResult {
 
 // ─── 召回结果 ─────────────────────────────────────────────────
 
+/** 记忆召回结果。包含召回的节点列表、连接它们的边和预估的 token 数量。 */
 export interface RecallResult {
   nodes: BmNode[];
   edges: BmEdge[];
@@ -288,6 +297,7 @@ export interface RecallResult {
 
 // ─── Embedding 配置 ──────────────────────────────────────────
 
+/** Embedding 服务配置。用于向量搜索和去重的文本嵌入。 */
 export interface EmbeddingConfig {
   apiKey?: string;
   baseURL?: string;
@@ -297,6 +307,7 @@ export interface EmbeddingConfig {
 
 // ─── 衰减配置 ─────────────────────────────────────────────────
 
+/** 遗忘衰减配置。控制记忆随时间推移的衰减曲线参数。使用 Weibull 分布模型。 */
 export interface DecayConfig {
   enabled: boolean;
   recencyHalfLifeDays: number;
@@ -314,6 +325,7 @@ export interface DecayConfig {
 
 // ─── 噪声过滤配置 ─────────────────────────────────────────────
 
+/** 噪声过滤配置。控制提取前的消息过滤阈值。 */
 export interface NoiseFilterConfig {
   enabled: boolean;
   minContentLength: number;
@@ -321,9 +333,13 @@ export interface NoiseFilterConfig {
 
 // ─── 插件配置 ─────────────────────────────────────────────────
 
+/** 引擎运行模式：graph=知识图谱(默认), vector=纯向量检索, hybrid=双引擎混合。 */
 export type EngineMode = "graph" | "vector" | "hybrid";
+
+/** 存储后端类型：sqlite=SQLite 轻量级(默认), lancedb=LanceDB 向量数据库。 */
 export type StorageBackend = "sqlite" | "lancedb";
 
+/** 重排序配置。控制召回后是否使用外部 API 对结果重新排序。 */
 export interface RerankConfig {
   enabled: boolean;
   apiKey?: string;
@@ -335,6 +351,7 @@ export interface RerankConfig {
 
 // ─── 反思系统配置 ─────────────────────────────────────────────
 
+/** 反思系统配置。控制轮次/会话反思的开关、安全过滤和洞察生成参数。 */
 export interface ReflectionConfig {
   /** 是否启用反思系统 */
   enabled: boolean;
@@ -352,6 +369,7 @@ export interface ReflectionConfig {
   minConfidence: number;
 }
 
+/** brain-memory 主配置接口。包含引擎模式、存储路径、LLM、衰减、反思、工作记忆等全部配置项。 */
 export interface BmConfig {
   /** 引擎模式：graph=知识图谱(默认), vector=向量检索, hybrid=双引擎 */
   engine: EngineMode;
@@ -388,6 +406,7 @@ export interface BmConfig {
   memorySharing: MemorySharingConfig;
 }
 
+/** brain-memory 默认配置实例。开箱即用，适用于大多数场景。*/
 export const DEFAULT_CONFIG: BmConfig = {
   engine: "graph",
   storage: "sqlite",
