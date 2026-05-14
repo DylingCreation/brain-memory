@@ -35,7 +35,7 @@ export default defineConfig({
     hookTimeout: 15000,
     
     // Parallelization
-    pool: 'threads',
+    pool: 'forks',
     poolOptions: {
       threads: {
         maxThreads: 4,

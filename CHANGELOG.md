@@ -12,7 +12,7 @@ All notable changes to the brain-memory project.
 ## [1.3.0] — 2026-05-14
 
 > **版本主题**：探索 + 收尾  
-> **Commit**: 待提交
+> **Commit**: 5016967
 
 ### Added
 
@@ -33,12 +33,14 @@ All notable changes to the brain-memory project.
 - package.json 版本号 1.0.0 → 1.3.0
 
 ### Tests
-- 全量 623 passed / 58 files
+- 含 LLM：623 passed / 58 files / 14 timeout
+- 不含 LLM：597 passed / 55 files / 18 skipped
+- 覆盖率：71.88%（Statements）
 
 ## [1.2.0] — 2026-05-14
 
 > **版本主题**：开发者体验 + 质量打磨  
-> **Commit**: 685b13e
+> **Commit**: 86c5c50
 
 ### Added
 
