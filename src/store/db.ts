@@ -9,6 +9,7 @@ import { DatabaseSync, type DatabaseSyncInstance } from "@photostructure/sqlite"
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+/** 解析数据库路径（支持 ~ 扩展）。 */
 export function getDbPath(raw?: string): string {
   const p = (raw || "~/.openclaw/brain-memory.db").replace(/^~/, homedir());
   return p;
@@ -125,6 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_session ON bm_messages(session_id, turn_
 
 import { migrate } from "./migrate";
 
+/** 初始化 SQLite 数据库：创建表、索引、FTS5 和触发器，运行迁移。 */
 export function initDb(dbPath: string): DatabaseSyncInstance {
   const db = new DatabaseSync(dbPath);
   db.exec(SCHEMA);

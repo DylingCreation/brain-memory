@@ -18,6 +18,7 @@ import type { MemoryScope } from "../scope/isolation";
 // ─── Input / Output Types ──────────────────────────────────────
 
 /** Node insert/update input */
+/** 节点插入或更新的输入参数。 */
 export interface NodeUpsertInput {
   type: GraphNodeType;
   category: MemoryCategory;
@@ -32,6 +33,7 @@ export interface NodeUpsertInput {
 }
 
 /** Edge insert/update input */
+/** 边插入或更新的输入参数。 */
 export interface EdgeUpsertInput {
   fromId: string;
   toId: string;
@@ -42,6 +44,7 @@ export interface EdgeUpsertInput {
 }
 
 /** Storage-layer query filter (replaces direct ScopeFilter usage in storage) */
+/** 存储层查询过滤器（替代 ScopeFilter 的直接使用）。 */
 export interface StorageFilter {
   includeScopes?: MemoryScope[];
   excludeScopes?: MemoryScope[];
@@ -52,12 +55,14 @@ export interface StorageFilter {
 }
 
 /** Scored node (for vector search results) */
+/** 带相似度分数的节点（向量搜索结果）。 */
 export interface ScoredNode {
   node: BmNode;
   score: number;
 }
 
 /** Scored community (for community vector search) */
+/** 带相似度分数的社区搜索结果。 */
 export interface ScoredCommunityResult {
   id: string;
   summary: string;
@@ -66,6 +71,7 @@ export interface ScoredCommunityResult {
 }
 
 /** Community summary record */
+/** 社区摘要记录。 */
 export interface CommunitySummaryRecord {
   id: string;
   summary: string;
@@ -75,6 +81,7 @@ export interface CommunitySummaryRecord {
 }
 
 /** Message row (for extractor) */
+/** 消息行记录（用于提取器）。 */
 export interface MessageRow {
   id: string;
   sessionId: string;
@@ -86,6 +93,7 @@ export interface MessageRow {
 }
 
 /** Episodic snippet (for recall context) */
+/** 对话片段（用于情景回忆）。 */
 export interface EpisodicSnippet {
   sessionId: string;
   role: string;
@@ -93,6 +101,7 @@ export interface EpisodicSnippet {
 }
 
 /** Storage statistics */
+/** 存储统计信息。包含节点、边、类别分布、社区、向量等完整统计。 */
 export interface StorageStats {
   totalNodes: number;
   activeNodes: number;

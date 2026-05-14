@@ -49,6 +49,7 @@ function toEdge(r: any): BmEdge {
   };
 }
 
+/** 标准化节点名：去空格、去特殊字符、统一小写，用于防重复匹配。 */
 export function normalizeName(name: string): string {
   const normalized = name.trim().toLowerCase()
     .replace(/[\s_]+/g, "-")
@@ -63,18 +64,21 @@ export function normalizeName(name: string): string {
 // ─── Node CRUD ─────────────────────────────────────────────────
 
 /** Look up a node by its normalized name. Returns null if not found. */
+/** 按标准化名查找节点。返回 null 若不存在。 */
 export function findByName(db: DatabaseSyncInstance, name: string): BmNode | null {
   const r = db.prepare("SELECT * FROM bm_nodes WHERE name = ?").get(normalizeName(name)) as any;
   return r ? toNode(r) : null;
 }
 
 /** Look up a node by its unique ID. Returns null if not found. */
+/** 按唯一 ID 查找节点。返回 null 若不存在。 */
 export function findById(db: DatabaseSyncInstance, id: string): BmNode | null {
   const r = db.prepare("SELECT * FROM bm_nodes WHERE id = ?").get(id) as any;
   return r ? toNode(r) : null;
 }
 
 /** Return all active nodes, optionally filtered by scope (agent/workspace/session). */
+/** 查询所有活跃节点，可选范围过滤。 */
 export function allActiveNodes(db: DatabaseSyncInstance, scopeFilter?: ScopeFilter): BmNode[] {
   const { clause, params } = scopeFilter ? buildScopeFilterClause(scopeFilter) : { clause: "", params: [] };
   return (db.prepare(`SELECT * FROM bm_nodes WHERE status='active'${clause}`)
@@ -82,11 +86,13 @@ export function allActiveNodes(db: DatabaseSyncInstance, scopeFilter?: ScopeFilt
 }
 
 /** Return all edges in the graph. */
+/** 查询所有边。 */
 export function allEdges(db: DatabaseSyncInstance): BmEdge[] {
   return (db.prepare("SELECT * FROM bm_edges").all() as any[]).map(toEdge);
 }
 
 /** Insert a new node or update an existing one by name. Merges content, description, and source_sessions from both versions. Returns the node and whether it was newly created. */
+/** 插入或更新节点（按名称匹配）。合并 content、description 和 source_sessions。返回节点和是否新建。 */
 export function upsertNode(
   db: DatabaseSyncInstance,
   c: { type: GraphNodeType; category: MemoryCategory; name: string; description: string; content: string; source: "user" | "assistant"; temporalType?: "static" | "dynamic"; scopeSession?: string | null; scopeAgent?: string | null; scopeWorkspace?: string | null },
@@ -124,12 +130,14 @@ export function upsertNode(
 }
 
 /** Mark a node as deprecated (soft delete). */
+/** 软删除节点（标记为 deprecated）。 */
 export function deprecate(db: DatabaseSyncInstance, nodeId: string): void {
   db.prepare("UPDATE bm_nodes SET status='deprecated', updated_at=? WHERE id=?")
     .run(Date.now(), nodeId);
 }
 
 /** Merge two nodes: keep the higher-validatedCount one, combine source_sessions and validated_count, repoint edges, and deprecate the merged node. */
+/** 合并两个节点：保留 validatedCount 高的，合并 session 和边，废弃被合并节点。 */
 export function mergeNodes(db: DatabaseSyncInstance, keepId: string, mergeId: string): void {
   const keep = findById(db, keepId);
   const merge = findById(db, mergeId);
@@ -155,6 +163,7 @@ export function mergeNodes(db: DatabaseSyncInstance, keepId: string, mergeId: st
 }
 
 /** Batch-update pagerank scores for multiple nodes in a single transaction. Rolls back on error. */
+/** 批量更新节点 PageRank 分数（单个事务）。 */
 export function updatePageranks(db: DatabaseSyncInstance, scores: Map<string, number>): void {
   const stmt = db.prepare("UPDATE bm_nodes SET pagerank=? WHERE id=?");
   db.exec("BEGIN");
@@ -165,6 +174,7 @@ export function updatePageranks(db: DatabaseSyncInstance, scores: Map<string, nu
 }
 
 /** Batch-update community_id labels for multiple nodes in a single transaction. Rolls back on error. */
+/** 批量更新节点 community_id 标签（单个事务）。 */
 export function updateCommunities(db: DatabaseSyncInstance, labels: Map<string, string>): void {
   const stmt = db.prepare("UPDATE bm_nodes SET community_id=? WHERE id=?");
   db.exec("BEGIN");
@@ -175,6 +185,7 @@ export function updateCommunities(db: DatabaseSyncInstance, labels: Map<string, 
 }
 
 /** Increment access_count and update last_accessed timestamp for a node. */
+/** 增加节点访问计数并更新最后访问时间。 */
 export function updateAccess(db: DatabaseSyncInstance, nodeId: string): void {
   db.prepare("UPDATE bm_nodes SET access_count=access_count+1, last_accessed=? WHERE id=?")
     .run(Date.now(), nodeId);
@@ -183,6 +194,7 @@ export function updateAccess(db: DatabaseSyncInstance, nodeId: string): void {
 // ─── Edge CRUD ─────────────────────────────────────────────────
 
 /** Insert a new edge or update an existing one (matched by from_id + to_id + type). Returns the edge object. */
+/** 插入或更新边（按 fromId + toId + type 匹配）。返回边对象。 */
 export function upsertEdge(
   db: DatabaseSyncInstance,
   e: { fromId: string; toId: string; type: EdgeType; instruction: string; condition?: string; sessionId: string },
@@ -203,11 +215,13 @@ export function upsertEdge(
 }
 
 /** Return all outgoing edges from the given node. */
+/** 查询节点的所有出边。 */
 export function edgesFrom(db: DatabaseSyncInstance, id: string): BmEdge[] {
   return (db.prepare("SELECT * FROM bm_edges WHERE from_id=?").all(id) as any[]).map(toEdge);
 }
 
 /** Return all incoming edges to the given node. */
+/** 查询节点的所有入边。 */
 export function edgesTo(db: DatabaseSyncInstance, id: string): BmEdge[] {
   return (db.prepare("SELECT * FROM bm_edges WHERE to_id=?").all(id) as any[]).map(toEdge);
 }
@@ -215,6 +229,7 @@ export function edgesTo(db: DatabaseSyncInstance, id: string): BmEdge[] {
 // ─── FTS5 Search ───────────────────────────────────────────────
 
 /** Search active nodes by text. Tries FTS5 first (fast for English), falls back to LIKE search (better for Chinese). Returns top-N by rank or pagerank. Supports optional scope filtering. */
+/** 文本搜索节点（FTS5 → LIKE 回退）。返回 top-N 按 rank 或 PageRank 排序，支持范围过滤。 */
 export function searchNodes(db: DatabaseSyncInstance, query: string, limit = 6, scopeFilter?: ScopeFilter): BmNode[] {
   const terms = query.trim().split(/\s+/).filter(Boolean).slice(0, 8);
   if (!terms.length) return topNodes(db, limit, scopeFilter);
@@ -246,6 +261,7 @@ export function searchNodes(db: DatabaseSyncInstance, query: string, limit = 6, 
 }
 
 /** Return the top-N active nodes sorted by pagerank, validated_count, and updated_at. Supports optional scope filtering. */
+/** 返回 top-N 活跃节点，按 PageRank 降序。 */
 export function topNodes(db: DatabaseSyncInstance, limit = 6, scopeFilter?: ScopeFilter): BmNode[] {
   const { clause, params } = scopeFilter ? buildScopeFilterClause(scopeFilter) : { clause: "", params: [] };
   return (db.prepare(`
@@ -255,6 +271,7 @@ export function topNodes(db: DatabaseSyncInstance, limit = 6, scopeFilter?: Scop
 }
 
 /** Cosine-similarity vector search. Returns nodes with their similarity scores, sorted descending. Applies scope filtering if provided. Only loads vectors for valid active nodes. */
+/** 向量相似度搜索（余弦距离）。返回节点及相似度分数。 */
 export function vectorSearchWithScore(db: DatabaseSyncInstance, vec: number[], limit: number, scopeFilter?: ScopeFilter): Array<{ node: BmNode; score: number }> {
   // First get all active nodes with scope filtering applied
   const { clause, params } = scopeFilter ? buildScopeFilterClause(scopeFilter) : { clause: "", params: [] };
@@ -323,6 +340,7 @@ function matchesScopeFilter(node: BmNode, scopeFilter?: ScopeFilter): boolean {
 // ─── Vector ops ────────────────────────────────────────────────
 
 /** Store or replace an embedding vector for a node. Content hash is saved for cache-hit detection. */
+/** 存储或替换节点的嵌入向量。 */
 export function saveVector(db: DatabaseSyncInstance, nodeId: string, content: string, vec: number[]): void {
   const hash = createHash("md5").update(content).digest("hex");
   const f32 = vec instanceof Float32Array ? vec : new Float32Array(vec);
@@ -332,6 +350,7 @@ export function saveVector(db: DatabaseSyncInstance, nodeId: string, content: st
 }
 
 /** Retrieve the stored embedding vector for a node. Returns null if not found. */
+/** 获取节点的嵌入向量（Float32Array）。返回 null 若不存在。 */
 export function getVector(db: DatabaseSyncInstance, nodeId: string): Float32Array | null {
   const r = db.prepare("SELECT embedding FROM bm_vectors WHERE node_id=?").get(nodeId) as any;
   if (!r?.embedding) return null;
@@ -340,12 +359,14 @@ export function getVector(db: DatabaseSyncInstance, nodeId: string): Float32Arra
 }
 
 /** Retrieve the MD5 content hash stored alongside a node's embedding vector. Returns null if not found. */
+/** 获取节点向量的内容哈希（用于缓存检测）。 */
 export function getVectorHash(db: DatabaseSyncInstance, nodeId: string): string | null {
   const r = db.prepare("SELECT hash FROM bm_vectors WHERE node_id=?").get(nodeId) as any;
   return r?.hash ?? null;
 }
 
 /** Load all stored node-embedding pairs. Returns Float32Array embeddings for in-memory operations (e.g., cosine similarity). */
+/** 加载所有节点的嵌入向量对。用于去重检测。 */
 export function getAllVectors(db: DatabaseSyncInstance): Array<{ nodeId: string; embedding: Float32Array }> {
   const rows = db.prepare("SELECT node_id, embedding FROM bm_vectors").all() as any[];
   return rows.map(r => {
@@ -356,11 +377,13 @@ export function getAllVectors(db: DatabaseSyncInstance): Array<{ nodeId: string;
 
 // ─── Community summaries ───────────────────────────────────────
 
+/** 社区摘要记录。包含 ID、摘要文本、节点数和时间戳。 */
 export interface CommunitySummary {
   id: string; summary: string; nodeCount: number;
   createdAt: number; updatedAt: number;
 }
 
+/** 存储或更新社区摘要和嵌入向量。 */
 export function upsertCommunitySummary(
   db: DatabaseSyncInstance, id: string, summary: string, nodeCount: number, embedding?: number[],
 ): void {
@@ -381,6 +404,7 @@ export function upsertCommunitySummary(
   }
 }
 
+/** 按 ID 获取社区摘要。返回 null 若不存在。 */
 export function getCommunitySummary(db: DatabaseSyncInstance, id: string): CommunitySummary | null {
   const r = db.prepare("SELECT * FROM bm_communities WHERE id=?").get(id) as any;
   if (!r) return null;
@@ -388,6 +412,7 @@ export function getCommunitySummary(db: DatabaseSyncInstance, id: string): Commu
 }
 
 /** #10 fix: Batch fetch all community summaries in a single query */
+/** 批量获取所有社区摘要（单次查询）。 */
 export function getAllCommunitySummaries(db: DatabaseSyncInstance): Map<string, CommunitySummary> {
   const rows = db.prepare("SELECT * FROM bm_communities").all() as any[];
   const map = new Map<string, CommunitySummary>();
@@ -398,6 +423,7 @@ export function getAllCommunitySummaries(db: DatabaseSyncInstance): Map<string, 
 }
 
 /** Delete orphaned community summaries whose community_id no longer references any active node. Returns the number of deleted rows. */
+/** 删除不再存在的社区的摘要记录。 */
 export function pruneCommunitySummaries(db: DatabaseSyncInstance): number {
   const result = db.prepare(`
     DELETE FROM bm_communities WHERE id NOT IN (
@@ -409,6 +435,7 @@ export function pruneCommunitySummaries(db: DatabaseSyncInstance): number {
 // ─── Message CRUD ──────────────────────────────────────────────
 
 /** Save a conversation message. INSERT OR IGNORE — duplicate (same id) messages are silently skipped. */
+/** 保存对话消息。 */
 export function saveMessage(
   db: DatabaseSyncInstance, sid: string, turn: number, role: string, content: unknown
 ): void {
@@ -418,18 +445,21 @@ export function saveMessage(
 }
 
 /** Return messages that have not yet been processed for memory extraction, ordered by turn_index. */
+/** 获取未提取的会话消息（按 turn_index 排序）。 */
 export function getUnextracted(db: DatabaseSyncInstance, sid: string, limit: number): any[] {
   return db.prepare("SELECT * FROM bm_messages WHERE session_id=? AND extracted=0 ORDER BY turn_index LIMIT ?")
     .all(sid, limit) as any[];
 }
 
 /** Mark messages up to the given turn_index as extracted (processed for memory). */
+/** 标记消息为已提取（截至指定轮次）。 */
 export function markExtracted(db: DatabaseSyncInstance, sid: string, upToTurn: number): void {
   db.prepare("UPDATE bm_messages SET extracted=1 WHERE session_id=? AND turn_index<=?")
     .run(sid, upToTurn);
 }
 
 /** Retrieve episodic messages near a given timestamp across multiple sessions. Returns text snippets within maxChars budget, ordered by temporal proximity to nearTime. */
+/** 获取指定时间附近的对话片段（用于场景回忆）。 */
 export function getEpisodicMessages(
   db: DatabaseSyncInstance, sessionIds: string[], nearTime: number, maxChars = 1500,
 ): Array<{ sessionId: string; role: string; text: string }> {
@@ -462,6 +492,7 @@ export function getEpisodicMessages(
 // ─── Graph walk (recursive CTE) ────────────────────────────────
 
 /** Traverse the graph from seed nodes up to maxDepth hops using a recursive CTE. Returns all reachable nodes and the edges connecting them. */
+/** 图谱遍历（递归 CTE）：从种子节点出发，最多 maxDepth 跳。返回可达节点和连接边。 */
 export function graphWalk(
   db: DatabaseSyncInstance, seedIds: string[], maxDepth: number,
 ): { nodes: BmNode[]; edges: BmEdge[] } {
@@ -491,9 +522,11 @@ export function graphWalk(
 
 // ─── Community vector search ───────────────────────────────────
 
+/** 带相似度分数的社区搜索结果。 */
 export type ScoredCommunity = { id: string; summary: string; score: number; nodeCount: number };
 
 /** Search communities by cosine similarity of their stored embedding vectors. Returns communities above minScore, sorted by score descending. */
+/** 社区向量搜索（余弦相似度）。返回分数高于 minScore 的社区。 */
 export function communityVectorSearch(db: DatabaseSyncInstance, queryVec: number[], minScore = 0.15): ScoredCommunity[] {
   const rows = db.prepare("SELECT id, summary, node_count, embedding FROM bm_communities WHERE embedding IS NOT NULL").all() as any[];
   if (!rows.length) return [];
@@ -513,6 +546,7 @@ export function communityVectorSearch(db: DatabaseSyncInstance, queryVec: number
 }
 
 /** Return up to perCommunity active nodes per given community, ordered by updated_at descending. */
+/** 按社区 ID 获取成员节点。每个社区返回 up to perCommunity 个。 */
 export function nodesByCommunityIds(db: DatabaseSyncInstance, communityIds: string[], perCommunity = 3): BmNode[] {
   if (!communityIds.length) return [];
   const ph = communityIds.map(() => "?").join(",");
