@@ -9,6 +9,29 @@ All notable changes to the brain-memory project.
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-05-14
+
+> **版本主题**：开发者体验 + 质量打磨  
+> **Commit**: 685b13e
+
+### Added
+
+#### 开发者 Hook (F-7)
+- 6 种 Hook 类型（before/after extract/recall/fusion），ContextEngine 集成
+- Hook 错误不中断主流程，FIFO 执行顺序
+
+#### 质量打磨
+- **JSDoc 补全 (F-8)** — 12.7% → 86.4%，全部 42 个源文件
+- **覆盖率补全 (F-9)** — +31 测试用例，5 模块覆盖率提升
+- **启发式质量验证 (F-10)** — 启发式 vs LLM 对比测试
+- **Reranker 降级测试 (F-11)** — 7 个降级场景边界测试
+
+#### CI 文档 (F-12)
+- typedoc 配置 + `npm run docs` 生成 120 个 API 文档文件
+
+### Tests
+- 全量 **619 passed / 57 files**（+48 用例）
+
 ---
 
 ## [1.1.0] — 2026-05-14
