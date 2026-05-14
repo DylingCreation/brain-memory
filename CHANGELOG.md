@@ -11,6 +11,42 @@ All notable changes to the brain-memory project.
 
 ---
 
+## [1.1.0] — 2026-05-14
+
+> **版本主题**：性能基座 — 解耦存储与算法，实现增量图维护  
+> **Commit**: d185e6d
+
+### Added
+
+#### 存储抽象 (F-1)
+- **IStorageAdapter 接口** — 6 大类操作（生命周期、节点 CRUD、边 CRUD、搜索、向量、社区、消息、统计），~240 行
+- **SQLiteStorageAdapter 实现** — 委托现有 store.ts，~300 行
+- `ContextEngine.getDb()` 桥接方法 — 保留遗留代码兼容性
+
+#### 增量图维护 (F-3)
+- **脏标记基础设施** — processTurn 每次 upsert 后 markDirty，_expandDirtyMarks() 扩散到 1-hop 邻居
+- **增量 PageRank** — `runIncrementalPageRank()`：子图 PR + 边界固定，脏节点重置初始值
+- **增量 LPA** — `runIncrementalCommunities()`：冻结 + 局部传播，脏节点重置标签
+
+#### 智能触发 (F-4)
+- **双路径分流** — runMaintenance 内部 if/else：脏比例 < 10% 走增量，≥ 10% 走全量
+- **阈值可配置** — `DEFAULT_DIRTY_THRESHOLD = 0.10`
+
+### Changed
+- **12 个源文件** 从 `DatabaseSyncInstance` → `IStorageAdapter`
+- **16 个测试文件** 从 `createTestDb()` → `createTestStorage()`
+- **LLM 集成测试环境** — .env 配置（qwen3.6-plus + Ollama bge-m3），5 个 skipped 文件全部跑通
+
+### Tests
+- 全量 **571 passed / 51 files / 0 failed / 0 errors**（+40 用例）
+- 新增 4 个测试文件（增量维护 + 性能基准）
+
+### Performance
+- 200 节点 5% 脏比例：增量 ~2.7x 快于全量
+- 10x 目标适用于 10k+ 节点规模
+
+---
+
 ## [1.0.0] — 2026-05-13
 
 > **版本主题**：从「功能完整」走向「核心架构完备 + 工程扎实」  
