@@ -9,7 +9,9 @@ import { ContextEngine } from "../src/engine/context.js";
 import type { BmConfig } from "../src/types.js";
 import { existsSync, unlinkSync } from "node:fs";
 
-const DB_PATH = "/tmp/bm-recall-perf-baseline.db";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+const DB_PATH = join(tmpdir(), "bm-recall-perf-baseline.db");
 
 function cleanup() {
   for (const f of [DB_PATH, `${DB_PATH}-wal`, `${DB_PATH}-shm`]) {
