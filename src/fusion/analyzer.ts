@@ -12,13 +12,13 @@
  * v1.1.0 F-2: Uses IStorageAdapter instead of DatabaseSyncInstance.
  */
 
-import type { BmConfig, BmNode } from "../types";
-import type { IStorageAdapter } from "../store/adapter";
-import type { CompleteFn } from "../engine/llm";
-import type { EmbedFn } from "../engine/embed";
-import { FUSION_DECIDE_SYS } from "./prompts";
-import { tokenize, jaccardSimilarity } from "../utils/text";
-import { normalizeName } from "../store/store";
+import type { BmConfig, BmNode } from '../types';
+import type { IStorageAdapter } from '../store/adapter';
+import type { CompleteFn } from '../engine/llm';
+import type { EmbedFn } from '../engine/embed';
+import { FUSION_DECIDE_SYS } from './prompts';
+import { tokenize, jaccardSimilarity } from '../utils/text';
+import { normalizeName } from '../store/store';
 
 function cosineSimilarityF32(a: Float32Array, b: Float32Array): number {
   if (!a || !b || a.length === 0 || b.length === 0) return 0;
@@ -42,7 +42,7 @@ export interface FusionCandidate {
   nameScore: number;
   vectorScore: number;
   combinedScore: number;
-  decision: "merge" | "link" | "none";
+  decision: 'merge' | 'link' | 'none';
   reason: string;
 }
 
@@ -108,7 +108,7 @@ export function findFusionCandidates(
         candidates.push({
           nodeA: a, nodeB: b,
           nameScore, vectorScore, combinedScore,
-          decision: "none", reason: "",
+          decision: 'none', reason: '',
         });
       }
     }
@@ -138,8 +138,8 @@ export async function decideFusion(
       candidate.decision = decision.decision;
       candidate.reason = decision.reason;
     } catch {
-      candidate.decision = candidate.combinedScore > autoMergeThreshold ? "merge" : "none";
-      candidate.reason = "LLM unavailable, heuristic fallback";
+      candidate.decision = candidate.combinedScore > autoMergeThreshold ? 'merge' : 'none';
+      candidate.reason = 'LLM unavailable, heuristic fallback';
     }
   }
 
@@ -159,22 +159,22 @@ export function executeFusion(
   const consumed = new Set<string>();
 
   for (const candidate of candidates) {
-    if (candidate.decision === "none") continue;
+    if (candidate.decision === 'none') continue;
     if (!candidate.nodeA || !candidate.nodeB || consumed.has(candidate.nodeA.id) || consumed.has(candidate.nodeB.id)) continue;
 
-    if (candidate.decision === "merge") {
+    if (candidate.decision === 'merge') {
       const keepId = candidate.nodeA.validatedCount >= candidate.nodeB.validatedCount
         ? candidate.nodeA.id : candidate.nodeB.id;
       const mergeId = keepId === candidate.nodeA.id ? candidate.nodeB.id : candidate.nodeA.id;
       storage.mergeNodes(keepId, mergeId);
       consumed.add(mergeId);
       merged++;
-    } else if (candidate.decision === "link") {
+    } else if (candidate.decision === 'link') {
       if (candidate.nodeA.communityId !== candidate.nodeB.communityId) {
         storage.upsertEdge({
           fromId: candidate.nodeA.id,
           toId: candidate.nodeB.id,
-          type: "REQUIRES",
+          type: 'REQUIRES',
           instruction: candidate.reason,
           sessionId,
         });
@@ -194,7 +194,7 @@ export async function runFusion(
   cfg: BmConfig,
   llm: CompleteFn | null,
   embedFn?: EmbedFn | null,
-  sessionId: string = "fusion",
+  sessionId: string = 'fusion',
 ): Promise<FusionResult> {
   const start = Date.now();
 
@@ -214,9 +214,9 @@ export async function runFusion(
     decided = await decideFusion(llm, candidates, 20, autoMergeThreshold);
   } else {
     decided = candidates.map(c => {
-      if (c.combinedScore >= 0.95) return { ...c, decision: "merge" as const, reason: "Auto-merged (high confidence, no LLM)" };
-      if (c.combinedScore >= 0.85) return { ...c, decision: "link" as const, reason: "Auto-linked (no LLM)" };
-      return { ...c, decision: "none" as const, reason: "Below threshold (no LLM)" };
+      if (c.combinedScore >= 0.95) return { ...c, decision: 'merge' as const, reason: 'Auto-merged (high confidence, no LLM)' };
+      if (c.combinedScore >= 0.85) return { ...c, decision: 'link' as const, reason: 'Auto-linked (no LLM)' };
+      return { ...c, decision: 'none' as const, reason: 'Below threshold (no LLM)' };
     });
   }
 
@@ -235,24 +235,24 @@ export function computeNameSimilarity(a: string, b: string): number {
   return jaccardSimilarity(tokensA, tokensB);
 }
 
-export { tokenize, jaccardSimilarity } from "../utils/text";
-export { cosineSimilarityF32 as cosineSimilarity } from "../utils/similarity";
+export { tokenize, jaccardSimilarity } from '../utils/text';
+export { cosineSimilarityF32 as cosineSimilarity } from '../utils/similarity';
 
 /** 解析 LLM 融合决策输出（提取 JSON 中的 decision 和 reason）。 */
-export function parseFusionDecision(raw: string): { decision: "merge" | "link" | "none"; reason: string } {
+export function parseFusionDecision(raw: string): { decision: 'merge' | 'link' | 'none'; reason: string } {
   try {
     let s = raw.trim();
-    s = s.replace(/<think>[\s\S]*?<\/think>/gi, "");
-    s = s.replace(/```(?:json)?\s*\n?/i, "").replace(/\n?\s*```\s*$/i, "");
+    s = s.replace(/<think>[\s\S]*?<\/think>/gi, '');
+    s = s.replace(/```(?:json)?\s*\n?/i, '').replace(/\n?\s*```\s*$/i, '');
     s = s.trim();
-    const first = s.indexOf("{");
-    const last = s.lastIndexOf("}");
+    const first = s.indexOf('{');
+    const last = s.lastIndexOf('}');
     if (first !== -1 && last > first) s = s.slice(first, last + 1);
     const p = JSON.parse(s);
-    const decision = (p.decision || "none").toLowerCase();
-    if (["merge", "link", "none"].includes(decision)) {
-      return { decision: decision as any, reason: p.reason || "" };
+    const decision = (p.decision || 'none').toLowerCase() as 'merge' | 'link' | 'none';
+    if (['merge', 'link', 'none'].includes(decision)) {
+      return { decision, reason: p.reason || '' };
     }
   } catch { /* fallback */ }
-  return { decision: "none", reason: "" };
+  return { decision: 'none', reason: '' };
 }

@@ -90,3 +90,4 @@ llm-cost-analysis.md
 # ─── Generated API docs (heavy) ─────────────────────────
 docs/api/
 scripts/**
+_backup/

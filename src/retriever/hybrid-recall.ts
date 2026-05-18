@@ -7,12 +7,12 @@
  * v1.1.0 F-2: Uses IStorageAdapter.
  */
 
-import type { BmConfig, BmNode, BmEdge } from "../types";
-import type { EmbedFn } from "../engine/embed";
-import type { ScopeFilter } from "../scope/isolation";
-import type { IStorageAdapter } from "../store/adapter";
-import { Recaller } from "../recaller/recall";
-import { VectorRecaller } from "./vector-recall";
+import type { BmConfig, BmNode, BmEdge } from '../types';
+import type { EmbedFn } from '../engine/embed';
+import type { ScopeFilter } from '../scope/isolation';
+import type { IStorageAdapter } from '../store/adapter';
+import { Recaller } from '../recaller/recall';
+import { VectorRecaller } from './vector-recall';
 
 /** 混合召回结果：包含图召回和向量召回的融合结果及诊断信息。 */
 export interface HybridRecallResult {
@@ -55,8 +55,8 @@ export class HybridRecaller {
       this.vectorRecaller.recall(query, scopeFilter),
     ]);
 
-    const graph = graphResult.status === "fulfilled" ? graphResult.value : { nodes: [] as BmNode[], edges: [] as BmEdge[], tokenEstimate: 0 };
-    const vector = vectorResult.status === "fulfilled" ? vectorResult.value : { nodes: [] as BmNode[], edges: [] as BmEdge[], tokenEstimate: 0 };
+    const graph = graphResult.status === 'fulfilled' ? graphResult.value : { nodes: [] as BmNode[], edges: [] as BmEdge[], tokenEstimate: 0 };
+    const vector = vectorResult.status === 'fulfilled' ? vectorResult.value : { nodes: [] as BmNode[], edges: [] as BmEdge[], tokenEstimate: 0 };
 
     // Fuse using Reciprocal Rank Fusion (RRF)
     const nodeMap = new Map<string, ScoredItem>();
@@ -92,7 +92,6 @@ export class HybridRecaller {
       .slice(0, this.cfg.recallMaxNodes);
 
     const fusedIds = new Set(fused.map(f => f.node.id));
-    const graphEdgeIds = new Set(graph.edges.map(e => e.id));
 
     const overlapCount = graph.nodes.filter(n => fusedIds.has(n.id)).length;
 

@@ -9,7 +9,7 @@
  * Ported from memory-lancedb-pro temporal-classifier concept.
  */
 
-export type TemporalType = "static" | "dynamic";
+export type TemporalType = 'static' | 'dynamic';
 
 // Patterns indicating time-sensitive / dynamic content
 const DYNAMIC_PATTERNS = [
@@ -40,19 +40,19 @@ const STATIC_PATTERNS = [
 ];
 
 /** 时间分类：将节点分为静态或动态类型。 */
-export function classifyTemporal(text: string, description: string = ""): TemporalType {
+export function classifyTemporal(text: string, description: string = ''): TemporalType {
   const combined = `${text} ${description}`;
 
   // Check static patterns first (they get priority)
   for (const pattern of STATIC_PATTERNS) {
-    if (pattern.test(combined)) return "static";
+    if (pattern.test(combined)) return 'static';
   }
 
   // Check dynamic patterns
   for (const pattern of DYNAMIC_PATTERNS) {
-    if (pattern.test(combined)) return "dynamic";
+    if (pattern.test(combined)) return 'dynamic';
   }
 
   // Default: static (conservative — only mark dynamic when confident)
-  return "static";
+  return 'static';
 }

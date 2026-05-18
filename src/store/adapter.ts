@@ -11,9 +11,9 @@
 
 import type {
   BmNode, BmEdge, EdgeType, MemoryCategory, GraphNodeType,
-  NodeStatus, SharingMode, MemoryCategory as MC,
-} from "../types";
-import type { MemoryScope } from "../scope/isolation";
+  SharingMode,
+} from '../types';
+import type { MemoryScope } from '../scope/isolation';
 
 // ─── Input / Output Types ──────────────────────────────────────
 
@@ -25,8 +25,8 @@ export interface NodeUpsertInput {
   name: string;
   description: string;
   content: string;
-  source: "user" | "assistant";
-  temporalType?: "static" | "dynamic";
+  source: 'user' | 'assistant';
+  temporalType?: 'static' | 'dynamic';
   scopeSession?: string | null;
   scopeAgent?: string | null;
   scopeWorkspace?: string | null;

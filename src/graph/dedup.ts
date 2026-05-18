@@ -8,8 +8,8 @@
  * Authors: adoresever (graph-memory), brain-memory contributors
  */
 
-import type { BmConfig } from "../types";
-import type { IStorageAdapter } from "../store/adapter";
+import type { BmConfig } from '../types';
+import type { IStorageAdapter } from '../store/adapter';
 
 /** 去重结果：包含重复节点对和合并数量。 */
 export interface DedupResult {
@@ -42,10 +42,10 @@ function buildLshBuckets(
   const buckets = new Map<string, number[]>();
   for (let i = 0; i < vectors.length; i++) {
     const v = vectors[i].embedding;
-    let sig = "";
+    let sig = '';
     for (let b = 0; b < numBits; b++) {
       const idx = ((b * 131 + 7) * 3) % v.length;
-      sig += v[idx] !== undefined && v[idx] >= 0 ? "1" : "0";
+      sig += v[idx] !== undefined && v[idx] >= 0 ? '1' : '0';
     }
     if (!buckets.has(sig)) buckets.set(sig, []);
     buckets.get(sig)!.push(i);
@@ -54,11 +54,11 @@ function buildLshBuckets(
 }
 
 /** 检测重复节点对（LSH + 余弦相似度）。 */
-export function detectDuplicates(storage: IStorageAdapter, cfg: BmConfig): DedupResult["pairs"] {
+export function detectDuplicates(storage: IStorageAdapter, cfg: BmConfig): DedupResult['pairs'] {
   const vectors = storage.loadAllVectors();
   if (vectors.length < 2) return [];
   const threshold = cfg.dedupThreshold;
-  const pairs: DedupResult["pairs"] = [];
+  const pairs: DedupResult['pairs'] = [];
 
   const buckets = buildLshBuckets(vectors);
   const compared = new Set<string>();

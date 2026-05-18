@@ -7,7 +7,7 @@
  * Authors: win4r (memory-lancedb-pro), brain-memory contributors
  */
 
-import type { DecayConfig, BmNode } from "../types";
+import type { DecayConfig, BmNode } from '../types';
 
 const MS_PER_DAY = 86_400_000;
 
@@ -36,7 +36,7 @@ export function scoreDecay(node: BmNode, cfg: DecayConfig, now?: number): DecayS
   const n = now || Date.now();
   const ageDays = (n - node.createdAt) / MS_PER_DAY;
   const tier = getTierParams(node.importance, cfg);
-  const effectiveHalfLife = node.temporalType === "dynamic"
+  const effectiveHalfLife = node.temporalType === 'dynamic'
     ? cfg.timeDecayHalfLifeDays / 3
     : cfg.timeDecayHalfLifeDays;
 
@@ -54,7 +54,7 @@ export function scoreDecay(node: BmNode, cfg: DecayConfig, now?: number): DecayS
 export function applyTimeDecay(score: number, node: BmNode, cfg: DecayConfig, now?: number): number {
   const n = now || Date.now();
   const ageDays = (n - node.createdAt) / MS_PER_DAY;
-  const effectiveHalfLife = node.temporalType === "dynamic"
+  const effectiveHalfLife = node.temporalType === 'dynamic'
     ? cfg.timeDecayHalfLifeDays / 3
     : cfg.timeDecayHalfLifeDays;
   if (effectiveHalfLife <= 0 || ageDays <= 0) return score;

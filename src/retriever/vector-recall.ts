@@ -6,13 +6,13 @@
  * v1.1.0 F-2: Uses IStorageAdapter.
  */
 
-import type { BmConfig, BmNode, BmEdge } from "../types";
-import type { EmbedFn } from "../engine/embed";
-import type { ScopeFilter } from "../scope/isolation";
-import type { IStorageAdapter, StorageFilter } from "../store/adapter";
-import { applyTimeDecay } from "../decay/engine";
-import { expandQuery } from "./query-expander";
-import { analyzeIntent } from "./intent-analyzer";
+import type { BmConfig, BmNode, BmEdge } from '../types';
+import type { EmbedFn } from '../engine/embed';
+import type { ScopeFilter } from '../scope/isolation';
+import type { IStorageAdapter, StorageFilter } from '../store/adapter';
+import { applyTimeDecay } from '../decay/engine';
+import { expandQuery } from './query-expander';
+import { analyzeIntent } from './intent-analyzer';
 
 function toStorageFilter(filter?: ScopeFilter): StorageFilter | undefined {
   if (!filter) return undefined;
@@ -65,9 +65,9 @@ export class VectorRecaller {
     const bm25Query = expandQuery(query);
 
     let vectorNodes: BmNode[] = [];
-    let vectorScores: Map<string, number> = new Map();
+    const vectorScores: Map<string, number> = new Map();
     let bm25Nodes: BmNode[] = [];
-    let bm25Scores: Map<string, number> = new Map();
+    const bm25Scores: Map<string, number> = new Map();
 
     // Vector search
     if (this.embed) {

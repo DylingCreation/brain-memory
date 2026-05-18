@@ -5,8 +5,8 @@
  * plus a visualization tool to preview decay curves before deployment.
  */
 
-import type { DecayConfig } from "../types";
-import { logger } from "../utils/logger";
+import type { DecayConfig } from '../types';
+import { logger } from '../utils/logger';
 
 // ─── Presets ──────────────────────────────────────────────────
 
@@ -108,18 +108,18 @@ export function computeDecayCurve(cfg: DecayConfig): DecayCurvePoint[] {
  */
 export function visualizeDecay(cfg: DecayConfig): string {
   const curve = computeDecayCurve(cfg);
-  let chart = "Decay Curve Preview\n";
-  chart += "=".repeat(70) + "\n";
-  chart += "Days  | Core (β=" + cfg.betaCore.toFixed(1) + ", floor=" + cfg.coreDecayFloor.toFixed(2) +
-           ") | Working (β=" + cfg.betaWorking.toFixed(1) + ", floor=" + cfg.workingDecayFloor.toFixed(2) +
-           ") | Peripheral (β=" + cfg.betaPeripheral.toFixed(1) + ", floor=" + cfg.peripheralDecayFloor.toFixed(2) + ")\n";
-  chart += "-".repeat(70) + "\n";
+  let chart = 'Decay Curve Preview\n';
+  chart += '='.repeat(70) + '\n';
+  chart += 'Days  | Core (β=' + cfg.betaCore.toFixed(1) + ', floor=' + cfg.coreDecayFloor.toFixed(2) +
+           ') | Working (β=' + cfg.betaWorking.toFixed(1) + ', floor=' + cfg.workingDecayFloor.toFixed(2) +
+           ') | Peripheral (β=' + cfg.betaPeripheral.toFixed(1) + ', floor=' + cfg.peripheralDecayFloor.toFixed(2) + ')\n';
+  chart += '-'.repeat(70) + '\n';
   for (const p of curve) {
     chart += `${String(p.days).padStart(5)}d | ${(p.core * 100).toFixed(1).padStart(5)}%` +
              ` | ${(p.working * 100).toFixed(1).padStart(5)}%` +
              ` | ${(p.peripheral * 100).toFixed(1).padStart(5)}%\n`;
   }
-  chart += "-".repeat(70) + "\n";
+  chart += '-'.repeat(70) + '\n';
   chart += `Half-life: ${cfg.timeDecayHalfLifeDays}d | Weights: R=${cfg.recencyWeight} F=${cfg.frequencyWeight} I=${cfg.intrinsicWeight}\n`;
   return chart;
 }
@@ -130,7 +130,7 @@ export function visualizeDecay(cfg: DecayConfig): string {
 export function applyDecayPreset(base: DecayConfig, presetName: string): DecayConfig {
   const preset = DECAY_PRESETS[presetName];
   if (!preset) {
-    logger.warn("decay", `Unknown decay preset: ${presetName}. Using "balanced".`);
+    logger.warn('decay', `Unknown decay preset: ${presetName}. Using "balanced".`);
     return { ...base, ...DECAY_PRESETS.balanced };
   }
   return { ...base, ...preset };

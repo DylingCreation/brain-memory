@@ -7,30 +7,35 @@
  * Authors: brain-memory contributors
  */
 
-import type { BmNode, BmEdge, EdgeType, MemoryCategory, GraphNodeType } from "../types";
+import type { BmNode, BmEdge, EdgeType, MemoryCategory } from '../types';
 import type {
-  IStorageAdapter, NodeUpsertInput, EdgeUpsertInput, StorageFilter,
+  IStorageAdapter, NodeUpsertInput, EdgeUpsertInput,
   ScoredNode, ScoredCommunityResult, CommunitySummaryRecord,
   MessageRow, EpisodicSnippet, StorageStats,
-} from "./adapter";
+} from './adapter';
 
 interface LanceTable {
   add(data: Array<Record<string, unknown>>): Promise<void>;
   countRows(): Promise<number>;
-  vectorSearch(vec: number[]): any;
-  search(): any;
-  query(): any;
-  update(updates: Record<string, unknown>): any;
+  vectorSearch(vec: number[]): unknown;
+  search(): unknown;
+  query(): unknown;
+  update(updates: Record<string, unknown>): unknown;
   delete(predicate: string): Promise<void>;
   drop(): Promise<void>;
 }
 
 interface LanceDBConnection {
-  createTable(name: string, data: Array<Record<string, unknown>>, options?: any): Promise<LanceTable>;
+  createTable(name: string, data: Array<Record<string, unknown>>, options?: Record<string, unknown>): Promise<LanceTable>;
   openTable(name: string): Promise<LanceTable>;
   dropTable(name: string): Promise<void>;
   tableNames(): Promise<string[]>;
   close(): void;
+}
+
+/** BmNode with cached embedding vector (internal to LanceDB adapter). */
+interface BmNodeWithVector extends BmNode {
+  _vector?: Float32Array;
 }
 
 export class LanceDBStorageAdapter implements IStorageAdapter {
@@ -42,13 +47,13 @@ export class LanceDBStorageAdapter implements IStorageAdapter {
   private dirtyEdges: Set<string> = new Set();
 
   constructor(dbPath?: string) {
-    this.dbPath = dbPath || "/tmp/brain-memory-lancedb";
+    this.dbPath = dbPath || '/tmp/brain-memory-lancedb';
   }
 
   // ─── Lifecycle ───────────────────────────────────────────
 
   async initialize(): Promise<void> {
-    const lancedb = await import("@lancedb/lancedb");
+    const lancedb = await import('@lancedb/lancedb');
     this.db = await lancedb.connect(this.dbPath) as unknown as LanceDBConnection;
     this.initialized = true;
   }
@@ -81,10 +86,10 @@ export class LanceDBStorageAdapter implements IStorageAdapter {
     const node: BmNode = {
       id, type: input.type, category: input.category,
       name: input.name, description: input.description, content: input.content,
-      status: "active", validatedCount: 1,
+      status: 'active', validatedCount: 1,
       sourceSessions: [sessionId], communityId: null,
       pagerank: 0, importance: 0.5, accessCount: 0, lastAccessedAt: 0,
-      temporalType: input.temporalType || "static",
+      temporalType: input.temporalType || 'static',
       source: input.source,
       scopeSession: input.scopeSession || null,
       scopeAgent: input.scopeAgent || null,
@@ -98,7 +103,7 @@ export class LanceDBStorageAdapter implements IStorageAdapter {
 
   deprecateNode(nodeId: string): void {
     const node = this.findNodeById(nodeId);
-    if (node) node.status = "deprecated";
+    if (node) node.status = 'deprecated';
   }
 
   mergeNodes(keepId: string, mergeId: string): void {
@@ -111,7 +116,7 @@ export class LanceDBStorageAdapter implements IStorageAdapter {
   }
 
   findAllActive(): BmNode[] {
-    return (this._nodeCache || []).filter(n => n.status === "active");
+    return (this._nodeCache || []).filter(n => n.status === 'active');
   }
 
   findAllEdges(): BmEdge[] {
@@ -177,11 +182,11 @@ export class LanceDBStorageAdapter implements IStorageAdapter {
 
   vectorSearch(queryVec: number[], limit: number, minScore = 0): ScoredNode[] {
     // POC: cosine similarity on cached nodes
-    const active = this.findAllActive().filter(n => (n as any)._vector);
+    const active = this.findAllActive().filter(n => (n as BmNodeWithVector)._vector);
     const results: ScoredNode[] = [];
     for (const node of active) {
-      if (!(node as any)._vector) continue;
-      const sim = this._cosineSim(queryVec, (node as any)._vector);
+      if (!(node as BmNodeWithVector)._vector) continue;
+      const sim = this._cosineSim(queryVec, (node as BmNodeWithVector)._vector);
       if (sim >= minScore) results.push({ node, score: sim });
     }
     return results.sort((a, b) => b.score - a.score).slice(0, limit);
@@ -229,39 +234,39 @@ export class LanceDBStorageAdapter implements IStorageAdapter {
 
   saveVector(nodeId: string, content: string, vec: number[]): void {
     const node = this.findNodeById(nodeId);
-    if (node) (node as any)._vector = new Float32Array(vec);
+    if (node) (node as BmNodeWithVector)._vector = new Float32Array(vec);
   }
 
   getVector(nodeId: string): Float32Array | null {
     const node = this.findNodeById(nodeId);
-    return (node as any)?._vector || null;
+    return (node as BmNodeWithVector)?._vector || null;
   }
 
-  getVectorHash(nodeId: string): string | null { return null; }
+  getVectorHash(_nodeId: string): string | null { return null; }
 
   loadAllVectors(): Array<{ nodeId: string; embedding: Float32Array }> {
     return this.findAllActive()
-      .filter(n => (n as any)._vector)
-      .map(n => ({ nodeId: n.id, embedding: (n as any)._vector as Float32Array }));
+      .filter(n => (n as BmNodeWithVector)._vector)
+      .map(n => ({ nodeId: n.id, embedding: (n as BmNodeWithVector)._vector as Float32Array }));
   }
 
   // ─── Communities ────────────────────────────────────────
 
-  upsertCommunity(id: string, summary: string, nodeCount: number, embedding?: number[]): void {}
-  getCommunity(id: string): CommunitySummaryRecord | null { return null; }
+  upsertCommunity(_id: string, _summary: string, _nodeCount: number, _embedding?: number[]): void {}
+  getCommunity(_id: string): CommunitySummaryRecord | null { return null; }
   getAllCommunities(): Map<string, CommunitySummaryRecord> { return new Map(); }
   pruneCommunities(): number { return 0; }
-  communityVectorSearch(queryVec: number[], minScore: number): ScoredCommunityResult[] { return []; }
-  findNodesByCommunities(communityIds: string[], perCommunity: number): BmNode[] { return []; }
-  findCommunityPeers(nodeId: string, limit: number): string[] { return []; }
-  findCommunityRepresentatives(perCommunity: number): BmNode[] { return []; }
+  communityVectorSearch(_queryVec: number[], _minScore: number): ScoredCommunityResult[] { return []; }
+  findNodesByCommunities(_communityIds: string[], _perCommunity: number): BmNode[] { return []; }
+  findCommunityPeers(_nodeId: string, _limit: number): string[] { return []; }
+  findCommunityRepresentatives(_perCommunity: number): BmNode[] { return []; }
 
   // ─── Messages ───────────────────────────────────────────
 
-  saveMessage(sessionId: string, turn: number, role: string, content: unknown): void {}
-  getUnextractedMessages(sessionId: string, limit: number): MessageRow[] { return []; }
-  markMessagesExtracted(sessionId: string, upToTurn: number): void {}
-  getEpisodicMessages(sessionIds: string[], nearTime: number, maxChars: number): EpisodicSnippet[] { return []; }
+  saveMessage(_sessionId: string, _turn: number, _role: string, _content: unknown): void {}
+  getUnextractedMessages(_sessionId: string, _limit: number): MessageRow[] { return []; }
+  markMessagesExtracted(_sessionId: string, _upToTurn: number): void {}
+  getEpisodicMessages(_sessionIds: string[], _nearTime: number, _maxChars: number): EpisodicSnippet[] { return []; }
 
   // ─── Statistics ─────────────────────────────────────────
 
@@ -269,7 +274,7 @@ export class LanceDBStorageAdapter implements IStorageAdapter {
     return {
       totalNodes: (this._nodeCache || []).length,
       activeNodes: this.findAllActive().length,
-      deprecatedNodes: (this._nodeCache || []).filter(n => n.status === "deprecated").length,
+      deprecatedNodes: (this._nodeCache || []).filter(n => n.status === 'deprecated').length,
       totalEdges: (this._edgeCache || []).length,
       nodesByCategory: {} as Record<MemoryCategory, number>,
       edgeTypes: {} as Record<EdgeType, number>,

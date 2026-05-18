@@ -74,17 +74,6 @@ function cacheKey(text: string): string {
  * Remove expired entries during cacheGet (lazy eviction).
  * Also purges if cache exceeds size limit.
  */
-function purgeExpired(): void {
-  const now = Date.now();
-  const expired: string[] = [];
-  for (const [key, entry] of embedCache) {
-    if (now - entry.timestamp > EMBED_CACHE_TTL_MS) {
-      expired.push(key);
-    }
-  }
-  for (const key of expired) embedCache.delete(key);
-}
-
 /** Embedding 缓存统计信息。 */
 export interface EmbedCacheStats {
   size: number;
@@ -137,7 +126,7 @@ function cacheSet(text: string, vec: number[]): void {
 // Detect Ollama by port or URL pattern
 function isOllama(cfg?: EmbeddingConfig): boolean {
   if (!cfg?.baseURL) return false;
-  return cfg.baseURL.includes("11434") || cfg.baseURL.includes("localhost:11434");
+  return cfg.baseURL.includes('11434') || cfg.baseURL.includes('localhost:11434');
 }
 
 /** 创建嵌入函数。支持 Ollama (端口 11434) 和 OpenAI 兼容 API。 */
@@ -146,7 +135,7 @@ export function createEmbedFn(cfg?: EmbeddingConfig): EmbedFn | null {
   if (!cfg?.apiKey && !isOllama(cfg)) return null;
   if (!cfg?.model) return null;
 
-  const baseURL = cfg.baseURL || "https://api.openai.com/v1";
+  const baseURL = cfg.baseURL || 'https://api.openai.com/v1';
   const model = cfg.model;
   const dims = cfg.dimensions;
   const ollama = isOllama(cfg);
@@ -156,7 +145,7 @@ export function createEmbedFn(cfg?: EmbeddingConfig): EmbedFn | null {
   if (ollama) {
     // Ollama baseURL is typically "http://localhost:11434/api"
     // The embed endpoint is at "/api/embed" (relative to host)
-    embedURL = baseURL.replace(/\/api$/, "/api/embed");
+    embedURL = baseURL.replace(/\/api$/, '/api/embed');
   } else {
     embedURL = `${baseURL}/embeddings`;
   }
@@ -174,15 +163,15 @@ export function createEmbedFn(cfg?: EmbeddingConfig): EmbedFn | null {
       if (dims && !ollama) body.dimensions = dims;
 
       const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "User-Agent": "brain-memory/1.0"
+        'Content-Type': 'application/json',
+        'User-Agent': 'brain-memory/1.0'
       };
       if (!ollama) {
-        headers["Authorization"] = `Bearer ${cfg!.apiKey}`;
+        headers['Authorization'] = `Bearer ${cfg!.apiKey}`;
       }
 
       const res = await fetch(embedURL, {
-        method: "POST",
+        method: 'POST',
         headers,
         body: JSON.stringify(body),
         signal: controller.signal
@@ -193,12 +182,12 @@ export function createEmbedFn(cfg?: EmbeddingConfig): EmbedFn | null {
         throw new Error(`Embedding API error: ${res.status} ${res.statusText} - ${errorMessage}`);
       }
 
-      const data = (await res.json()) as any;
+      const data = (await res.json()) as Record<string, unknown>;
       // Ollama response: { "embeddings": [[...]] }
       // OpenAI response: { "data": [{ "embedding": [...] }] }
       const vec = ollama
-        ? (data.embeddings?.[0] ?? [])
-        : (data.data?.[0]?.embedding ?? []);
+        ? ((data.embeddings as Array<number[]>)?.[0] ?? [])
+        : ((data.data as Array<Record<string, unknown>>)?.[0] as Record<string, unknown>)?.embedding as number[] ?? [];
       
       // #11 cache the result
       if (vec.length > 0) cacheSet(text, vec);
@@ -217,7 +206,7 @@ export function createBatchEmbedFn(cfg?: EmbeddingConfig): BatchEmbedFn | null {
   if (!cfg?.apiKey && !isOllama(cfg)) return null;
   if (!cfg?.model) return null;
 
-  const baseURL = cfg.baseURL || "https://api.openai.com/v1";
+  const baseURL = cfg.baseURL || 'https://api.openai.com/v1';
   const model = cfg.model;
   const dims = cfg.dimensions;
   const ollama = isOllama(cfg);
@@ -225,7 +214,7 @@ export function createBatchEmbedFn(cfg?: EmbeddingConfig): BatchEmbedFn | null {
   // Ollama uses /api/embed endpoint; OpenAI-compatible uses /embeddings
   let embedURL: string;
   if (ollama) {
-    embedURL = baseURL.replace(/\/api$/, "/api/embed");
+    embedURL = baseURL.replace(/\/api$/, '/api/embed');
   } else {
     embedURL = `${baseURL}/embeddings`;
   }
@@ -258,15 +247,15 @@ export function createBatchEmbedFn(cfg?: EmbeddingConfig): BatchEmbedFn | null {
       if (dims && !ollama) body.dimensions = dims;
 
       const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "User-Agent": "brain-memory/1.0"
+        'Content-Type': 'application/json',
+        'User-Agent': 'brain-memory/1.0'
       };
       if (!ollama) {
-        headers["Authorization"] = `Bearer ${cfg!.apiKey}`;
+        headers['Authorization'] = `Bearer ${cfg!.apiKey}`;
       }
 
       const res = await fetch(embedURL, {
-        method: "POST",
+        method: 'POST',
         headers,
         body: JSON.stringify(body),
         signal: controller.signal
@@ -277,12 +266,12 @@ export function createBatchEmbedFn(cfg?: EmbeddingConfig): BatchEmbedFn | null {
         throw new Error(`Embedding API error: ${res.status} ${res.statusText} - ${errorMessage}`);
       }
 
-      const data = (await res.json()) as any;
+      const data = (await res.json()) as Record<string, unknown>;
       // Ollama response: { "embeddings": [[...], [...], ...] }
       // OpenAI response: { "data": [{ "embedding": [...] }, ...] }
       const embeddings: number[][] = ollama
-        ? (data.embeddings ?? []).map((v: number[]) => v ?? [])
-        : (data.data ?? []).map((item: any) => item.embedding ?? []);
+        ? ((data.embeddings as number[][]) ?? []).map((v: number[]) => v ?? [])
+        : ((data.data as Array<Record<string, unknown>>) ?? []).map((item: Record<string, unknown>) => (item.embedding as number[]) ?? []);
 
       // #11 cache each result and fill in the uncached slots
       let embIdx = 0;

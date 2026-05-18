@@ -5,13 +5,12 @@
  * Authors: adoresever, win4r, brain-memory contributors
  */
 
-import { DatabaseSync, type DatabaseSyncInstance } from "@photostructure/sqlite";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { DatabaseSync, type DatabaseSyncInstance } from '@photostructure/sqlite';
+import { homedir } from 'node:os';
 
 /** 解析数据库路径（支持 ~ 扩展）。 */
 export function getDbPath(raw?: string): string {
-  const p = (raw || "~/.openclaw/brain-memory.db").replace(/^~/, homedir());
+  const p = (raw || '~/.openclaw/brain-memory.db').replace(/^~/, homedir());
   return p;
 }
 
@@ -124,7 +123,7 @@ CREATE INDEX IF NOT EXISTS idx_edges_type ON bm_edges(type);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON bm_messages(session_id, turn_index);
 `;
 
-import { migrate } from "./migrate";
+import { migrate } from './migrate';
 
 /** 初始化 SQLite 数据库：创建表、索引、FTS5 和触发器，运行迁移。 */
 export function initDb(dbPath: string): DatabaseSyncInstance {

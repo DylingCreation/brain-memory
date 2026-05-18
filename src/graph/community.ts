@@ -10,10 +10,11 @@
  * Authors: adoresever (graph-memory), brain-memory contributors
  */
 
-import type { IStorageAdapter } from "../store/adapter";
-import type { CompleteFn } from "../engine/llm";
-import type { EmbedFn } from "../engine/embed";
-import { logger } from "../utils/logger";
+import type { IStorageAdapter } from '../store/adapter';
+import type { CompleteFn } from '../engine/llm';
+import type { EmbedFn } from '../engine/embed';
+import type { BmNode } from '../types';
+import { logger } from '../utils/logger';
 
 /** 社区检测结果：包含标签、社区分组和社区数。 */
 export interface CommunityResult {
@@ -256,11 +257,11 @@ export function getCommunityPeers(storage: IStorageAdapter, nodeId: string, limi
 }
 
 /** 获取每个社区的代表节点（按 validated_count 排序）。 */
-export function communityRepresentatives(storage: IStorageAdapter, perCommunity = 2): any[] {
+export function communityRepresentatives(storage: IStorageAdapter, perCommunity = 2): BmNode[] {
   return storage.findCommunityRepresentatives(perCommunity);
 }
 
-const COMMUNITY_SUMMARY_SYS = `你是知识图谱摘要引擎。根据节点列表，用简短描述概括这组节点的主题领域。只返回短语，不要解释。不要使用"社区"这个词。`;
+const COMMUNITY_SUMMARY_SYS = '你是知识图谱摘要引擎。根据节点列表，用简短描述概括这组节点的主题领域。只返回短语，不要解释。不要使用"社区"这个词。';
 
 /** 使用 LLM 为社区生成摘要，可选生成嵌入向量。 */
 export async function summarizeCommunities(
@@ -277,7 +278,7 @@ export async function summarizeCommunities(
     const members = storage.findNodesByCommunities([communityId], 10);
     if (members.length === 0) continue;
 
-    const memberText = members.map(m => `${m.type}:${m.name} — ${m.description}`).join("\n");
+    const memberText = members.map(m => `${m.type}:${m.name} — ${m.description}`).join('\n');
 
     try {
       const summary = await llm(COMMUNITY_SUMMARY_SYS, `社区成员：\n${memberText}`);
@@ -297,7 +298,7 @@ export async function summarizeCommunities(
       }
       generated++;
     } catch (error) {
-      logger.error("community", `Error summarizing community ${communityId}:`, error);
+      logger.error('community', `Error summarizing community ${communityId}:`, error);
     }
   }
 

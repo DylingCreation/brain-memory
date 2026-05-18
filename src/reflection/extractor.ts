@@ -9,11 +9,11 @@
  * Reflection results are stored as graph nodes (not flat text).
  */
 
-import type { BmConfig, ReflectionConfig, ReflectionInsight, ReflectionResult } from "../types";
-import type { CompleteFn } from "../engine/llm";
-import { TURN_REFLECTION_SYS, SESSION_REFLECTION_SYS } from "./prompts"
-import { extractJson } from "../utils/json";
-import { logger } from "../utils/logger";
+import type { ReflectionConfig, ReflectionInsight } from '../types';
+import type { CompleteFn } from '../engine/llm';
+import { TURN_REFLECTION_SYS, SESSION_REFLECTION_SYS } from './prompts';
+import { extractJson } from '../utils/json';
+import { logger } from '../utils/logger';
 
 // ─── Safety filter for reflection content ──────────────────────
 // Prevents prompt injection through reflection results.
@@ -31,17 +31,17 @@ export function sanitizeReflectionText(text: string, enabled: boolean): string {
   if (!enabled) return text;
 
   const trimmed = text.trim()
-    .replace(/\*\*/g, "")
-    .replace(/^\s*[-*]\s*/, "");
+    .replace(/\*\*/g, '')
+    .replace(/^\s*[-*]\s*/, '');
 
   for (const pattern of UNSAFE_PATTERNS) {
-    if (pattern.test(trimmed)) return "";
+    if (pattern.test(trimmed)) return '';
   }
 
   // Filter empty/placeholder content
   const normalized = trimmed.toLowerCase().trim();
-  if (!normalized || normalized.length < 4) return "";
-  if (/^(none|n\/a|no|not\s+applicable|unknown|\(empty\))$/i.test(normalized)) return "";
+  if (!normalized || normalized.length < 4) return '';
+  if (/^(none|n\/a|no|not\s+applicable|unknown|\(empty\))$/i.test(normalized)) return '';
 
   return trimmed;
 }
@@ -66,12 +66,12 @@ export async function reflectOnTurn(
 
   const extractedText = params.extractedNodes
     .map(n => `- ${n.name} (${n.category}, ${n.type}, validated:${n.validatedCount})`)
-    .join("\n");
+    .join('\n');
 
   const existingText = params.existingNodes
     .filter(n => n.validatedCount >= 2)
     .map(n => `- ${n.name} (${n.category}, validated:${n.validatedCount})`)
-    .join("\n") || "（无）";
+    .join('\n') || '（无）';
 
   try {
     const raw = await llm(
@@ -91,7 +91,7 @@ function parseTurnReflection(raw: string, maxInsights: number): TurnBoost[] {
     const json = extractJson(raw);
     const p = JSON.parse(json);
     const boosts: TurnBoost[] = (p.boosts ?? []).slice(0, maxInsights);
-    return boosts.filter((b: any) => b.name && b.reason);
+    return boosts.filter((b: TurnBoost) => b.name && b.reason);
   } catch {
     return [];
   }
@@ -111,7 +111,7 @@ export async function reflectOnSession(
 
   const nodesText = params.extractedNodes
     .map(n => `- [${n.type}:${n.category}] ${n.name}: ${n.content.slice(0, 300)}`)
-    .join("\n");
+    .join('\n');
 
   try {
     const raw = await llm(
@@ -121,7 +121,7 @@ export async function reflectOnSession(
 
     return parseSessionReflection(raw, cfg);
   } catch (err) {
-    logger.debug("reflect", `session reflection failed: ${err}`);
+    logger.debug('reflect', `session reflection failed: ${err}`);
     return [];
   }
 }
@@ -133,28 +133,28 @@ function parseSessionReflection(raw: string, cfg: ReflectionConfig): ReflectionI
 
     const insights: ReflectionInsight[] = [];
 
-    const sections: Array<{ key: string; kind: "user-model" | "agent-model" | "lesson" | "decision" }> = [
-      { key: "userModel", kind: "user-model" },
-      { key: "agentModel", kind: "agent-model" },
-      { key: "lessons", kind: "lesson" },
-      { key: "decisions", kind: "decision" },
+    const sections: Array<{ key: string; kind: 'user-model' | 'agent-model' | 'lesson' | 'decision' }> = [
+      { key: 'userModel', kind: 'user-model' },
+      { key: 'agentModel', kind: 'agent-model' },
+      { key: 'lessons', kind: 'lesson' },
+      { key: 'decisions', kind: 'decision' },
     ];
 
     for (const section of sections) {
       const items = p[section.key] ?? [];
       for (const item of items) {
-        if (!item.text || typeof item.text !== "string") continue;
+        if (!item.text || typeof item.text !== 'string') continue;
 
         const sanitized = sanitizeReflectionText(item.text, cfg.safetyFilter);
         if (!sanitized) continue;
 
-        const confidence = typeof item.confidence === "number" ? item.confidence : 0.7;
+        const confidence = typeof item.confidence === 'number' ? item.confidence : 0.7;
         if (confidence < cfg.minConfidence) continue;
 
         insights.push({
           text: sanitized,
           kind: section.kind,
-          reflectionKind: "invariant", // insights are stable by definition
+          reflectionKind: 'invariant', // insights are stable by definition
           confidence,
         });
 

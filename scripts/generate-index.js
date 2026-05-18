@@ -42,7 +42,18 @@ function parseFile(filePath, filename) {
 
   // Date from filename: first YYYY-MM-DD
   const dateMatch = filename.match(/^(\d{4}-\d{2}-\d{2})/);
-  const date = dateMatch ? dateMatch[1] : "";
+  let date = dateMatch ? dateMatch[1] : "";
+
+  // Fallback: extract date from metadata table (for files named like v1.5.0.md)
+  if (!date) {
+    for (const line of lines) {
+      const m = line.match(/\*\*日期\*\*\s*\|\s*(\d{4}-\d{2}-\d{2})/);
+      if (m) { date = m[1]; break; }
+      // Alternative formats: 规划日期, 编制日期, 方案编制日期, etc.
+      const m2 = line.match(/\*\*.*日期\*\*[：:]\s*(\d{4}-\d{2}-\d{2})/);
+      if (m2) { date = m2[1]; break; }
+    }
+  }
 
   // Version from filename
   const verMatch = filename.match(/v(\d+\.\d+\.\d+)/);
@@ -60,16 +71,21 @@ function parseFile(filePath, filename) {
     if (m) { featureId = m[0]; break; }
   }
 
-  // Short description: first meaningful line after metadata table, or title if not available
+  // Short description: first non-table, non-heading line after metadata table
   let description = title;
-  let inTable = false;
+  let inMetaTable = false;
   for (const line of lines) {
     const t = line.trim();
-    if (t.startsWith("|") && t.includes("字段")) { inTable = true; continue; }
-    if (inTable && t.startsWith("|"))  continue; // still in table rows
-    if (inTable && t === "") { inTable = false; continue; }
-    if (!inTable && t && !t.startsWith("#") && !t.startsWith(">") && !t.startsWith("-") && !t.startsWith("*") && t.length > 5) {
-      description = t.slice(0, 100).replace(/\n/g, " ");
+    // Enter metadata table
+    if (t.startsWith("|") && t.includes("字段")) { inMetaTable = true; continue; }
+    if (inMetaTable && t.startsWith("|")) continue; // still in metadata table rows
+    if (inMetaTable && t === "") { inMetaTable = false; continue; } // metadata table ended
+    // Skip ALL subsequent table rows (body content tables, not metadata)
+    if (!inMetaTable && t.startsWith("|")) continue;
+    // Skip markdown structure and short lines
+    if (t.startsWith("#") || t.startsWith(">") || t.startsWith("-") || t.startsWith("*") || t.startsWith("\`")) continue;
+    if (t.length >= 10) {
+      description = t.slice(0, 100).replace(/\n/g, " ").replace(/\|/g, "\\|");
       break;
     }
   }

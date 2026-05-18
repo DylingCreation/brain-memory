@@ -34,12 +34,12 @@ export default defineConfig({
     testTimeout: 10000,
     hookTimeout: 15000,
     
-    // Parallelization
+    // Parallelization (forks required — SQLite can't share process in threads mode)
     pool: 'forks',
     poolOptions: {
-      threads: {
-        maxThreads: 4,
-        minThreads: 2,
+      forks: {
+        maxForks: 4,
+        minForks: 2,
       }
     },
     

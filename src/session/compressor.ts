@@ -5,10 +5,8 @@
  * keeping key decisions and conclusions.
  */
 
-import type { DatabaseSyncInstance } from "@photostructure/sqlite";
-import type { BmConfig } from "../types";
-import type { CompleteFn } from "../engine/llm";
-import { smartTruncate } from "../utils/truncate";
+import type { DatabaseSyncInstance } from '@photostructure/sqlite';
+import type { CompleteFn } from '../engine/llm';
 
 export interface SessionValue {
   sessionId: string;
@@ -17,7 +15,7 @@ export interface SessionValue {
   knowledgeNodes: number;
   knowledgeEdges: number;
   valueScore: number; // 0-1, higher = more valuable
-  compressRecommendation: "keep" | "compress" | "archive";
+  compressRecommendation: 'keep' | 'compress' | 'archive';
 }
 
 /**
@@ -31,20 +29,20 @@ export function evaluateSessionValue(
   sessionId: string,
 ): SessionValue {
   const msgCount = db.prepare(
-    "SELECT COUNT(*) as c FROM bm_messages WHERE session_id=?"
-  ).get(sessionId) as any;
+    'SELECT COUNT(*) as c FROM bm_messages WHERE session_id=?'
+  ).get(sessionId) as Record<string, unknown>;
 
   const nodeCount = db.prepare(
-    "SELECT COUNT(*) as c FROM bm_nodes WHERE source_sessions LIKE ?"
-  ).get(`%${sessionId}%`) as any;
+    'SELECT COUNT(*) as c FROM bm_nodes WHERE source_sessions LIKE ?'
+  ).get(`%${sessionId}%`) as Record<string, unknown>;
 
   const edgeCount = db.prepare(
-    "SELECT COUNT(*) as c FROM bm_edges WHERE session_id=?"
-  ).get(sessionId) as any;
+    'SELECT COUNT(*) as c FROM bm_edges WHERE session_id=?'
+  ).get(sessionId) as Record<string, unknown>;
 
-  const messages = msgCount?.c ?? 0;
-  const nodes = nodeCount?.c ?? 0;
-  const edges = edgeCount?.c ?? 0;
+  const messages = (msgCount?.c as number) ?? 0;
+  const nodes = (nodeCount?.c as number) ?? 0;
+  const edges = (edgeCount?.c as number) ?? 0;
 
   // Value score: knowledge density > message count
   // High value: many nodes/edges per message
@@ -52,13 +50,13 @@ export function evaluateSessionValue(
   const knowledgeDensity = messages > 0 ? (nodes + edges * 2) / messages : 0;
   const valueScore = Math.min(1, knowledgeDensity / 0.5); // Normalize: 0.5 density = max score
 
-  let compressRecommendation: "keep" | "compress" | "archive";
+  let compressRecommendation: 'keep' | 'compress' | 'archive';
   if (valueScore < 0.2 && messages > 20) {
-    compressRecommendation = "compress";
+    compressRecommendation = 'compress';
   } else if (valueScore < 0.1 && messages > 50) {
-    compressRecommendation = "archive";
+    compressRecommendation = 'archive';
   } else {
-    compressRecommendation = "keep";
+    compressRecommendation = 'keep';
   }
 
   return {
@@ -81,21 +79,20 @@ export async function compressSession(
   db: DatabaseSyncInstance,
   sessionId: string,
   llm: CompleteFn,
-  cfg: BmConfig,
 ): Promise<{ compressed: boolean; summary: string }> {
   // Get all messages for the session
   const messages = db.prepare(
-    "SELECT role, content FROM bm_messages WHERE session_id=? ORDER BY turn_index"
-  ).all(sessionId) as any[];
+    'SELECT role, content FROM bm_messages WHERE session_id=? ORDER BY turn_index'
+  ).all(sessionId) as Record<string, unknown>[];
 
   if (messages.length < 10) {
-    return { compressed: false, summary: "Session too short to compress" };
+    return { compressed: false, summary: 'Session too short to compress' };
   }
 
   // Format messages for LLM
   const text = messages
-    .map(m => `[${m.role.toUpperCase()}] ${typeof m.content === "string" ? m.content : JSON.stringify(m.content)}`)
-    .join("\n\n");
+    .map(m => `[${(m.role as string).toUpperCase()}] ${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`)
+    .join('\n\n');
 
   // Ask LLM to extract key decisions and conclusions
   const sysPrompt = `你是一个会话压缩引擎。分析以下会话内容，提取关键信息：
@@ -131,7 +128,7 @@ export async function compressSession(
     `).run(
       nodeId,
       nodeId,
-      `Compressed session summary`,
+      'Compressed session summary',
       summary,
       JSON.stringify([sessionId]),
       now,
@@ -139,7 +136,7 @@ export async function compressSession(
     );
 
     // Mark messages as compressed
-    db.prepare("UPDATE bm_messages SET extracted=2 WHERE session_id=? AND extracted=1").run(sessionId);
+    db.prepare('UPDATE bm_messages SET extracted=2 WHERE session_id=? AND extracted=1').run(sessionId);
 
     return { compressed: true, summary };
   } catch (err) {

@@ -7,12 +7,15 @@
  * Authors: brain-memory contributors
  */
 
-import { type DatabaseSyncInstance } from "@photostructure/sqlite";
-import type { BmNode, BmEdge, EdgeType, MemoryCategory, GraphNodeType } from "../types";
-import type { ScopeFilter } from "../scope/isolation";
-import { buildScopeFilterClause } from "../scope/isolation";
-import { initDb, getDbPath } from "./db";
-import { migrate, getSchemaVersion } from "./migrate";
+import { type DatabaseSyncInstance } from '@photostructure/sqlite';
+import type { BmNode, BmEdge, EdgeType, MemoryCategory, GraphNodeType, NodeStatus } from '../types';
+import type { ScopeFilter } from '../scope/isolation';
+import { initDb, getDbPath } from './db';
+import { getSchemaVersion } from './migrate';
+
+// ─── SQL Row Type ──────────────────────────────────────────────
+
+type SqlRow = Record<string, unknown>;
 import {
   findByName, findById, upsertNode, deprecate, mergeNodes,
   allActiveNodes, allEdges, updatePageranks, updateCommunities, updateAccess,
@@ -22,13 +25,12 @@ import {
   upsertCommunitySummary, getCommunitySummary, getAllCommunitySummaries,
   pruneCommunitySummaries, communityVectorSearch, nodesByCommunityIds,
   saveMessage, getUnextracted, markExtracted, getEpisodicMessages as getEpisodicMessagesStore,
-  type CommunitySummary as StoreCommunitySummary,
-} from "./store";
+} from './store';
 import type {
   IStorageAdapter, NodeUpsertInput, EdgeUpsertInput, StorageFilter,
   ScoredNode, ScoredCommunityResult, CommunitySummaryRecord,
   MessageRow, EpisodicSnippet, StorageStats,
-} from "./adapter";
+} from './adapter';
 
 /** Convert internal ScopeFilter to StorageFilter-compatible format. */
 function scopeFilterToStorageFilter(filter?: StorageFilter): ScopeFilter | undefined {
@@ -36,7 +38,7 @@ function scopeFilterToStorageFilter(filter?: StorageFilter): ScopeFilter | undef
   return {
     includeScopes: filter.includeScopes ?? [],
     excludeScopes: filter.excludeScopes ?? [],
-    allowCrossScope: !!filter.sharingMode && filter.sharingMode !== "isolated",
+    allowCrossScope: !!filter.sharingMode && filter.sharingMode !== 'isolated',
     sharingMode: filter.sharingMode,
     sharedCategories: filter.sharedCategories,
     currentAgentId: filter.currentAgentId,
@@ -45,28 +47,28 @@ function scopeFilterToStorageFilter(filter?: StorageFilter): ScopeFilter | undef
 }
 
 /** Convert raw DB row to BmNode (copied from store.ts to avoid circular import). */
-function toNodeFromRaw(r: any): BmNode {
+function toNodeFromRaw(r: SqlRow): BmNode {
   return {
-    id: r.id, type: r.type as GraphNodeType, category: ((r.category || typeToCategory(r.type)) as MemoryCategory),
-    name: r.name, description: r.description ?? "", content: r.content,
-    status: r.status, validatedCount: r.validated_count,
-    sourceSessions: JSON.parse(r.source_sessions ?? "[]"),
-    communityId: r.community_id ?? null, pagerank: r.pagerank ?? 0,
-    importance: r.importance ?? 0.5, accessCount: r.access_count ?? 0,
-    lastAccessedAt: r.last_accessed ?? 0,
-    temporalType: (r.temporal_type ?? "static") as "static" | "dynamic",
-    source: r.source as "user" | "assistant",
-    scopeSession: r.scope_session ?? null,
-    scopeAgent: r.scope_agent ?? null,
-    scopeWorkspace: r.scope_workspace ?? null,
-    createdAt: r.created_at, updatedAt: r.updated_at,
+    id: r.id as string, type: r.type as GraphNodeType, category: ((r.category || typeToCategory(r.type as string)) as MemoryCategory),
+    name: r.name as string, description: (r.description as string) ?? '', content: r.content as string,
+    status: r.status as NodeStatus, validatedCount: r.validated_count as number,
+    sourceSessions: JSON.parse((r.source_sessions as string) ?? '[]'),
+    communityId: (r.community_id as string) ?? null, pagerank: (r.pagerank as number) ?? 0,
+    importance: (r.importance as number) ?? 0.5, accessCount: (r.access_count as number) ?? 0,
+    lastAccessedAt: (r.last_accessed as number) ?? 0,
+    temporalType: ((r.temporal_type as string) ?? 'static') as 'static' | 'dynamic',
+    source: (r.source as string) as 'user' | 'assistant',
+    scopeSession: (r.scope_session as string) ?? null,
+    scopeAgent: (r.scope_agent as string) ?? null,
+    scopeWorkspace: (r.scope_workspace as string) ?? null,
+    createdAt: r.created_at as number, updatedAt: r.updated_at as number,
   };
 }
 
 function typeToCategory(type: string): MemoryCategory {
-  if (type === "TASK") return "tasks";
-  if (type === "SKILL") return "skills";
-  return "events";
+  if (type === 'TASK') return 'tasks';
+  if (type === 'SKILL') return 'skills';
+  return 'events';
 }
 
 /**
@@ -108,7 +110,7 @@ export class SQLiteStorageAdapter implements IStorageAdapter {
 
   /** Expose the raw DatabaseSyncInstance for legacy/internal use. */
   getDb(): DatabaseSyncInstance {
-    if (!this.db) throw new Error("Storage not initialized");
+    if (!this.db) throw new Error('Storage not initialized');
     return this.db;
   }
 
@@ -193,10 +195,10 @@ export class SQLiteStorageAdapter implements IStorageAdapter {
 
   loadGraphStructure(): { nodeIds: string[]; edges: Array<{ fromId: string; toId: string }> } {
     const db = this.assertDb();
-    const nodeRows = db.prepare("SELECT id FROM bm_nodes WHERE status='active'").all() as any[];
-    const nodeIds = nodeRows.map((r: any) => r.id);
-    const edgeRows = db.prepare("SELECT from_id, to_id FROM bm_edges").all() as any[];
-    const edges = edgeRows.map((e: any) => ({ fromId: e.from_id, toId: e.to_id }));
+    const nodeRows = db.prepare('SELECT id FROM bm_nodes WHERE status=\'active\'').all() as SqlRow[];
+    const nodeIds = nodeRows.map((r: SqlRow) => r.id as string);
+    const edgeRows = db.prepare('SELECT from_id, to_id FROM bm_edges').all() as SqlRow[];
+    const edges = edgeRows.map((e: SqlRow) => ({ fromId: e.from_id as string, toId: e.to_id as string }));
     return { nodeIds, edges };
   }
 
@@ -252,22 +254,22 @@ export class SQLiteStorageAdapter implements IStorageAdapter {
 
   findCommunityPeers(nodeId: string, limit: number): string[] {
     const db = this.assertDb();
-    const row = db.prepare("SELECT community_id FROM bm_nodes WHERE id=? AND status='active'").get(nodeId) as any;
+    const row = db.prepare('SELECT community_id FROM bm_nodes WHERE id=? AND status=\'active\'').get(nodeId) as SqlRow;
     if (!row?.community_id) return [];
     return (db.prepare(`
       SELECT id FROM bm_nodes WHERE community_id=? AND id!=? AND status='active'
       ORDER BY validated_count DESC, updated_at DESC LIMIT ?
-    `).all(row.community_id, nodeId, limit) as any[]).map((r: any) => r.id);
+    `).all(row.community_id, nodeId, limit) as SqlRow[]).map((r: SqlRow) => r.id as string);
   }
 
   findCommunityRepresentatives(perCommunity: number): BmNode[] {
     const rows = this.assertDb().prepare(`
       SELECT * FROM bm_nodes WHERE status='active' AND community_id IS NOT NULL
       ORDER BY community_id, validated_count DESC, updated_at DESC
-    `).all() as any[];
-    const byCommunity = new Map<string, any[]>();
+    `).all() as SqlRow[];
+    const byCommunity = new Map<string, SqlRow[]>();
     for (const r of rows) {
-      const cid = r.community_id;
+      const cid = r.community_id as string;
       if (!byCommunity.has(cid)) byCommunity.set(cid, []);
       if (byCommunity.get(cid)!.length < perCommunity) byCommunity.get(cid)!.push(r);
     }
@@ -281,7 +283,7 @@ export class SQLiteStorageAdapter implements IStorageAdapter {
   }
 
   getUnextractedMessages(sessionId: string, limit: number): MessageRow[] {
-    return getUnextracted(this.assertDb(), sessionId, limit);
+    return getUnextracted(this.assertDb(), sessionId, limit) as unknown as MessageRow[];
   }
 
   markMessagesExtracted(sessionId: string, upToTurn: number): void {
@@ -296,23 +298,23 @@ export class SQLiteStorageAdapter implements IStorageAdapter {
 
   getStats(): StorageStats {
     const db = this.assertDb();
-    const totalNodes = db.prepare("SELECT COUNT(*) as c FROM bm_nodes").get()["c"] as number;
-    const activeNodes = db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE status='active'").get()["c"] as number;
-    const deprecatedNodes = db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE status='deprecated'").get()["c"] as number;
-    const totalEdges = db.prepare("SELECT COUNT(*) as c FROM bm_edges").get()["c"] as number;
-    const vectorCount = db.prepare("SELECT COUNT(*) as c FROM bm_vectors").get()["c"] as number;
-    const communityCount = db.prepare("SELECT COUNT(*) as c FROM bm_communities").get()["c"] as number;
+    const totalNodes = db.prepare('SELECT COUNT(*) as c FROM bm_nodes').get()['c'] as number;
+    const activeNodes = db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE status=\'active\'').get()['c'] as number;
+    const deprecatedNodes = db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE status=\'deprecated\'').get()['c'] as number;
+    const totalEdges = db.prepare('SELECT COUNT(*) as c FROM bm_edges').get()['c'] as number;
+    const vectorCount = db.prepare('SELECT COUNT(*) as c FROM bm_vectors').get()['c'] as number;
+    const communityCount = db.prepare('SELECT COUNT(*) as c FROM bm_communities').get()['c'] as number;
 
-    const categories = ["profile", "preferences", "entities", "events", "tasks", "skills", "cases", "patterns"] as MemoryCategory[];
+    const categories = ['profile', 'preferences', 'entities', 'events', 'tasks', 'skills', 'cases', 'patterns'] as MemoryCategory[];
     const nodesByCategory = {} as Record<MemoryCategory, number>;
     for (const cat of categories) {
-      nodesByCategory[cat] = db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE category=?").get(cat)["c"] as number;
+      nodesByCategory[cat] = db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE category=?').get(cat)['c'] as number;
     }
 
-    const edgeTypesList = ["USED_SKILL", "SOLVED_BY", "REQUIRES", "PATCHES", "CONFLICTS_WITH", "HAS_PREFERENCE", "BELONGS_TO", "LEARNED_FROM", "EXEMPLIFIES", "RELATED_TO", "OBSERVED_IN"] as EdgeType[];
+    const edgeTypesList = ['USED_SKILL', 'SOLVED_BY', 'REQUIRES', 'PATCHES', 'CONFLICTS_WITH', 'HAS_PREFERENCE', 'BELONGS_TO', 'LEARNED_FROM', 'EXEMPLIFIES', 'RELATED_TO', 'OBSERVED_IN'] as EdgeType[];
     const edgeTypes = {} as Record<EdgeType, number>;
     for (const et of edgeTypesList) {
-      edgeTypes[et] = db.prepare("SELECT COUNT(*) as c FROM bm_edges WHERE type=?").get(et)["c"] as number;
+      edgeTypes[et] = db.prepare('SELECT COUNT(*) as c FROM bm_edges WHERE type=?').get(et)['c'] as number;
     }
 
     return {
@@ -354,7 +356,7 @@ export class SQLiteStorageAdapter implements IStorageAdapter {
   // ─── Helpers ─────────────────────────────────────────────
 
   private assertDb(): DatabaseSyncInstance {
-    if (!this.db) throw new Error("Storage not initialized. Call initialize() first.");
+    if (!this.db) throw new Error('Storage not initialized. Call initialize() first.');
     return this.db;
   }
 }

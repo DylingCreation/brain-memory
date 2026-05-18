@@ -6,7 +6,7 @@
  * Supports cross-scope retrieval when authorized.
  */
 
-import type { MemoryCategory, SharingMode } from "../types";
+import type { MemoryCategory, SharingMode } from '../types';
 
 export interface MemoryScope {
   sessionId?: string;
@@ -50,10 +50,10 @@ export function scopesMatch(a: MemoryScope, b: MemoryScope): boolean {
  */
 export function scopeKey(scope: MemoryScope): string {
   return [
-    scope.sessionId ?? "*",
-    scope.agentId ?? "*",
-    scope.workspaceId ?? "*",
-  ].join("|");
+    scope.sessionId ?? '*',
+    scope.agentId ?? '*',
+    scope.workspaceId ?? '*',
+  ].join('|');
 }
 
 /**
@@ -62,36 +62,36 @@ export function scopeKey(scope: MemoryScope): string {
  * and `params` holds the bound values — preventing SQL injection.
  * Returns `{ clause: "", params: [] }` if no filtering needed.
  */
-export function buildScopeFilterClause(filter: ScopeFilter): { clause: string; params: any[] } {
+export function buildScopeFilterClause(filter: ScopeFilter): { clause: string; params: (string | number | null)[] } {
   const conditions: string[] = [];
-  const params: any[] = [];
+  const params: (string | number | null)[] = [];
 
   // Include scopes
   if (filter.includeScopes.length > 0) {
     const includeClauses = filter.includeScopes.map(s => {
       const parts: string[] = [];
-      if (s.sessionId) { parts.push(`scope_session = ?`); params.push(s.sessionId); }
-      if (s.agentId) { parts.push(`scope_agent = ?`); params.push(s.agentId); }
-      if (s.workspaceId) { parts.push(`scope_workspace = ?`); params.push(s.workspaceId); }
-      return parts.length > 0 ? `(${parts.join(" AND ")})` : "1=1";  // #18 fix: AND for includeScopes (was OR, too permissive)
+      if (s.sessionId) { parts.push('scope_session = ?'); params.push(s.sessionId); }
+      if (s.agentId) { parts.push('scope_agent = ?'); params.push(s.agentId); }
+      if (s.workspaceId) { parts.push('scope_workspace = ?'); params.push(s.workspaceId); }
+      return parts.length > 0 ? `(${parts.join(' AND ')})` : '1=1';  // #18 fix: AND for includeScopes (was OR, too permissive)
     });
-    conditions.push(`(${includeClauses.join(" OR ")})`);
+    conditions.push(`(${includeClauses.join(' OR ')})`);
   }
 
   // v1.0.0 B-2: Cross-scope sharing logic
-  if (filter.allowCrossScope && filter.sharingMode && filter.sharingMode !== "isolated") {
-    if (filter.sharingMode === "shared") {
+  if (filter.allowCrossScope && filter.sharingMode && filter.sharingMode !== 'isolated') {
+    if (filter.sharingMode === 'shared') {
       // Fully shared: no additional restriction
       // (allow all active nodes regardless of scope)
-    } else if (filter.sharingMode === "mixed" && filter.sharedCategories && filter.sharedCategories.length > 0) {
+    } else if (filter.sharingMode === 'mixed' && filter.sharedCategories && filter.sharedCategories.length > 0) {
       // Mixed mode: allow nodes from any agent, but only for shared categories
-      const placeholders = filter.sharedCategories.map(() => "?").join(", ");
+      const placeholders = filter.sharedCategories.map(() => '?').join(', ');
       filter.sharedCategories.forEach(cat => params.push(cat));
       conditions.push(`(category IN (${placeholders}))`);
     }
     // Additional agent restriction if allowedAgents is specified
     if (filter.allowedAgents && filter.allowedAgents.length > 0) {
-      const agentPlaceholders = filter.allowedAgents.map(() => "?").join(", ");
+      const agentPlaceholders = filter.allowedAgents.map(() => '?').join(', ');
       filter.allowedAgents.forEach(aid => params.push(aid));
       conditions.push(`(scope_agent IN (${agentPlaceholders}))`);
     }
@@ -101,14 +101,14 @@ export function buildScopeFilterClause(filter: ScopeFilter): { clause: string; p
   if (filter.excludeScopes.length > 0) {
     const excludeClauses = filter.excludeScopes.map(s => {
       const parts: string[] = [];
-      if (s.sessionId) { parts.push(`scope_session != ?`); params.push(s.sessionId); }
-      if (s.agentId) { parts.push(`scope_agent != ?`); params.push(s.agentId); }
-      if (s.workspaceId) { parts.push(`scope_workspace != ?`); params.push(s.workspaceId); }
-      return parts.length > 0 ? `(${parts.join(" AND ")})` : "1=1";
+      if (s.sessionId) { parts.push('scope_session != ?'); params.push(s.sessionId); }
+      if (s.agentId) { parts.push('scope_agent != ?'); params.push(s.agentId); }
+      if (s.workspaceId) { parts.push('scope_workspace != ?'); params.push(s.workspaceId); }
+      return parts.length > 0 ? `(${parts.join(' AND ')})` : '1=1';
     });
-    conditions.push(excludeClauses.join(" AND "));
+    conditions.push(excludeClauses.join(' AND '));
   }
 
-  if (conditions.length === 0) return { clause: "", params: [] };
-  return { clause: ` AND ${conditions.join(" AND ")}`, params };
+  if (conditions.length === 0) return { clause: '', params: [] };
+  return { clause: ` AND ${conditions.join(' AND ')}`, params };
 }

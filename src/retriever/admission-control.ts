@@ -7,10 +7,10 @@
  * v1.1.0 F-2: Uses IStorageAdapter.
  */
 
-import type { MemoryCategory } from "../types";
-import type { IStorageAdapter } from "../store/adapter";
-import type { EmbedFn } from "../engine/embed";
-import { tokenize, jaccardSimilarity } from "../utils/text";
+import type { MemoryCategory } from '../types';
+import type { IStorageAdapter } from '../store/adapter';
+import type { EmbedFn } from '../engine/embed';
+import { tokenize, jaccardSimilarity } from '../utils/text';
 
 /** 准入控制配置：控制低质量或重复内容的过滤阈值。 */
 export interface AdmissionConfig {
@@ -33,7 +33,7 @@ export const DEFAULT_ADMISSION_CONFIG: AdmissionConfig = {
 
 /** 准入评估结果：包含决策（accept/reject）、原因和相似度。 */
 export interface AdmissionResult {
-  decision: "accept" | "reject";
+  decision: 'accept' | 'reject';
   reason: string;
   similarityToExisting: number;
 }
@@ -56,16 +56,16 @@ export class AdmissionController {
     const { duplicateThreshold, minContentLength, typePriors, enabled } = this.config;
 
     if (!enabled) {
-      return { decision: "accept", reason: "admission control disabled", similarityToExisting: 0 };
+      return { decision: 'accept', reason: 'admission control disabled', similarityToExisting: 0 };
     }
 
     if (content.length < minContentLength) {
-      return { decision: "reject", reason: `content too short (${content.length} < ${minContentLength})`, similarityToExisting: 0 };
+      return { decision: 'reject', reason: `content too short (${content.length} < ${minContentLength})`, similarityToExisting: 0 };
     }
 
     const typePrior = typePriors[category] ?? 0.5;
     if (typePrior < 0.3) {
-      return { decision: "reject", reason: `low type prior for ${category} (${typePrior})`, similarityToExisting: 0 };
+      return { decision: 'reject', reason: `low type prior for ${category} (${typePrior})`, similarityToExisting: 0 };
     }
 
     // Check for duplicates via name match
@@ -81,7 +81,7 @@ export class AdmissionController {
         }
       }
       if (maxOverlap > duplicateThreshold) {
-        return { decision: "reject", reason: `high content overlap (${maxOverlap.toFixed(2)} > ${duplicateThreshold})`, similarityToExisting: maxOverlap };
+        return { decision: 'reject', reason: `high content overlap (${maxOverlap.toFixed(2)} > ${duplicateThreshold})`, similarityToExisting: maxOverlap };
       }
     }
 
@@ -90,12 +90,12 @@ export class AdmissionController {
       try {
         const scored = this.storage.vectorSearchWithScore(vector, 5);
         if (scored.length > 0 && scored[0].score > duplicateThreshold) {
-          return { decision: "reject", reason: `high vector similarity (${scored[0].score.toFixed(2)} > ${duplicateThreshold})`, similarityToExisting: scored[0].score };
+          return { decision: 'reject', reason: `high vector similarity (${scored[0].score.toFixed(2)} > ${duplicateThreshold})`, similarityToExisting: scored[0].score };
         }
       } catch { /* vector search unavailable */ }
     }
 
-    return { decision: "accept", reason: `passed (typePrior=${typePrior.toFixed(2)})`, similarityToExisting: 0 };
+    return { decision: 'accept', reason: `passed (typePrior=${typePrior.toFixed(2)})`, similarityToExisting: 0 };
   }
 }
 

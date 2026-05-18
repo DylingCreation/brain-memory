@@ -9,7 +9,7 @@
  * @module migrate
  */
 
-import { type DatabaseSyncInstance } from "@photostructure/sqlite";
+import { type DatabaseSyncInstance } from '@photostructure/sqlite';
 
 // ─── Constants ─────────────────────────────────────────────────
 
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS bm_meta (
  */
 export function getSchemaVersion(db: DatabaseSyncInstance): number {
   try {
-    const row = db.prepare("SELECT value FROM bm_meta WHERE key = 'schema_version'").get() as { value: string } | undefined;
+    const row = db.prepare('SELECT value FROM bm_meta WHERE key = \'schema_version\'').get() as { value: string } | undefined;
     if (!row) return 0;
     return parseInt(row.value, 10);
   } catch {
@@ -69,7 +69,7 @@ export function migrate(db: DatabaseSyncInstance): number {
   // The current SCHEMA in db.ts already created all tables, so we just
   // need to record the version as 1.
   if (version === 0) {
-    db.prepare("INSERT INTO bm_meta (key, value) VALUES ('schema_version', '1')").run();
+    db.prepare('INSERT INTO bm_meta (key, value) VALUES (\'schema_version\', \'1\')').run();
     version = 1;
   }
 

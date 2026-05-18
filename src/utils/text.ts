@@ -10,7 +10,7 @@
 export function tokenize(text: string): Set<string> {
   return new Set(
     text.toLowerCase()
-      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
       .split(/\s+/)
       .filter(t => t.length > 1)
   );

@@ -9,15 +9,15 @@
  * Authors: adoresever (graph-memory), brain-memory contributors
  */
 
-import type { BmConfig } from "../types";
-import type { IStorageAdapter } from "../store/adapter";
-import type { CompleteFn } from "../engine/llm";
-import type { EmbedFn } from "../engine/embed";
-import { invalidateGraphCache, computeGlobalPageRank, runIncrementalPageRank } from "./pagerank";
-import { detectCommunities, summarizeCommunities, runIncrementalCommunities } from "./community";
-import { dedup } from "./dedup";
-import { scoreDecay } from "../decay/engine";
-import { logger } from "../utils/logger";
+import type { BmConfig } from '../types';
+import type { IStorageAdapter } from '../store/adapter';
+import type { CompleteFn } from '../engine/llm';
+import type { EmbedFn } from '../engine/embed';
+import { invalidateGraphCache, computeGlobalPageRank, runIncrementalPageRank } from './pagerank';
+import { detectCommunities, summarizeCommunities, runIncrementalCommunities } from './community';
+import { dedup } from './dedup';
+import { scoreDecay } from '../decay/engine';
+import { logger } from '../utils/logger';
 
 // ─── Incremental threshold (configurable) ─────────────────────
 
@@ -66,7 +66,7 @@ async function runIncrementalMaintenancePath(
   const startTime = start ?? Date.now();
   const ratio = dirtyRatio ?? storage.getDirtyNodes().size / Math.max(storage.findAllActive().length, 1);
 
-  logger.info("maintenance", `Incremental path (dirty ratio: ${(ratio * 100).toFixed(1)}%)`);
+  logger.info('maintenance', `Incremental path (dirty ratio: ${(ratio * 100).toFixed(1)}%)`);
 
   // 1. Incremental dedup (only check new/changed nodes)
   const dedupResult = dedup(storage, cfg);
@@ -87,7 +87,7 @@ async function runIncrementalMaintenancePath(
     try {
       communitySummaries = await summarizeCommunities(storage, commResult.communities, llm, embedFn);
     } catch (err) {
-      logger.debug("maintenance", `community summaries failed: ${err}`);
+      logger.debug('maintenance', `community summaries failed: ${err}`);
     }
   }
 
@@ -103,7 +103,7 @@ async function runIncrementalMaintenancePath(
           storage.deprecateNode(node.id);
           deprecatedCount++;
         } catch (err) {
-          logger.debug("maintenance", `Failed to deprecate node ${node.id}: ${err}`);
+          logger.debug('maintenance', `Failed to deprecate node ${node.id}: ${err}`);
         }
       }
     }
@@ -137,7 +137,7 @@ async function runFullMaintenancePath(
   const startTime = start ?? Date.now();
   const ratio = dirtyRatio ?? storage.getDirtyNodes().size / Math.max(storage.findAllActive().length, 1);
 
-  logger.info("maintenance", `Full path (dirty ratio: ${(ratio * 100).toFixed(1)}%)`);
+  logger.info('maintenance', `Full path (dirty ratio: ${(ratio * 100).toFixed(1)}%)`);
 
   invalidateGraphCache();
 
@@ -157,7 +157,7 @@ async function runFullMaintenancePath(
     try {
       communitySummaries = await summarizeCommunities(storage, communityResult.communities, llm, embedFn);
     } catch (err) {
-      logger.debug("maintenance", `community summaries failed: ${err}`);
+      logger.debug('maintenance', `community summaries failed: ${err}`);
     }
   }
 
@@ -173,12 +173,12 @@ async function runFullMaintenancePath(
           storage.deprecateNode(node.id);
           deprecatedCount++;
         } catch (err) {
-          logger.debug("maintenance", `Failed to deprecate node ${node.id}: ${err}`);
+          logger.debug('maintenance', `Failed to deprecate node ${node.id}: ${err}`);
         }
       }
     }
     if (deprecatedCount > 0) {
-      logger.info("maintenance", `Decay archiving: ${deprecatedCount} nodes marked as deprecated (composite < ${threshold})`);
+      logger.info('maintenance', `Decay archiving: ${deprecatedCount} nodes marked as deprecated (composite < ${threshold})`);
     }
   }
 

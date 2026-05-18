@@ -16,22 +16,22 @@ export interface LlmConfig {
   model?: string;
 }
 
-import { logger } from "../utils/logger";
+import { logger } from '../utils/logger';
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 1000;
 
 /** 创建 LLM 补全函数。支持重试（指数退避）、Qwen thinking 优化和请求超时。 */
 export function createCompleteFn(cfg?: LlmConfig): CompleteFn | null {
-  const apiKey = cfg?.apiKey || process.env.ANTHROPIC_API_KEY || "";
-  const baseURL = cfg?.baseURL || "https://api.openai.com/v1";
-  const model = cfg?.model || "gpt-4o-mini";
+  const apiKey = cfg?.apiKey || process.env.ANTHROPIC_API_KEY || '';
+  const baseURL = cfg?.baseURL || 'https://api.openai.com/v1';
+  const model = cfg?.model || 'gpt-4o-mini';
 
   // No credentials at all — return null so caller can warn
   if (!apiKey) return null;
 
   // Detect Anthropic vs OpenAI-compatible
-  const isAnthropic = baseURL.includes("anthropic");
+  const isAnthropic = baseURL.includes('anthropic');
 
   return async (system: string, user: string): Promise<string> => {
     const requestId = crypto.randomUUID().slice(0, 8);
@@ -39,7 +39,7 @@ export function createCompleteFn(cfg?: LlmConfig): CompleteFn | null {
 
     // Logging (#3): optional, enabled via BM_LOG_LLM env var or BM_LOG_LEVEL=debug
     if (process.env.BM_LOG_LLM) {
-      logger.debug("llm", `req=${requestId} model=${model} system=${system.length}ch user=${user.length}ch`);
+      logger.debug('llm', `req=${requestId} model=${model} system=${system.length}ch user=${user.length}ch`);
     }
 
     let lastError: Error | null = null;
@@ -51,13 +51,13 @@ export function createCompleteFn(cfg?: LlmConfig): CompleteFn | null {
           : await openaiComplete(apiKey, baseURL, model, system, user);
 
         if (process.env.BM_LOG_LLM) {
-          logger.debug("llm", `req=${requestId} ok latency=${Date.now() - startTime}ms attempt=${attempt}`);
+          logger.debug('llm', `req=${requestId} ok latency=${Date.now() - startTime}ms attempt=${attempt}`);
         }
         return result;
       } catch (error) {
         lastError = error as Error;
         if (process.env.BM_LOG_LLM) {
-          logger.warn("llm", `req=${requestId} fail attempt=${attempt}/${MAX_RETRIES} error=${lastError.message}`);
+          logger.warn('llm', `req=${requestId} fail attempt=${attempt}/${MAX_RETRIES} error=${lastError.message}`);
         }
         // Retry on transient errors (#4): rate limits (429), server errors (5xx), network failures
         const isRetryable = isRetryableError(lastError);
@@ -65,7 +65,7 @@ export function createCompleteFn(cfg?: LlmConfig): CompleteFn | null {
 
         const delayMs = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
         if (process.env.BM_LOG_LLM) {
-          logger.debug("llm", `req=${requestId} retrying in ${delayMs}ms...`);
+          logger.debug('llm', `req=${requestId} retrying in ${delayMs}ms...`);
         }
         await sleep(delayMs);
       }
@@ -115,7 +115,7 @@ async function openaiComplete(apiKey: string, baseURL: string, model: string, sy
   try {
     const body: Record<string, unknown> = {
       model,
-      messages: [{ role: "system", content: system }, { role: "user", content: user }],
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
       temperature: 0.1,
       max_tokens: 4096
     };
@@ -123,15 +123,15 @@ async function openaiComplete(apiKey: string, baseURL: string, model: string, sy
     // Disable thinking for Qwen reasoning models to reduce latency (~4x faster)
     // Verified: qwen3.6-plus goes from ~4s to ~1s with thinking disabled
     if (isThinkingModel(model)) {
-      (body as any).thinking = { type: "disabled" };
+      body.thinking = { type: 'disabled' };
     }
 
     const res = await fetch(`${baseURL}/chat/completions`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
-        "User-Agent": "brain-memory/1.0"
+        'User-Agent': 'brain-memory/1.0'
       },
       body: JSON.stringify(body),
       signal: controller.signal
@@ -142,8 +142,10 @@ async function openaiComplete(apiKey: string, baseURL: string, model: string, sy
       throw new Error(`LLM error: ${res.status} - ${errorMessage}`);
     }
 
-    const data = await res.json() as any;
-    return data.choices?.[0]?.message?.content ?? "";
+    const data = await res.json() as Record<string, unknown>;
+    const choices = data.choices as Array<Record<string, unknown>> | undefined;
+    const msg = choices?.[0]?.message as Record<string, unknown> | undefined;
+    return (msg?.content as string) ?? '';
   } finally {
     clearTimeout(timeoutId);
   }
@@ -152,24 +154,24 @@ async function openaiComplete(apiKey: string, baseURL: string, model: string, sy
 // ─── Anthropic ────────────────────────────────────────────────
 
 async function anthropicComplete(apiKey: string, system: string, user: string, model: string): Promise<string> {
-  if (!apiKey) throw new Error("No LLM configured: set config.llm.apiKey or ANTHROPIC_API_KEY");
+  if (!apiKey) throw new Error('No LLM configured: set config.llm.apiKey or ANTHROPIC_API_KEY');
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 60000);
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "User-Agent": "brain-memory/1.0"
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'User-Agent': 'brain-memory/1.0'
       },
       body: JSON.stringify({
         model,
         system,
-        messages: [{ role: "user", content: user }],
+        messages: [{ role: 'user', content: user }],
         max_tokens: 4096
       }),
       signal: controller.signal
@@ -180,8 +182,9 @@ async function anthropicComplete(apiKey: string, system: string, user: string, m
       throw new Error(`Anthropic error: ${res.status} - ${errorMessage}`);
     }
 
-    const data = await res.json() as any;
-    return data.content?.[0]?.text ?? "";
+    const data = await res.json() as Record<string, unknown>;
+    const content = data.content as Array<Record<string, unknown>> | undefined;
+    return (content?.[0]?.text as string) ?? '';
   } finally {
     clearTimeout(timeoutId);
   }

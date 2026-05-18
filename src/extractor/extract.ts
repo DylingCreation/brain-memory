@@ -6,19 +6,19 @@
  * Authors: adoresever (graph-memory), win4r (memory-lancedb-pro), brain-memory contributors
  */
 
-import type { BmConfig, ExtractionResult, FinalizeResult, MemoryCategory, MEMORY_CATEGORIES, EdgeType, GraphNodeType } from "../types";
-import { EDGE_FROM_CONSTRAINT, EDGE_TO_CONSTRAINT } from "../types";
-import type { CompleteFn } from "../engine/llm";
-import { isNoise } from "../noise/filter";
-import { classifyTemporal } from "../temporal/classifier";
-import { normalizeName } from "../store/store";
-import { extractJson, extractJsonTolerant } from "../utils/json";
-import { truncate } from "../utils/truncate";
-import { logger } from "../utils/logger";
-import { heuristicExtract, heuristicConfidence } from "./heuristic";
+import type { BmConfig, BmNode, ExtractionResult, FinalizeResult, MemoryCategory, EdgeType, GraphNodeType } from '../types';
+import { EDGE_FROM_CONSTRAINT, EDGE_TO_CONSTRAINT } from '../types';
+import type { CompleteFn } from '../engine/llm';
+import { isNoise } from '../noise/filter';
+import { classifyTemporal } from '../temporal/classifier';
+import { normalizeName } from '../store/store';
+import { extractJson, extractJsonTolerant } from '../utils/json';
+import { truncate } from '../utils/truncate';
+import { logger } from '../utils/logger';
+import { heuristicExtract, heuristicConfidence } from './heuristic';
 
-const VALID_NODE_TYPES = new Set(["TASK", "SKILL", "EVENT"]);
-const VALID_CATEGORIES = new Set(["profile", "preferences", "entities", "events", "tasks", "skills", "cases", "patterns"]);
+const VALID_NODE_TYPES = new Set(['TASK', 'SKILL', 'EVENT']);
+const VALID_CATEGORIES = new Set(['profile', 'preferences', 'entities', 'events', 'tasks', 'skills', 'cases', 'patterns']);
 // 从 types.ts 统一导入，不维护本地副本
 const VALID_EDGE_TYPES = new Set<EdgeType>(Object.keys(EDGE_FROM_CONSTRAINT) as EdgeType[]);
 
@@ -92,21 +92,21 @@ const FINALIZE_SYS = `你是图谱整理引擎，session 结束前最终审查�
 
 // Default category mapping for graph types (used when LLM doesn't provide category)
 const DEFAULT_CATEGORY: Record<string, MemoryCategory> = {
-  TASK: "tasks",
-  SKILL: "skills",
-  EVENT: "events",
+  TASK: 'tasks',
+  SKILL: 'skills',
+  EVENT: 'events',
 };
 
 export class Extractor {
   constructor(private cfg: BmConfig, private llm: CompleteFn | null) {}
 
-  async extract(params: { messages: any[]; existingNames: string[] }): Promise<ExtractionResult> {
+  async extract(params: { messages: Array<{ role: string; content: string; turn_index?: number }>; existingNames: string[] }): Promise<ExtractionResult> {
     const noiseCfg = this.cfg.noiseFilter;
     const filtered = noiseCfg.enabled
       ? params.messages.filter(m => {
-          const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
-          return !isNoise(text, noiseCfg);
-        })
+        const text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+        return !isNoise(text, noiseCfg);
+      })
       : params.messages;
 
     if (filtered.length === 0) return { nodes: [], edges: [] };
@@ -117,20 +117,20 @@ export class Extractor {
     // ── LLM unavailable → return heuristic result directly ──
     if (!this.llm) {
       const conf = heuristicConfidence(heuristicResult);
-      logger.info("extract", `LLM not configured — heuristic extraction returned ${heuristicResult.nodes.length} nodes (confidence: ${conf})`);
+      logger.info('extract', `LLM not configured — heuristic extraction returned ${heuristicResult.nodes.length} nodes (confidence: ${conf})`);
       return heuristicResult;
     }
 
     // ── Tier 2/3: LLM extraction ──
     const maxRetries = 2;
-    const userPrompt = `<Existing Nodes>\n${params.existingNames.join(", ") || "（无）"}\n\n<Conversation>\n${
+    const userPrompt = `<Existing Nodes>\n${params.existingNames.join(', ') || '（无）'}\n\n<Conversation>\n${
       filtered
-        .map(m => `[${(m.role ?? "?").toUpperCase()} t=${m.turn_index ?? 0}]\n${
-          truncate(String(typeof m.content === "string" ? m.content : JSON.stringify(m.content)), 1200, "extract")
-        }`).join("\n\n---\n\n")
+        .map(m => `[${(m.role ?? '?').toUpperCase()} t=${m.turn_index ?? 0}]\n${
+          truncate(String(typeof m.content === 'string' ? m.content : JSON.stringify(m.content)), 1200, 'extract')
+        }`).join('\n\n---\n\n')
     }`;
 
-    let raw = "";
+    let raw = '';
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         if (attempt === 0) {
@@ -148,15 +148,15 @@ export class Extractor {
         return heuristicResult;
       } catch (error) {
         if (attempt < maxRetries) {
-          logger.warn("extract", `Extraction parse failed (attempt ${attempt + 1}/${maxRetries}), retrying...`);
+          logger.warn('extract', `Extraction parse failed (attempt ${attempt + 1}/${maxRetries}), retrying...`);
           continue;
         }
-        logger.warn("extract", "All retries failed, attempting tolerant extraction...");
+        logger.warn('extract', 'All retries failed, attempting tolerant extraction...');
         const tolerantResult = this.parseExtractTolerant(raw);
         if (tolerantResult) {
           return this.mergeResults(heuristicResult, tolerantResult);
         }
-        logger.error("extract", "LLM extraction failed after all attempts, falling back to heuristic:", error);
+        logger.error('extract', 'LLM extraction failed after all attempts, falling back to heuristic:', error);
         return heuristicResult;
       }
     }
@@ -182,11 +182,11 @@ export class Extractor {
     // Merge edges (LLM edges take priority; heuristic edges are empty for now)
     const mergedEdges = [...llm.edges, ...heuristic.edges];
 
-    logger.info("extract", `Merged extraction: ${llm.nodes.length} LLM + ${heuristic.nodes.length} heuristic → ${mergedNodes.length} total nodes`);
+    logger.info('extract', `Merged extraction: ${llm.nodes.length} LLM + ${heuristic.nodes.length} heuristic → ${mergedNodes.length} total nodes`);
     return { nodes: mergedNodes, edges: mergedEdges };
   }
 
-  async finalize(params: { sessionNodes: any[]; graphSummary: string }): Promise<FinalizeResult> {
+  async finalize(params: { sessionNodes: BmNode[]; graphSummary: string }): Promise<FinalizeResult> {
     try {
       const raw = await this.llm(
         FINALIZE_SYS,
@@ -196,7 +196,7 @@ export class Extractor {
       );
       return this.parseFinalize(raw, params.sessionNodes);
     } catch (error) {
-      logger.error("extract", "Failed to finalize extraction:", error);
+      logger.error('extract', 'Failed to finalize extraction:', error);
       return { newEdges: [], promotedSkills: [], invalidations: [] };
     }
   }
@@ -206,14 +206,14 @@ export class Extractor {
       const json = extractJson(raw);
       const p = JSON.parse(json);
 
-      const nodes = (p.nodes ?? []).filter((n: any) => {
-        if (!n.name || !n.type || !n.content) return false;
-        if (!VALID_NODE_TYPES.has(n.type)) return false;
-        if (!n.description) n.description = "";
-        n.name = normalizeName(n.name);
+      const nodes = (p.nodes ?? []).filter((n: Record<string, unknown>) => {
+        if (!(n.name as string) || !(n.type as string) || !n.content) return false;
+        if (!VALID_NODE_TYPES.has(n.type as string)) return false;
+        if (!(n.description as string)) n.description = '' as string;
+        n.name = normalizeName(n.name as string) as unknown as string;
         // Validate category, fallback to type-based default
-        if (!n.category || !VALID_CATEGORIES.has(n.category)) {
-          n.category = DEFAULT_CATEGORY[n.type] || "tasks";
+        if (!(n.category as string) || !VALID_CATEGORIES.has(n.category as string)) {
+          n.category = DEFAULT_CATEGORY[n.type as string] || 'tasks';
         }
         return true;
       });
@@ -227,13 +227,13 @@ export class Extractor {
       for (const n of nodes) nameToType.set(n.name, n.type);
 
       const edges = (p.edges ?? [])
-        .filter((e: any) => e.from && e.to && e.type && e.instruction)
-        .map((e: any) => {
-          e.from = normalizeName(e.from);
-          e.to = normalizeName(e.to);
-          return correctEdgeType(e, nameToType);
+        .filter((e: Record<string, unknown>) => (e.from as string) && (e.to as string) && (e.type as string) && (e.instruction as string))
+        .map((e: Record<string, unknown>) => {
+          e.from = normalizeName(e.from as string) as unknown as string;
+          e.to = normalizeName(e.to as string) as unknown as string;
+          return correctEdgeType(e as { from: string; to: string; type: string; instruction: string; condition?: string }, nameToType);
         })
-        .filter((e: any) => e !== null);
+        .filter((e: Record<string, unknown>) => e !== null);
 
       return { nodes, edges };
     } catch (err) {
@@ -250,13 +250,13 @@ export class Extractor {
     if (!json) return null;
     try {
       const p = JSON.parse(json);
-      const nodes = (p.nodes ?? []).filter((n: any) => {
-        if (!n.name || !n.type || !n.content) return false;
-        if (!VALID_NODE_TYPES.has(n.type)) return false;
-        if (!n.description) n.description = "";
-        n.name = normalizeName(n.name);
-        if (!n.category || !VALID_CATEGORIES.has(n.category)) {
-          n.category = DEFAULT_CATEGORY[n.type] || "tasks";
+      const nodes = (p.nodes ?? []).filter((n: Record<string, unknown>) => {
+        if (!(n.name as string) || !(n.type as string) || !n.content) return false;
+        if (!VALID_NODE_TYPES.has(n.type as string)) return false;
+        if (!(n.description as string)) n.description = '' as string;
+        n.name = normalizeName(n.name as string) as unknown as string;
+        if (!(n.category as string) || !VALID_CATEGORIES.has(n.category as string)) {
+          n.category = DEFAULT_CATEGORY[n.type as string] || 'tasks';
         }
         return true;
       });
@@ -266,21 +266,21 @@ export class Extractor {
       const nameToType = new Map<string, string>();
       for (const n of nodes) nameToType.set(n.name, n.type);
       const edges = (p.edges ?? [])
-        .filter((e: any) => e.from && e.to && e.type && e.instruction)
-        .map((e: any) => {
-          e.from = normalizeName(e.from);
-          e.to = normalizeName(e.to);
-          return correctEdgeType(e, nameToType);
+        .filter((e: Record<string, unknown>) => (e.from as string) && (e.to as string) && (e.type as string) && (e.instruction as string))
+        .map((e: Record<string, unknown>) => {
+          e.from = normalizeName(e.from as string) as unknown as string;
+          e.to = normalizeName(e.to as string) as unknown as string;
+          return correctEdgeType(e as { from: string; to: string; type: string; instruction: string; condition?: string }, nameToType);
         })
-        .filter((e: any) => e !== null);
-      logger.info("extract", `Tolerant extraction succeeded: ${nodes.length} nodes, ${edges.length} edges`);
+        .filter((e: Record<string, unknown>) => e !== null);
+      logger.info('extract', `Tolerant extraction succeeded: ${nodes.length} nodes, ${edges.length} edges`);
       return { nodes, edges };
     } catch {
       return null;
     }
   }
 
-  private parseFinalize(raw: string, sessionNodes?: any[]): FinalizeResult {
+  private parseFinalize(raw: string, sessionNodes?: BmNode[]): FinalizeResult {
     try {
       const json = extractJson(raw);
       const p = JSON.parse(json);
@@ -292,15 +292,15 @@ export class Extractor {
         }
       }
 
-      const promotedSkills = (p.promotedSkills ?? []).filter((n: any) => n.name && n.content);
+      const promotedSkills = (p.promotedSkills ?? []).filter((n: Record<string, unknown>) => (n.name as string) && (n.content as string));
       const newEdges = (p.newEdges ?? [])
-        .filter((e: any) => e.from && e.to && e.type && VALID_EDGE_TYPES.has(e.type))
-        .map((e: any) => {
-          e.from = normalizeName(e.from);
-          e.to = normalizeName(e.to);
-          return correctEdgeType(e, nameToType);
+        .filter((e: Record<string, unknown>) => e.from && e.to && e.type && VALID_EDGE_TYPES.has(e.type as EdgeType))
+        .map((e: Record<string, unknown>) => {
+          e.from = normalizeName(e.from as string) as unknown as string;
+          e.to = normalizeName(e.to as string) as unknown as string;
+          return correctEdgeType(e as { from: string; to: string; type: string; instruction: string; condition?: string }, nameToType);
         })
-        .filter((e: any) => e !== null);
+        .filter((e: Record<string, unknown>) => e !== null);
 
       return { promotedSkills, newEdges, invalidations: p.invalidations ?? [] };
     } catch {
@@ -333,8 +333,8 @@ function correctEdgeType(
 
   // 第二步：原类型不合法，尝试根据 from/to 节点类型修正
   let corrected: string | null = null;
-  if (fromType === "TASK" && toType === "SKILL") corrected = "USED_SKILL";
-  else if (fromType === "EVENT" && toType === "SKILL") corrected = "SOLVED_BY";
+  if (fromType === 'TASK' && toType === 'SKILL') corrected = 'USED_SKILL';
+  else if (fromType === 'EVENT' && toType === 'SKILL') corrected = 'SOLVED_BY';
 
   if (corrected) {
     type = corrected;

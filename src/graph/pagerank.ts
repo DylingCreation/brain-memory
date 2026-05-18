@@ -10,8 +10,8 @@
  * Authors: adoresever (graph-memory), brain-memory contributors
  */
 
-import type { BmConfig } from "../types";
-import type { IStorageAdapter } from "../store/adapter";
+import type { BmConfig } from '../types';
+import type { IStorageAdapter } from '../store/adapter';
 
 interface GraphStructure {
   nodeIds: Set<string>;

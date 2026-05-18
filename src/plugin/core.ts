@@ -5,9 +5,8 @@
  */
 
 import { ContextEngine } from '../engine/context';
-import type { BmConfig, BmNode, BmEdge } from '../types';
+import type { BmConfig, BmNode } from '../types';
 import { assembleContext } from '../format/assemble';
-import { allActiveNodes, allEdges } from '../store/store';
 import { logger } from '../utils/logger';
 
 // Define minimal OpenClaw plugin interfaces
@@ -15,8 +14,25 @@ export interface Message {
   sessionId: string;
   agentId?: string;
   workspaceId?: string;
-  content: any;
+  content: string;
   role?: string;
+  /** Attached by getMemoryContext — memory injection for downstream consumers. */
+  memoryContext?: string;
+  formattedMemory?: {
+    xml: string;
+    systemPrompt: string;
+    episodicXml: string;
+    tokenCount?: number;
+  };
+}
+
+export interface MemoryContextResult {
+  memoryContext: string;
+  formattedXml: string;
+  systemPrompt: string;
+  episodicXml: string;
+  relatedNodes?: BmNode[];
+  tokenEstimate: number;
 }
 
 export interface SessionEvent {
@@ -31,9 +47,9 @@ export interface OpenClawPlugin {
   onSessionStart(event: SessionEvent): Promise<void>;
   onSessionEnd(event: SessionEvent): Promise<void>;
   handleMessage(message: Message): Promise<Message | null>;
-  getMemoryContext(message: Message): Promise<any>;
+  getMemoryContext(message: Message): Promise<MemoryContextResult | null>;
   beforeMessageSend(message: Message): Promise<Message>;
-  getStatus(): Promise<Record<string, any>>;
+  getStatus(): Promise<Record<string, unknown>>;
   shutdown(): Promise<void>;
 }
 
@@ -128,7 +144,7 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
     }
   }
 
-  async getMemoryContext(message: Message): Promise<any> {
+  async getMemoryContext(message: Message): Promise<MemoryContextResult | null> {
     if (!this.engine || !this.config.enabled || !this.config.injectMemories) return null;
 
     try {
@@ -159,8 +175,6 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
 
         // v1.0.0 B-1: Format memories using assembleContext for structured injection
         const db = this.engine.getDb();
-        const allNodes = allActiveNodes(db);
-        const allEdgesList = allEdges(db);
 
         // Apply maxNodes cap before assembly
         const recalledNodes = recallResult.nodes.slice(0, injectionCfg.maxNodes);
@@ -196,7 +210,7 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
   }
 
   /** Fallback: raw memory context (pre-v1.0.0 behavior) */
-  private async _getRawMemoryContext(message: Message): Promise<any> {
+  private async _getRawMemoryContext(message: Message): Promise<MemoryContextResult | null> {
     if (!this.engine) return null;
     try {
       const recallResult = await this.engine.recall(
@@ -210,6 +224,9 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
           memoryContext: this.engine.getWorkingMemoryContext(),
           relatedNodes: recallResult.nodes,
           tokenEstimate: recallResult.tokenEstimate,
+          formattedXml: '',
+          systemPrompt: '',
+          episodicXml: '',
         };
       }
       return null;
@@ -228,8 +245,8 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
         logger.info('plugin', `Retrieved ${memCtx.relatedNodes?.length || 0} relevant memories`);
 
         // v1.0.0 B-1: Attach structured formatted content for downstream use
-        (message as any).memoryContext = memCtx.memoryContext;
-        (message as any).formattedMemory = {
+        message.memoryContext = memCtx.memoryContext;
+        message.formattedMemory = {
           xml: memCtx.formattedXml,
           systemPrompt: memCtx.systemPrompt,
           episodicXml: memCtx.episodicXml,
@@ -244,7 +261,7 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
     }
   }
 
-  async getStatus(): Promise<Record<string, any>> {
+  async getStatus(): Promise<Record<string, unknown>> {
     if (!this.engine) {
       return { status: 'not initialized', enabled: this.config.enabled };
     }

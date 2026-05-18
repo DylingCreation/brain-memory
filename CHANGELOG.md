@@ -9,6 +9,45 @@ All notable changes to the brain-memory project.
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-05-14
+
+> **版本主题**：Lite 模式 + 项目身份更新
+> **Commit**: 4992c5f
+
+### Added
+
+#### Lite 模式 (F-17)
+- `lite` 配置选项：`types.ts` + `configure.js` + `setup.js`
+- ContextEngine 核心逻辑：Lite 模式仅基础图/向量召回，跳过 LLM 链路
+- 5 个测试用例覆盖 Lite 模式路径
+
+#### 项目治理
+- 作者身份更新：OpenClaw Team → DylingCreation
+- `CONTRIBUTING.md` + `CODE_OF_CONDUCT.md`
+
+### Changed
+- README 全面更新：覆盖率/配置/增量维护/IStorageAdapter
+- README 版本号 + 测试数更新 v1.0.0 → v1.5.0
+
+---
+
+## [1.4.0] — 2026-05-14
+
+> **版本主题**：CI 基础设施 + Bug 修复
+> **Commit**: 8151816
+
+### Added
+- CI GitHub Actions `test.yml` 工作流
+
+### Fixed
+- Bug #1：`/tmp/` 跨平台路径兼容（Windows）
+- Bug #2：LPA 性能阈值从 3x 放宽至实际基准 2x
+- Bug #7：vitest `pool: forks` 配置修复
+- `npm audit fix` — 修复依赖安全漏洞
+
+### Changed
+- CHANGELOG 补两组缺失数据
+
 ## [1.3.0] — 2026-05-14
 
 > **版本主题**：探索 + 收尾  

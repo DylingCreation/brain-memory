@@ -5,12 +5,12 @@
  * Falls back to cosine similarity if API is unavailable.
  */
 
-import type { BmConfig, BmNode } from "../types";
-import type { EmbedFn } from "../engine/embed";
-import { cosineSimilarity } from "../utils/similarity";
+import type { BmConfig, BmNode } from '../types';
+import type { EmbedFn } from '../engine/embed';
+import { cosineSimilarity } from '../utils/similarity';
 
 /** 重排序服务提供商。 */
-export type RerankProvider = "jina" | "siliconflow" | "voyage" | "dashscope" | "tei" | "pinecone";
+export type RerankProvider = 'jina' | 'siliconflow' | 'voyage' | 'dashscope' | 'tei' | 'pinecone';
 
 /** 重排序器配置：包含 API 密钥、模型、端点等。 */
 export interface RerankerConfig {
@@ -36,15 +36,15 @@ export class Reranker {
   private config: RerankerConfig;
 
   constructor(cfg: BmConfig) {
-    const raw = (cfg as any).rerank || {};
+    const raw = (cfg.rerank || {}) as Record<string, unknown>;
     this.config = {
-      enabled: !!raw.enabled,
-      apiKey: raw.apiKey,
-      model: raw.model || "jina-reranker-v3",
-      endpoint: raw.endpoint || "https://api.jina.ai/v1/rerank",
-      provider: raw.provider || "jina",
-      topK: raw.topK || 20,
-      timeoutMs: raw.timeoutMs || 5000,
+      enabled: !!(raw.enabled as boolean),
+      apiKey: raw.apiKey as string | undefined,
+      model: (raw.model as string) || 'jina-reranker-v3',
+      endpoint: (raw.endpoint as string) || 'https://api.jina.ai/v1/rerank',
+      provider: (raw.provider as RerankProvider) || 'jina',
+      topK: (raw.topK as number) || 20,
+      timeoutMs: (raw.timeoutMs as number) || 5000,
     };
   }
 
@@ -71,14 +71,14 @@ export class Reranker {
   private async rerankWithApi(query: string, nodes: BmNode[]): Promise<RerankResult | null> {
     const documents = nodes.map(n => `${n.name}: ${n.description}\n${n.content.slice(0, 500)}`);
 
-    const provider = this.config.provider || "jina";
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const provider = this.config.provider || 'jina';
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
     // Auth header varies by provider
-    if (provider === "pinecone") {
-      headers["Api-Key"] = this.config.apiKey!;
+    if (provider === 'pinecone') {
+      headers['Api-Key'] = this.config.apiKey!;
     } else {
-      headers["Authorization"] = `Bearer ${this.config.apiKey}`;
+      headers['Authorization'] = `Bearer ${this.config.apiKey}`;
     }
 
     // Build request body
@@ -94,7 +94,7 @@ export class Reranker {
 
     try {
       const response = await fetch(this.config.endpoint!, {
-        method: "POST",
+        method: 'POST',
         headers,
         body: JSON.stringify(body),
         signal: controller.signal,
@@ -102,8 +102,8 @@ export class Reranker {
 
       if (!response.ok) return null;
 
-      const data = await response.json() as any;
-      const results = data.results ?? data.data ?? [];
+      const data = await response.json() as Record<string, unknown>;
+      const results = (data.results ?? data.data ?? []) as Array<Record<string, unknown>>;
       if (!Array.isArray(results) || results.length === 0) return null;
 
       // Parse scores
@@ -111,7 +111,7 @@ export class Reranker {
       for (const item of results) {
         const idx = item.index ?? item.idx;
         const score = item.relevance_score ?? item.score;
-        if (typeof idx === "number" && typeof score === "number" && idx < nodes.length) {
+        if (typeof idx === 'number' && typeof score === 'number' && idx < nodes.length) {
           scores.set(nodes[idx].id, score);
         }
       }

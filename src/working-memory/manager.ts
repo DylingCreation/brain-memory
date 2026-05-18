@@ -8,7 +8,7 @@
  * Cleared when session ends.
  */
 
-import type { WorkingMemoryConfig, WorkingMemoryState } from "../types";
+import type { WorkingMemoryConfig, WorkingMemoryState } from '../types';
 
 // ─── Default State ────────────────────────────────────────────
 
@@ -17,7 +17,7 @@ export function createWorkingMemory(): WorkingMemoryState {
     currentTasks: [],
     recentDecisions: [],
     constraints: [],
-    attention: "",
+    attention: '',
     recentCommitments: [],
     updatedAt: Date.now(),
   };
@@ -43,7 +43,7 @@ export function updateWorkingMemory(
   const now = Date.now();
 
   // 1. Update current tasks from extracted TASK nodes
-  const taskNodes = params.extractedNodes.filter(n => n.type === "TASK");
+  const taskNodes = params.extractedNodes.filter(n => n.type === 'TASK');
   if (taskNodes.length > 0) {
     const newTasks = taskNodes.map(n => n.name).reverse(); // newest last in extraction, put first
     state.currentTasks = [...newTasks, ...state.currentTasks]
@@ -54,7 +54,7 @@ export function updateWorkingMemory(
   // 2. Update recent decisions from newly extracted nodes
   // #20 fix: only TASK and SKILL nodes represent decisions/learnings (not events, preferences, etc.)
   const decisionNodes = params.extractedNodes.filter(n =>
-    n.type === "TASK" || n.type === "SKILL"
+    n.type === 'TASK' || n.type === 'SKILL'
   );
   const allNames = decisionNodes.map(n => n.name);
   const newDecisions = allNames.filter(n => !state.recentDecisions.includes(n));
@@ -64,7 +64,7 @@ export function updateWorkingMemory(
 
   // 3. Update constraints from preference/profile nodes
   const prefNodes = params.extractedNodes.filter(n =>
-    n.category === "preferences" || n.category === "profile"
+    n.category === 'preferences' || n.category === 'profile'
   );
   if (prefNodes.length > 0) {
     const newConstraints = prefNodes.map(n => `${n.name}: ${n.content.slice(0, 100)}`);
@@ -101,19 +101,19 @@ export function buildWorkingMemoryContext(state: WorkingMemoryState): string | n
   const parts: string[] = [];
 
   if (state.currentTasks.length > 0) {
-    parts.push(`## Current Tasks\n${state.currentTasks.map(t => `- ${t}`).join("\n")}`);
+    parts.push(`## Current Tasks\n${state.currentTasks.map(t => `- ${t}`).join('\n')}`);
   }
 
   if (state.recentDecisions.length > 0) {
-    parts.push(`## Recent Decisions\n${state.recentDecisions.map(d => `- ${d}`).join("\n")}`);
+    parts.push(`## Recent Decisions\n${state.recentDecisions.map(d => `- ${d}`).join('\n')}`);
   }
 
   if (state.constraints.length > 0) {
-    parts.push(`## Constraints & Preferences\n${state.constraints.map(c => `- ${c}`).join("\n")}`);
+    parts.push(`## Constraints & Preferences\n${state.constraints.map(c => `- ${c}`).join('\n')}`);
   }
 
   if (state.recentCommitments.length > 0) {
-    parts.push(`## Recent Commitments\n${state.recentCommitments.map(c => `- ${c}`).join("\n")}`);
+    parts.push(`## Recent Commitments\n${state.recentCommitments.map(c => `- ${c}`).join('\n')}`);
   }
 
   if (state.attention) {
@@ -122,7 +122,7 @@ export function buildWorkingMemoryContext(state: WorkingMemoryState): string | n
 
   if (parts.length === 0) return null;
 
-  return `<working_memory>\n${parts.join("\n\n")}\n</working_memory>`;
+  return `<working_memory>\n${parts.join('\n\n')}\n</working_memory>`;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -132,8 +132,8 @@ function cleanUserMessage(raw: string, maxLen: number): string {
   let text = raw.trim();
 
   // Remove common metadata patterns
-  text = text.replace(/^\/\w+\s+/, "").trim();
-  text = text.replace(/^\[[\w\s\-:]+\]\s*/, "").trim();
+  text = text.replace(/^\/\w+\s+/, '').trim();
+  text = text.replace(/^\[[\w\s\-:]+\]\s*/, '').trim();
 
   // Remove code blocks but KEEP text after them (the intent might be after the code)
   const fenceRegex = /```[\s\S]*?```/g;
@@ -165,10 +165,10 @@ function extractCommitments(text: string): string[] {
   
   // Keywords that often precede commitments
   const commitmentKeywords = [
-    "i will", "i'll", "i would", "should", "recommend", "suggest", "propose", 
-    "plan to", "going to", "intend to", "promise", "guarantee", "assure",
-    "let me", "let's", "help you", "assist with", "take care of",
-    "look into", "investigate", "check", "find", "search"
+    'i will', 'i\'ll', 'i would', 'should', 'recommend', 'suggest', 'propose', 
+    'plan to', 'going to', 'intend to', 'promise', 'guarantee', 'assure',
+    'let me', 'let\'s', 'help you', 'assist with', 'take care of',
+    'look into', 'investigate', 'check', 'find', 'search'
   ];
   
   for (const keyword of commitmentKeywords) {

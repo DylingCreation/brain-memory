@@ -15,7 +15,7 @@
 
 // ─── Levels ─────────────────────────────────────────────────────
 
-export type LogLevel = "error" | "warn" | "info" | "debug";
+export type LogLevel = 'error' | 'warn' | 'info' | 'debug';
 
 const LEVEL_PRIORITY: Record<LogLevel, number> = {
   error: 0,
@@ -29,25 +29,25 @@ const LEVEL_PRIORITY: Record<LogLevel, number> = {
  * Falls back to "info" if not set or invalid.
  */
 function getMinLevel(): LogLevel {
-  const raw = (process.env.BM_LOG_LEVEL || "").toLowerCase().trim();
+  const raw = (process.env.BM_LOG_LEVEL || '').toLowerCase().trim();
   if (raw in LEVEL_PRIORITY) return raw as LogLevel;
-  return "info";
+  return 'info';
 }
 
 // ─── Formatting ────────────────────────────────────────────────
 
 function formatTime(): string {
   const now = new Date();
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${now.getMilliseconds().toString().padStart(3, "0")}`;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${now.getMilliseconds().toString().padStart(3, '0')}`;
 }
 
 function levelLabel(level: LogLevel): string {
   switch (level) {
-    case "error": return "ERROR";
-    case "warn":  return "WARN ";
-    case "info":  return "INFO ";
-    case "debug": return "DEBUG";
+  case 'error': return 'ERROR';
+  case 'warn':  return 'WARN ';
+  case 'info':  return 'INFO ';
+  case 'debug': return 'DEBUG';
   }
 }
 
@@ -58,26 +58,26 @@ function emit(level: LogLevel, module: string, message: string, ...args: unknown
 
   const prefix = `[brain-memory][${formatTime()}][${levelLabel(level)}][${module}]`;
   switch (level) {
-    case "error":
-      console.error(prefix, message, ...args);
-      break;
-    case "warn":
-      console.warn(prefix, message, ...args);
-      break;
-    case "info":
-      console.log(prefix, message, ...args);
-      break;
-    case "debug":
-      console.log(prefix, message, ...args);
-      break;
+  case 'error':
+    console.error(prefix, message, ...args);
+    break;
+  case 'warn':
+    console.warn(prefix, message, ...args);
+    break;
+  case 'info':
+    console.log(prefix, message, ...args);
+    break;
+  case 'debug':
+    console.log(prefix, message, ...args);
+    break;
   }
 }
 
 export const logger = {
-  error(module: string, message: string, ...args: unknown[]) { emit("error", module, message, ...args); },
-  warn(module: string, message: string, ...args: unknown[]) { emit("warn", module, message, ...args); },
-  info(module: string, message: string, ...args: unknown[]) { emit("info", module, message, ...args); },
-  debug(module: string, message: string, ...args: unknown[]) { emit("debug", module, message, ...args); },
+  error(module: string, message: string, ...args: unknown[]) { emit('error', module, message, ...args); },
+  warn(module: string, message: string, ...args: unknown[]) { emit('warn', module, message, ...args); },
+  info(module: string, message: string, ...args: unknown[]) { emit('info', module, message, ...args); },
+  debug(module: string, message: string, ...args: unknown[]) { emit('debug', module, message, ...args); },
   /** Check if a level is currently enabled */
   isEnabled(level: LogLevel): boolean {
     return LEVEL_PRIORITY[level] <= LEVEL_PRIORITY[getMinLevel()];

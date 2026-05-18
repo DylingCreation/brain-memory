@@ -11,10 +11,9 @@
  * Authors: brain-memory contributors
  */
 
-import type { MessageRow } from "../store/adapter";
-import type { BmNode, BmEdge, MemoryCategory, GraphNodeType } from "../types";
-import type { ScopeFilter } from "../scope/isolation";
-import type { FusionCandidate } from "../fusion/analyzer";
+import type { BmNode, BmEdge, MemoryCategory, GraphNodeType } from '../types';
+import type { ScopeFilter } from '../scope/isolation';
+import type { FusionCandidate } from '../fusion/analyzer';
 
 // ─── Extraction Hooks ────────────────────────────────────────
 
@@ -32,7 +31,7 @@ export interface AfterExtractInput {
     name: string;
     description: string;
     content: string;
-    temporalType?: "static" | "dynamic";
+    temporalType?: 'static' | 'dynamic';
   }>;
   edges: Array<{
     from: string;

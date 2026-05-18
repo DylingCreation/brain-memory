@@ -14,18 +14,18 @@
  * Authors: adoresever (graph-memory), brain-memory contributors
  */
 
-import { createHash } from "crypto";
-import type { BmConfig, RecallResult, BmNode, BmEdge } from "../types";
-import type { EmbedFn, BatchEmbedFn } from "../engine/embed";
-import type { ScopeFilter } from "../scope/isolation";
-import type { IStorageAdapter, StorageFilter } from "../store/adapter";
-import { personalizedPageRank } from "../graph/pagerank";
-import { applyTimeDecay } from "../decay/engine";
-import { estimateNodeTokens } from "../utils/tokens";
-import { logger } from "../utils/logger";
+import { createHash } from 'crypto';
+import type { BmConfig, RecallResult, BmNode } from '../types';
+import type { EmbedFn, BatchEmbedFn } from '../engine/embed';
+import type { ScopeFilter } from '../scope/isolation';
+import type { IStorageAdapter, StorageFilter } from '../store/adapter';
+import { personalizedPageRank } from '../graph/pagerank';
+import { applyTimeDecay } from '../decay/engine';
+import { estimateNodeTokens } from '../utils/tokens';
+import { logger } from '../utils/logger';
 // B-4: retriever module integration
-import { analyzeIntent } from "../retriever/intent-analyzer";
-import { expandQuery } from "../retriever/query-expander";
+import { analyzeIntent } from '../retriever/intent-analyzer';
+import { expandQuery } from '../retriever/query-expander';
 
 /** Convert ScopeFilter to StorageFilter for adapter calls */
 function toStorageFilter(filter?: ScopeFilter): StorageFilter | undefined {
@@ -40,12 +40,6 @@ function toStorageFilter(filter?: ScopeFilter): StorageFilter | undefined {
   };
 }
 
-interface RecallPathResult {
-  seeds: string[];
-  nodes: BmNode[];
-  edges: BmEdge[];
-}
-
 /** 双路径召回引擎：精确路径（向量/FTS5） + 泛化路径（社区向量匹配），统一 PPR 排序。 */
 export class Recaller {
   private embed: EmbedFn | null = null;
@@ -56,17 +50,17 @@ export class Recaller {
   setEmbedFn(fn: EmbedFn): void { this.embed = fn; }
   setBatchEmbedFn(fn: BatchEmbedFn): void { this.batchEmbed = fn; }
 
-  async recall(query: string, scopeFilter?: ScopeFilter, sourceFilter?: "user" | "assistant" | "both"): Promise<RecallResult> {
+  async recall(query: string, scopeFilter?: ScopeFilter, sourceFilter?: 'user' | 'assistant' | 'both'): Promise<RecallResult> {
     const limit = this.cfg.recallMaxNodes;
 
     // B-4: Intent analysis for diagnostics
     const intent = analyzeIntent(query);
-    logger.debug("recall", `intent=${intent.intent} scores=${JSON.stringify(intent.scores)}`);
+    logger.debug('recall', `intent=${intent.intent} scores=${JSON.stringify(intent.scores)}`);
 
     // B-4: Query expansion for FTS5 seed acquisition
     const expandedQuery = expandQuery(query);
     if (expandedQuery !== query) {
-      logger.debug("recall", `query expanded: "${query}" → "${expandedQuery}"`);
+      logger.debug('recall', `query expanded: "${query}" → "${expandedQuery}"`);
     }
 
     // Phase 2: Get seeds from both paths
@@ -102,7 +96,7 @@ export class Recaller {
       .slice(0, limit);
 
     // Apply source filter after sorting
-    if (sourceFilter && sourceFilter !== "both") {
+    if (sourceFilter && sourceFilter !== 'both') {
       filtered = filtered.filter(n => n.source === sourceFilter);
     }
 
@@ -113,7 +107,7 @@ export class Recaller {
 
     const ids = new Set(filtered.map(n => n.id));
 
-    logger.debug("recall", `preciseSeeds=${preciseSeeds.length}, generalizedSeeds=${generalizedSeeds.length} → unifiedSeeds=${unifiedSeeds.length} → final=${filtered.length} nodes, ${new Set(filtered.map(n => n.communityId).filter(Boolean)).size} communities`);
+    logger.debug('recall', `preciseSeeds=${preciseSeeds.length}, generalizedSeeds=${generalizedSeeds.length} → unifiedSeeds=${unifiedSeeds.length} → final=${filtered.length} nodes, ${new Set(filtered.map(n => n.communityId).filter(Boolean)).size} communities`);
 
     return {
       nodes: filtered,
@@ -125,7 +119,7 @@ export class Recaller {
   // ─── Seed Acquisition ───────────────────────────────────────
 
   /** Get precise path seeds: vector/FTS5 → community expansion */
-  private async getPreciseSeeds(query: string, limit: number, scopeFilter?: ScopeFilter, sourceFilter?: "user" | "assistant" | "both"): Promise<string[]> {
+  private async getPreciseSeeds(query: string, limit: number, scopeFilter?: ScopeFilter, sourceFilter?: 'user' | 'assistant' | 'both'): Promise<string[]> {
     let seeds: BmNode[] = [];
     const sf = toStorageFilter(scopeFilter);
 
@@ -157,7 +151,7 @@ export class Recaller {
   }
 
   /** Get generalized path seeds: community vector match → members */
-  private async getGeneralizedSeeds(query: string, limit: number, scopeFilter?: ScopeFilter, sourceFilter?: "user" | "assistant" | "both"): Promise<string[]> {
+  private async getGeneralizedSeeds(query: string, limit: number, scopeFilter?: ScopeFilter, sourceFilter?: 'user' | 'assistant' | 'both'): Promise<string[]> {
     let seeds: BmNode[] = [];
 
     if (this.embed) {
@@ -177,7 +171,7 @@ export class Recaller {
     if (scopeFilter) {
       seeds = seeds.filter(n => matchesScope(n, scopeFilter));
     }
-    if (sourceFilter && sourceFilter !== "both") {
+    if (sourceFilter && sourceFilter !== 'both') {
       seeds = seeds.filter(n => n.source === sourceFilter);
     }
 
@@ -196,7 +190,7 @@ export class Recaller {
 
     const needEmbed: BmNode[] = [];
     for (const node of nodes) {
-      const hash = createHash("md5").update(node.content).digest("hex");
+      const hash = createHash('md5').update(node.content).digest('hex');
       if (this.storage.getVectorHash(node.id) !== hash) needEmbed.push(node);
     }
     if (needEmbed.length === 0) return;
@@ -231,7 +225,7 @@ export class Recaller {
   /** Async sync embedding, doesn't block main flow */
   async syncEmbed(node: BmNode): Promise<void> {
     if (!this.embed) return;
-    const hash = createHash("md5").update(node.content).digest("hex");
+    const hash = createHash('md5').update(node.content).digest('hex');
     if (this.storage.getVectorHash(node.id) === hash) return;
     try {
       const text = this.buildEmbeddingText(node);
@@ -324,9 +318,9 @@ export class Recaller {
   }
 
   /** Helper: search nodes with source filter */
-  private searchNodesWithSourceFilter(query: string, limit: number, scopeFilter?: ScopeFilter, sourceFilter?: "user" | "assistant" | "both"): BmNode[] {
+  private searchNodesWithSourceFilter(query: string, limit: number, scopeFilter?: ScopeFilter, sourceFilter?: 'user' | 'assistant' | 'both'): BmNode[] {
     const nodes = this.storage.searchNodes(query, limit, toStorageFilter(scopeFilter));
-    if (sourceFilter && sourceFilter !== "both") {
+    if (sourceFilter && sourceFilter !== 'both') {
       return nodes.filter(n => n.source === sourceFilter);
     }
     return nodes;

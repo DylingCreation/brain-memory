@@ -11,40 +11,39 @@
  * so they participate in PPR ranking, community detection, and decay.
  */
 
-import { type DatabaseSyncInstance } from "@photostructure/sqlite";
-import type { BmConfig, ReflectionInsight, ReflectionConfig } from "../types";
-import { upsertNode, findByName, allActiveNodes, normalizeName } from "../store/store";
-import { sanitizeReflectionText } from "./extractor"
-import { tokenize, jaccardSimilarity } from "../utils/text";
-import { logger } from "../utils/logger";
+import { type DatabaseSyncInstance } from '@photostructure/sqlite';
+import type { BmConfig, ReflectionInsight, MemoryCategory } from '../types';
+import { upsertNode, findByName, allActiveNodes, normalizeName } from '../store/store';
+import { tokenize, jaccardSimilarity } from '../utils/text';
+import { logger } from '../utils/logger';
 
 // ─── Insight → Node Mapping ───────────────────────────────────
 
 /** Map reflection insight kind to graph node type + memory category */
 export function mapInsightToNode(insight: ReflectionInsight): {
-  type: "TASK" | "SKILL" | "EVENT";
-  category: string;
+  type: 'TASK' | 'SKILL' | 'EVENT';
+  category: MemoryCategory;
   prefix: string;
 } {
   switch (insight.kind) {
-    case "user-model":
-      // User preferences/profile → TASK node, preferences/profile category
-      return {
-        type: "TASK",
-        category: insight.text.toLowerCase().includes("prefer") || insight.text.toLowerCase().includes("喜欢") || insight.text.toLowerCase().includes("习惯")
-          ? "preferences"
-          : "profile",
-        prefix: "用户画像",
-      };
-    case "agent-model":
-      // Agent behavior lessons → EVENT node, cases category
-      return { type: "EVENT", category: "cases", prefix: "Agent教训" };
-    case "lesson":
-      // General lessons → EVENT node, cases/patterns category
-      return { type: "EVENT", category: "cases", prefix: "经验教训" };
-    case "decision":
-      // Decisions → TASK node, events category
-      return { type: "TASK", category: "events", prefix: "重要决策" };
+  case 'user-model':
+    // User preferences/profile → TASK node, preferences/profile category
+    return {
+      type: 'TASK',
+      category: insight.text.toLowerCase().includes('prefer') || insight.text.toLowerCase().includes('喜欢') || insight.text.toLowerCase().includes('习惯')
+        ? 'preferences'
+        : 'profile',
+      prefix: '用户画像',
+    };
+  case 'agent-model':
+    // Agent behavior lessons → EVENT node, cases category
+    return { type: 'EVENT', category: 'cases', prefix: 'Agent教训' };
+  case 'lesson':
+    // General lessons → EVENT node, cases/patterns category
+    return { type: 'EVENT', category: 'cases', prefix: '经验教训' };
+  case 'decision':
+    // Decisions → TASK node, events category
+    return { type: 'TASK', category: 'events', prefix: '重要决策' };
   }
 }
 
@@ -70,10 +69,10 @@ export function storeReflectionInsights(
     if (relatedNode) {
       // Boost importance of existing node instead of creating new one
       const newImportance = Math.min(1.0, relatedNode.importance + cfg.reflection.importanceBoost);
-      db.prepare("UPDATE bm_nodes SET importance=?, validated_count=validated_count+1, updated_at=? WHERE id=?")
+      db.prepare('UPDATE bm_nodes SET importance=?, validated_count=validated_count+1, updated_at=? WHERE id=?')
         .run(newImportance, Date.now(), relatedNode.id);
       boosted++;
-      logger.debug("reflect", `boosted "${relatedNode.name}" importance: ${relatedNode.importance.toFixed(2)} → ${newImportance.toFixed(2)}`);
+      logger.debug('reflect', `boosted "${relatedNode.name}" importance: ${relatedNode.importance.toFixed(2)} → ${newImportance.toFixed(2)}`);
       continue;
     }
 
@@ -89,26 +88,26 @@ export function storeReflectionInsights(
     try {
       upsertNode(db, {
         type: mapping.type,
-        category: mapping.category as any,
+        category: mapping.category,
         name,
         description,
         content,
-        source: "assistant", // Reflections are AI-generated insights
-        temporalType: "static", // Reflection insights are stable
+        source: 'assistant', // Reflections are AI-generated insights
+        temporalType: 'static', // Reflection insights are stable
       }, sessionId);
 
       // Set custom importance (upsertNode sets default 0.5)
       const normalized = normalizeName(name);
       const node = findByName(db, normalized);
       if (node) {
-        db.prepare("UPDATE bm_nodes SET importance=? WHERE id=?")
+        db.prepare('UPDATE bm_nodes SET importance=? WHERE id=?')
           .run(initialImportance, node.id);
       }
 
       stored++;
-      logger.debug("reflect", `stored "${name}" (importance: ${initialImportance.toFixed(2)})`);
+      logger.debug('reflect', `stored "${name}" (importance: ${initialImportance.toFixed(2)})`);
     } catch (err) {
-      logger.debug("reflect", `failed to store reflection: ${err}`);
+      logger.debug('reflect', `failed to store reflection: ${err}`);
     }
   }
 
@@ -156,11 +155,11 @@ export function applyTurnBoosts(
     if (!node) continue;
 
     const newImportance = Math.min(1.0, node.importance + Math.min(boost.importanceDelta, maxBoost));
-    db.prepare("UPDATE bm_nodes SET importance=?, updated_at=? WHERE id=?")
+    db.prepare('UPDATE bm_nodes SET importance=?, updated_at=? WHERE id=?')
       .run(newImportance, Date.now(), node.id);
 
     applied++;
-    logger.debug("reflect", `turn boost "${node.name}": ${node.importance.toFixed(2)} → ${newImportance.toFixed(2)} (${boost.reason})`);
+    logger.debug('reflect', `turn boost "${node.name}": ${node.importance.toFixed(2)} → ${newImportance.toFixed(2)} (${boost.reason})`);
   }
 
   return applied;

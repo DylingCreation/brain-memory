@@ -13,7 +13,7 @@
  * wire `extractPreferences()` into the extractor pipeline and add tests.
  */
 
-import type { MemoryCategory } from "../types";
+import type { MemoryCategory } from '../types';
 
 /** 偏好槽：用户偏好的结构化存储单元。 */
 export interface PreferenceSlot {
