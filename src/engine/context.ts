@@ -37,7 +37,7 @@ import { reflectOnTurn, reflectOnSession } from '../reflection/extractor';
 import { createWorkingMemory, updateWorkingMemory, buildWorkingMemoryContext } from '../working-memory/manager';
 import { runReasoning, type ReasoningConclusion } from '../reasoning/engine';
 import { runMaintenance } from '../graph/maintenance';
-import { createHookRegistry, type HookRegistry, type BeforeExtractHook, type AfterExtractHook, type BeforeRecallHook, type AfterRecallHook, type BeforeFusionHook, type AfterFusionHook } from '../plugin/hooks';
+import { createHookRegistry, type HookRegistry } from '../plugin/hooks';
 
 /**
  * 统一上下文引擎 — brain-memory 主入口。
@@ -421,7 +421,7 @@ export class ContextEngine {
     const stats = this.storage.getStats();
     const dbPath = this.config.dbPath.replace(/^~/, homedir());
     let dbSizeBytes = 0;
-    try { if (existsSync(dbPath)) dbSizeBytes = statSync(dbPath).size; } catch {}
+    try { if (existsSync(dbPath)) dbSizeBytes = statSync(dbPath).size; } catch { /* stat may fail */ }
     const uptimeMs = Date.now() - this.createdAt;
     const cacheStats = getEmbedCacheStats();
     const db = (this.storage as SQLiteStorageAdapter).getDb();
@@ -468,7 +468,7 @@ export class ContextEngine {
     if (dbStatus === 'ok') {
       const dbPath = this.config.dbPath.replace(/^~/, homedir());
       let dbSizeBytes = 0;
-      try { if (existsSync(dbPath)) dbSizeBytes = statSync(dbPath).size; } catch {}
+      try { if (existsSync(dbPath)) dbSizeBytes = statSync(dbPath).size; } catch { /* stat may fail */ }
       healthStats = { nodeCount: stats.totalNodes, edgeCount: stats.totalEdges, vectorCount: stats.vectorCount, communityCount: stats.communityCount, dbSizeBytes };
     }
     let status: HealthOverallStatus = 'healthy';

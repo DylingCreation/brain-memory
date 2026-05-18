@@ -43,6 +43,7 @@ export function tryFixJson(s: string): string {
   fixed = balanceBraces(fixed);
 
   // 5. Remove control characters that break JSON
+  // eslint-disable-next-line no-control-regex
   fixed = fixed.replace(/[\x00-\x1f]/g, (m) => {
     if (m === '\n') return '\\n';
     if (m === '\r') return '\\r';
