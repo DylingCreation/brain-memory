@@ -22,8 +22,17 @@ export default defineConfig({
         'test/**',
         'dist/**',
         'scripts/**',
+        'docs/**',
         '**/types.ts',
-        '**/index.ts'
+        '**/prompts.ts',
+        // Root-level non-source (configs, templates, build outputs, barrel exports)
+        '*.js',
+        '*.template.js',
+        '*.template.ts',
+        'index.ts',
+        'vitest.config.ts',
+        'openclaw-plugin.ts',
+        'openclaw-register.ts',
       ]
     },
     
