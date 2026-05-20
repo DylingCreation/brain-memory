@@ -370,7 +370,7 @@ export class ContextEngine {
       return await reflectOnSession(this.config.reflection, createCompleteFn(this.config.llm)!, {
         sessionMessages: messages.map(m => m.content).join('\n'),
         extractedNodes: sessionNodes.map(n => ({ name: n.name, category: n.category, type: n.type, content: n.content })),
-      });
+      }, this.config.mode as "full" | "small" | "lite");
     } catch (error) {
       logger.error('context', 'Failed to perform session reflection:', error);
       throw new Error(`Session reflection failed: ${(error as Error).message}`);

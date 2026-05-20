@@ -9,7 +9,7 @@
  * Authors: adoresever (graph-memory), brain-memory contributors
  */
 
-import type { BmConfig } from '../types';
+import type { BmConfig, RunMode } from '../types';
 import type { IStorageAdapter } from '../store/adapter';
 import type { CompleteFn } from '../engine/llm';
 import type { EmbedFn } from '../engine/embed';
@@ -39,10 +39,17 @@ export async function runMaintenance(
   llm?: CompleteFn,
   embedFn?: EmbedFn,
 ) {
+  const mode: RunMode = (cfg as any).mode ?? 'full';
+  const isLite = mode === 'lite';
+
   const start = Date.now();
   const dirtyCount = storage.getDirtyNodes().size;
   const totalActive = storage.findAllActive().length;
   const dirtyRatio = dirtyCount / Math.max(totalActive, 1);
+
+  if (isLite) {
+    return runLiteMaintenancePath(storage, cfg, start, dirtyRatio);
+  }
 
   if (shouldRunIncremental(storage)) {
     // v1.1.0 F-4: Incremental path
@@ -192,6 +199,64 @@ async function runFullMaintenancePath(
     communitySummaries,
     deprecatedNodes: deprecatedCount,
     incremental: false,
+    dirtyRatio: ratio,
+    durationMs: Date.now() - startTime,
+  };
+}
+
+// ─── Lite Maintenance Path (v1.6.0 B-3) ──────────────────
+
+/**
+ * Lite 模式精简维护：仅去重 + PageRank + 衰减，不做社区检测。
+ * Lite 模式无 LLM，因此也跳过社区摘要。
+ */
+async function runLiteMaintenancePath(
+  storage: IStorageAdapter,
+  cfg: BmConfig,
+  start?: number,
+  dirtyRatio?: number,
+) {
+  const startTime = start ?? Date.now();
+  const ratio = dirtyRatio ?? storage.getDirtyNodes().size / Math.max(storage.findAllActive().length, 1);
+
+  logger.info('maintenance', `Lite path (dirty ratio: ${(ratio * 100).toFixed(1)}%)`);
+
+  // 1. Dedup
+  const dedupResult = dedup(storage, cfg);
+  if (dedupResult.merged > 0) invalidateGraphCache();
+
+  // 2. Global PageRank
+  const pagerankResult = computeGlobalPageRank(storage, cfg);
+
+  // 3. Decay-based archiving
+  let deprecatedCount = 0;
+  if (cfg.decay.enabled) {
+    const nodes = storage.findAllActive();
+    const threshold = 0.25;
+    for (const node of nodes) {
+      const score = scoreDecay(node, cfg.decay);
+      if (score.composite < threshold && node.validatedCount <= 1) {
+        try {
+          storage.deprecateNode(node.id);
+          deprecatedCount++;
+        } catch (err) {
+          logger.debug('maintenance', `Failed to deprecate node ${node.id}: ${err}`);
+        }
+      }
+    }
+  }
+
+  // Clear dirty marks
+  storage.clearDirty();
+
+  return {
+    dedup: dedupResult,
+    pagerank: pagerankResult,
+    community: { communities: new Map(), count: 0 },
+    communitySummaries: 0,
+    deprecatedNodes: deprecatedCount,
+    incremental: false,
+    lite: true,
     dirtyRatio: ratio,
     durationMs: Date.now() - startTime,
   };

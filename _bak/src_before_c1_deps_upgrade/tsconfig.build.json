@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmitOnError": false,
+    "skipLibCheck": true
+  },
+  "include": [
+    "index.ts",
+    "openclaw-plugin.ts",
+    "openclaw-register.ts",
+    "openclaw-wrapper.ts",
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests",
+    "test/**/*",
+    "benchmark",
+    "**/*.test.ts",
+    "**/test-*"
+  ]
+}

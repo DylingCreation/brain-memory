@@ -15,14 +15,14 @@
  * 通过 `as const` 确保类型推导为字面量联合类型。
  */
 export const MEMORY_CATEGORIES = [
-  "profile",      // 用户画像
-  "preferences",  // 用户偏好
-  "entities",     // 实体信息
-  "events",       // 报错/异常
-  "tasks",        // 完成的任务/讨论主题
-  "skills",       // 可复用的操作技能
-  "cases",        // 案例经验
-  "patterns",     // 模式规律
+  'profile',      // 用户画像
+  'preferences',  // 用户偏好
+  'entities',     // 实体信息
+  'events',       // 报错/异常
+  'tasks',        // 完成的任务/讨论主题
+  'skills',       // 可复用的操作技能
+  'cases',        // 案例经验
+  'patterns',     // 模式规律
 ] as const;
 
 /** 8 类记忆分类的 TypeScript 联合类型。 */
@@ -30,23 +30,23 @@ export type MemoryCategory = (typeof MEMORY_CATEGORIES)[number];
 
 // 图节点类型（3种，用于知识图谱边）
 /** 图节点类型：TASK=任务, SKILL=技能, EVENT=事件。 */
-export type GraphNodeType = "TASK" | "SKILL" | "EVENT";
+export type GraphNodeType = 'TASK' | 'SKILL' | 'EVENT';
 
 // ─── 边类型 ───────────────────────────────────────────────────
 
 /** 知识图谱边类型联合类型：定义节点之间的 11 种关系。 */
 export type EdgeType =
-  | "USED_SKILL"
-  | "SOLVED_BY"
-  | "REQUIRES"
-  | "PATCHES"
-  | "CONFLICTS_WITH"
-  | "HAS_PREFERENCE"
-  | "BELONGS_TO"
-  | "LEARNED_FROM"
-  | "EXEMPLIFIES"
-  | "RELATED_TO"
-  | "OBSERVED_IN";
+  | 'USED_SKILL'
+  | 'SOLVED_BY'
+  | 'REQUIRES'
+  | 'PATCHES'
+  | 'CONFLICTS_WITH'
+  | 'HAS_PREFERENCE'
+  | 'BELONGS_TO'
+  | 'LEARNED_FROM'
+  | 'EXEMPLIFIES'
+  | 'RELATED_TO'
+  | 'OBSERVED_IN';
 
 /**
  * 边方向约束：定义每种边类型允许 from/to 端的节点类型。
@@ -55,41 +55,41 @@ export type EdgeType =
  */
 export const EDGE_FROM_CONSTRAINT: Record<EdgeType, Set<GraphNodeType>> = {
   // 现有 5 种（v0.1.x）
-  USED_SKILL:     new Set(["TASK"]),
-  SOLVED_BY:      new Set(["EVENT", "SKILL"]),
-  REQUIRES:       new Set(["SKILL"]),
-  PATCHES:        new Set(["SKILL"]),
-  CONFLICTS_WITH: new Set(["SKILL"]),
+  USED_SKILL:     new Set(['TASK']),
+  SOLVED_BY:      new Set(['EVENT', 'SKILL']),
+  REQUIRES:       new Set(['SKILL']),
+  PATCHES:        new Set(['SKILL']),
+  CONFLICTS_WITH: new Set(['SKILL']),
   // 新增 6 种（v1.0.0）
-  HAS_PREFERENCE: new Set(["TASK", "SKILL", "EVENT"]),
-  BELONGS_TO:     new Set(["TASK", "SKILL", "EVENT"]),
-  LEARNED_FROM:   new Set(["SKILL"]),
-  EXEMPLIFIES:    new Set(["SKILL"]),
-  RELATED_TO:     new Set(["TASK", "SKILL", "EVENT"]),
-  OBSERVED_IN:    new Set(["SKILL", "EVENT"]),
+  HAS_PREFERENCE: new Set(['TASK', 'SKILL', 'EVENT']),
+  BELONGS_TO:     new Set(['TASK', 'SKILL', 'EVENT']),
+  LEARNED_FROM:   new Set(['SKILL']),
+  EXEMPLIFIES:    new Set(['SKILL']),
+  RELATED_TO:     new Set(['TASK', 'SKILL', 'EVENT']),
+  OBSERVED_IN:    new Set(['SKILL', 'EVENT']),
 };
 
 /** 边 to 端类型约束：定义每种边类型允许指向的目标节点类型。 */
 export const EDGE_TO_CONSTRAINT: Record<EdgeType, Set<GraphNodeType>> = {
   // 现有 5 种（v0.1.x）
-  USED_SKILL:     new Set(["SKILL"]),
-  SOLVED_BY:      new Set(["SKILL"]),
-  REQUIRES:       new Set(["SKILL"]),
-  PATCHES:        new Set(["SKILL"]),
-  CONFLICTS_WITH: new Set(["SKILL"]),
+  USED_SKILL:     new Set(['SKILL']),
+  SOLVED_BY:      new Set(['SKILL']),
+  REQUIRES:       new Set(['SKILL']),
+  PATCHES:        new Set(['SKILL']),
+  CONFLICTS_WITH: new Set(['SKILL']),
   // 新增 6 种（v1.0.0）
-  HAS_PREFERENCE: new Set(["TASK", "SKILL", "EVENT"]),
-  BELONGS_TO:     new Set(["TASK", "SKILL", "EVENT"]),
-  LEARNED_FROM:   new Set(["SKILL"]),
-  EXEMPLIFIES:    new Set(["SKILL"]),
-  RELATED_TO:     new Set(["TASK", "SKILL", "EVENT"]),
-  OBSERVED_IN:    new Set(["SKILL", "EVENT"]),
+  HAS_PREFERENCE: new Set(['TASK', 'SKILL', 'EVENT']),
+  BELONGS_TO:     new Set(['TASK', 'SKILL', 'EVENT']),
+  LEARNED_FROM:   new Set(['SKILL']),
+  EXEMPLIFIES:    new Set(['SKILL']),
+  RELATED_TO:     new Set(['TASK', 'SKILL', 'EVENT']),
+  OBSERVED_IN:    new Set(['SKILL', 'EVENT']),
 };
 
 // ─── 节点 ─────────────────────────────────────────────────────
 
 /** 节点状态：active=活跃, deprecated=已弃用。 */
-export type NodeStatus = "active" | "deprecated";
+export type NodeStatus = 'active' | 'deprecated';
 
 /**
  * 记忆节点（Brain Memory Node）。
@@ -112,9 +112,9 @@ export interface BmNode {
   accessCount: number;
   lastAccessedAt: number;
   /** Temporal: static facts vs dynamic info */
-  temporalType: "static" | "dynamic";
+  temporalType: 'static' | 'dynamic';
   /** Knowledge source: "user"=user message, "assistant"=AI reply */
-  source: "user" | "assistant";
+  source: 'user' | 'assistant';
   /** Scope isolation fields */
   scopeSession: string | null;
   scopeAgent: string | null;
@@ -195,7 +195,7 @@ export interface MemoryInjectionConfig {
   /** 是否启用记忆注入 */
   enabled: boolean;
   /** 注入策略：full=完整XML / summary=仅名称+描述 / adaptive=自动切换 / off=不注入 */
-  strategy: "full" | "summary" | "adaptive" | "off";
+  strategy: 'full' | 'summary' | 'adaptive' | 'off';
   /** Token 预算（0=不限制） */
   tokenBudget: number;
   /** 最大节点数（即使预算允许也不超过此数） */
@@ -207,7 +207,7 @@ export interface MemoryInjectionConfig {
 // ─── 多 Agent 记忆共享配置（v1.0.0 B-2）─────────────────────
 
 /** 共享模式：isolated=完全隔离 / mixed=部分共享 / shared=完全共享。 */
-export type SharingMode = "isolated" | "mixed" | "shared";
+export type SharingMode = 'isolated' | 'mixed' | 'shared';
 
 /** 多 Agent 记忆共享配置：控制跨 Agent 的记忆共享策略。 */
 export interface MemorySharingConfig {
@@ -224,10 +224,10 @@ export interface MemorySharingConfig {
 // ─── 反思系统类型 ─────────────────────────────────────────────
 
 /** 反思洞察的来源类型：invariant=稳定规则(跨会话持续), derived=临时观察(会话级)。 */
-export type ReflectionKind = "invariant" | "derived";
+export type ReflectionKind = 'invariant' | 'derived';
 
 /** 反思洞察的内容类型：user-model=用户画像, agent-model=Agent 能力, lesson=经验教训, decision=决策记录。 */
-export type ReflectionInsightType = "user-model" | "agent-model" | "lesson" | "decision";
+export type ReflectionInsightType = 'user-model' | 'agent-model' | 'lesson' | 'decision';
 
 /** 单个反思洞察。由 LLM 在 session_end 时生成，用于提炼跨会话的长期记忆。 */
 export interface ReflectionInsight {
@@ -258,7 +258,7 @@ export interface ExtractionResult {
     name: string;
     description: string;
     content: string;
-    temporalType: "static" | "dynamic";
+    temporalType: 'static' | 'dynamic';
   }>;
   edges: Array<{
     from: string;
@@ -272,7 +272,7 @@ export interface ExtractionResult {
 /** 会话结束后的最终处理结果。包含晋升的技能、新建的边和失效的缓存。 */
 export interface FinalizeResult {
   promotedSkills: Array<{
-    type: "SKILL";
+    type: 'SKILL';
     name: string;
     description: string;
     content: string;
@@ -334,13 +334,13 @@ export interface NoiseFilterConfig {
 // ─── 插件配置 ─────────────────────────────────────────────────
 
 /** 引擎运行模式：graph=知识图谱(默认), vector=纯向量检索, hybrid=双引擎混合。 */
-export type EngineMode = "graph" | "vector" | "hybrid";
+export type EngineMode = 'graph' | 'vector' | 'hybrid';
 
 /** 存储后端类型：sqlite=SQLite 轻量级(默认), lancedb=LanceDB 向量数据库。 */
-export type StorageBackend = "sqlite" | "lancedb";
+export type StorageBackend = 'sqlite' | 'lancedb';
 
 /** 运行模式：full=全部功能(默认), lite=跳过 LLM reflection/fusion。适合本地小模型用户。 */
-export type RunMode = "full" | "lite";
+export type RunMode = 'full' | 'lite' | 'small';
 
 /** 重排序配置。控制召回后是否使用外部 API 对结果重新排序。 */
 export interface RerankConfig {
@@ -384,7 +384,11 @@ export interface BmConfig {
   compactTurnCount: number;
   recallMaxNodes: number;
   recallMaxDepth: number;
-  recallStrategy: "full" | "summary" | "adaptive" | "off";
+  /** A-1: LRU 缓存容量上限（查询结果数） */
+  recallCacheSize?: number;
+  /** A-1: 缓存 TTL 毫秒（默认 5 分钟） */
+  recallCacheTtlMs?: number;
+  recallStrategy: 'full' | 'summary' | 'adaptive' | 'off';
   embedding?: EmbeddingConfig;
   llm?: {
     apiKey?: string;
@@ -413,14 +417,16 @@ export interface BmConfig {
 
 /** brain-memory 默认配置实例。开箱即用，适用于大多数场景。*/
 export const DEFAULT_CONFIG: BmConfig = {
-  engine: "graph",
-  mode: "full",
-  storage: "sqlite",
-  dbPath: "~/.openclaw/brain-memory.db",
+  engine: 'graph',
+  mode: 'full',
+  storage: 'sqlite',
+  dbPath: '~/.openclaw/brain-memory.db',
   compactTurnCount: 6,
   recallMaxNodes: 6,
   recallMaxDepth: 2,
-  recallStrategy: "full",
+  recallCacheSize: 100,
+  recallCacheTtlMs: 300000, // 5 min
+  recallStrategy: 'full',
   dedupThreshold: 0.90,
   pagerankDamping: 0.85,
   pagerankIterations: 20,
@@ -477,7 +483,7 @@ export const DEFAULT_CONFIG: BmConfig = {
   /** v1.0.0 B-1: Memory injection format */
   memoryInjection: {
     enabled: true,
-    strategy: "adaptive",
+    strategy: 'adaptive',
     tokenBudget: 6000,
     maxNodes: 12,
     includeEpisodic: true,
@@ -485,8 +491,8 @@ export const DEFAULT_CONFIG: BmConfig = {
   /** v1.0.0 B-2: Multi-agent memory sharing */
   memorySharing: {
     enabled: true,
-    mode: "mixed",
-    sharedCategories: ["profile", "preferences"],
+    mode: 'mixed',
+    sharedCategories: ['profile', 'preferences'],
     allowedAgents: [],
   },
 };

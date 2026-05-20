@@ -1,0 +1,86 @@
+{
+  "name": "memory-likehuman-pro",
+  "version": "1.5.0",
+  "description": "Unified knowledge graph + vector memory system for AI agents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "bin": {
+    "like-human-brain-memory-configure": "./scripts/configure.js",
+    "like-human-brain-memory-setup": "./scripts/setup.js",
+    "brain-memory-doctor": "./scripts/doctor.js"
+  },
+  "scripts": {
+    "dev": "tsx watch index.ts",
+    "test": "vitest",
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
+    "test:performance": "vitest run test/performance",
+    "test:e2e": "vitest run test/e2e",
+    "test:ci": "vitest run --reporter=junit --reporter=verbose",
+    "lint": "eslint src/**/*.ts",
+    "build": "tsc",
+    "build:plugin": "tsc -p tsconfig.plugin.json",
+    "build:all": "npm run clean && npm run build && npm run build:plugin",
+    "docs": "typedoc",
+    "clean": "npx rimraf dist coverage",
+    "prebuild": "npm run clean",
+    "postinstall": "echo 'brain-memory installation complete'",
+    "configure": "node scripts/configure.js",
+    "setup-openclaw": "node scripts/setup.js",
+    "doctor": "node scripts/doctor.js",
+    "release": "bash scripts/release.sh",
+    "publish": "bash scripts/publish-npm.sh"
+  },
+  "keywords": [
+    "ai",
+    "memory",
+    "knowledge-graph",
+    "vector-embedding",
+    "context-management",
+    "llm",
+    "openclaw-plugin",
+    "typescript",
+    "knowledge-extraction",
+    "working-memory"
+  ],
+  "author": "DylingCreation",
+  "license": "MIT",
+  "dependencies": {
+    "@photostructure/sqlite": "^1.0.0",
+    "tsx": "^4.21.0"
+  },
+  "devDependencies": {
+    "@lancedb/lancedb": "^0.27.2",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.3",
+    "@typescript-eslint/parser": "^8.59.3",
+    "@vitest/coverage-v8": "^3.2.4",
+    "dotenv": "^17.4.2",
+    "eslint": "^8.0.0",
+    "rimraf": "^3.0.2",
+    "typedoc": "^0.25.0",
+    "typescript": "^5.0.0",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DylingCreation/brain-memory.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DylingCreation/brain-memory/issues"
+  },
+  "homepage": "https://github.com/DylingCreation/brain-memory#readme",
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

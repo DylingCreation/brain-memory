@@ -14,7 +14,9 @@
 import type { BmConfig, BmNode, BmEdge } from '../types';
 import type { CompleteFn } from '../engine/llm';
 import { REASONING_SYS } from './prompts';
+import { REASONING_SYS_SMALL } from '../prompts/small';
 import { escapeXml } from '../utils/xml';
+import { extractJsonTolerant } from '../utils/json';
 
 export interface ReasoningConclusion {
   text: string;
@@ -74,7 +76,7 @@ export async function runReasoning(
   const userPrompt = `查询: ${query}\n\n知识节点:\n${nodesText}\n\n边关系:\n${edgesText}`;
 
   try {
-    const raw = await llm(REASONING_SYS, userPrompt);
+    const raw = await llm(cfg.mode === 'small' ? REASONING_SYS_SMALL : REASONING_SYS, userPrompt);
     const conclusions = parseReasoningResult(raw, maxConclusions);
 
     return { conclusions, triggered: true, rawOutput: raw };
@@ -105,17 +107,12 @@ export function buildReasoningContext(conclusions: ReasoningConclusion[]): strin
 // ─── Helpers ──────────────────────────────────────────────────
 
 export function parseReasoningResult(raw: string, maxConclusions: number): ReasoningConclusion[] {
+  // B-2: 使用 tolerant JSON 解析（引号修正 + 尾随逗号 + 补括号）
+  const json = extractJsonTolerant(raw);
+  if (!json) return [];
+
   try {
-    let s = raw.trim();
-    s = s.replace(/<think>[\s\S]*?<\/think>/gi, '');
-    s = s.replace(/```(?:json)?\s*\n?/i, '').replace(/\n?\s*```\s*$/i, '');
-    s = s.trim();
-
-    const first = s.indexOf('{');
-    const last = s.lastIndexOf('}');
-    if (first !== -1 && last > first) s = s.slice(first, last + 1);
-
-    const p = JSON.parse(s);
+    const p = JSON.parse(json);
     const conclusions: ReasoningConclusion[] = (p.conclusions ?? [])
       .filter((c: Record<string, unknown>) => c.text && typeof c.text === 'string')
       .map((c: Record<string, unknown>) => ({

@@ -26,6 +26,7 @@ import { logger } from '../utils/logger';
 // B-4: retriever module integration
 import { analyzeIntent } from '../retriever/intent-analyzer';
 import { expandQuery } from '../retriever/query-expander';
+import { RecallCache } from './cache';
 
 /** Convert ScopeFilter to StorageFilter for adapter calls */
 function toStorageFilter(filter?: ScopeFilter): StorageFilter | undefined {
@@ -44,14 +45,26 @@ function toStorageFilter(filter?: ScopeFilter): StorageFilter | undefined {
 export class Recaller {
   private embed: EmbedFn | null = null;
   private batchEmbed: BatchEmbedFn | null = null;
+  private cache: RecallCache;
 
-  constructor(private storage: IStorageAdapter, private cfg: BmConfig) {}
+  constructor(private storage: IStorageAdapter, private cfg: BmConfig) {
+    this.cache = new RecallCache(cfg.recallCacheSize ?? 100, cfg.recallCacheTtlMs ?? 5 * 60 * 1000);
+  }
 
   setEmbedFn(fn: EmbedFn): void { this.embed = fn; }
   setBatchEmbedFn(fn: BatchEmbedFn): void { this.batchEmbed = fn; }
 
   async recall(query: string, scopeFilter?: ScopeFilter, sourceFilter?: 'user' | 'assistant' | 'both'): Promise<RecallResult> {
     const limit = this.cfg.recallMaxNodes;
+
+    // A-1: 查询缓存 — 图无变更时复用上一次相同查询的结果
+    if (this.cache.isValid(this.storage)) {
+      const cached = this.cache.get(query, scopeFilter, sourceFilter);
+      if (cached) {
+        logger.debug('recall', `cache hit for query="${query.slice(0, 30)}"`);
+        return cached;
+      }
+    }
 
     // B-4: Intent analysis for diagnostics
     const intent = analyzeIntent(query);
@@ -109,11 +122,18 @@ export class Recaller {
 
     logger.debug('recall', `preciseSeeds=${preciseSeeds.length}, generalizedSeeds=${generalizedSeeds.length} → unifiedSeeds=${unifiedSeeds.length} → final=${filtered.length} nodes, ${new Set(filtered.map(n => n.communityId).filter(Boolean)).size} communities`);
 
-    return {
+    const result: RecallResult = {
       nodes: filtered,
       edges: edges.filter(e => ids.has(e.fromId) && ids.has(e.toId)),
       tokenEstimate: this.estimateTokens(filtered),
     };
+
+    // A-1: 存入缓存（仅在无脏节点时有效）
+    if (this.cache.isValid(this.storage)) {
+      this.cache.set(query, result, scopeFilter, sourceFilter);
+    }
+
+    return result;
   }
 
   // ─── Seed Acquisition ───────────────────────────────────────

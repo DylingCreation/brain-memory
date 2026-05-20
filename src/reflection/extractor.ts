@@ -12,7 +12,8 @@
 import type { ReflectionConfig, ReflectionInsight } from '../types';
 import type { CompleteFn } from '../engine/llm';
 import { TURN_REFLECTION_SYS, SESSION_REFLECTION_SYS } from './prompts';
-import { extractJson } from '../utils/json';
+import { REFLECTION_SYS_SMALL } from '../prompts/small';
+import { extractJson, extractJsonTolerant } from '../utils/json';
 import { logger } from '../utils/logger';
 
 // ─── Safety filter for reflection content ──────────────────────
@@ -61,6 +62,7 @@ export async function reflectOnTurn(
     extractedNodes: Array<{ name: string; category: string; type: string; validatedCount: number }>;
     existingNodes: Array<{ name: string; category: string; validatedCount: number }>;
   },
+  mode: 'full' | 'small' | 'lite' = 'full',
 ): Promise<TurnBoost[]> {
   if (!cfg.turnReflection || !cfg.enabled) return [];
 
@@ -75,7 +77,7 @@ export async function reflectOnTurn(
 
   try {
     const raw = await llm(
-      TURN_REFLECTION_SYS,
+      mode === 'small' ? REFLECTION_SYS_SMALL : TURN_REFLECTION_SYS,
       `<本轮提取节点>\n${extractedText}\n\n<高验证节点>\n${existingText}`,
     );
 
@@ -88,7 +90,7 @@ export async function reflectOnTurn(
 
 function parseTurnReflection(raw: string, maxInsights: number): TurnBoost[] {
   try {
-    const json = extractJson(raw);
+    const json = extractJsonTolerant(raw);
     const p = JSON.parse(json);
     const boosts: TurnBoost[] = (p.boosts ?? []).slice(0, maxInsights);
     return boosts.filter((b: TurnBoost) => b.name && b.reason);
@@ -106,6 +108,7 @@ export async function reflectOnSession(
     sessionMessages: string;
     extractedNodes: Array<{ name: string; category: string; type: string; content: string }>;
   },
+  mode: 'full' | 'small' | 'lite' = 'full',
 ): Promise<ReflectionInsight[]> {
   if (!cfg.sessionReflection || !cfg.enabled) return [];
 
@@ -115,7 +118,7 @@ export async function reflectOnSession(
 
   try {
     const raw = await llm(
-      SESSION_REFLECTION_SYS,
+      mode === 'small' ? REFLECTION_SYS_SMALL : SESSION_REFLECTION_SYS,
       `<会话提取节点>\n${nodesText}`,
     );
 
@@ -128,7 +131,7 @@ export async function reflectOnSession(
 
 function parseSessionReflection(raw: string, cfg: ReflectionConfig): ReflectionInsight[] {
   try {
-    const json = extractJson(raw);
+    const json = extractJsonTolerant(raw);
     const p = JSON.parse(json);
 
     const insights: ReflectionInsight[] = [];

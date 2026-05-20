@@ -9,6 +9,83 @@ All notable changes to the brain-memory project.
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-05-20
+
+> **版本主题**：工程夯实 + 性能起步
+> **Commit**: b36a130
+
+### Added
+
+#### Small 模式
+- `mode: "small"` — 精简提示词约 200 tokens（4-15x 压缩），适配小模型（如 qwen3.5:9b）
+- 提取/反思/融合/推理四模块自动路由 `EXTRACT_SYS_SMALL` / `REFLECTION_SYS_SMALL` / `FUSION_DECIDE_SYS_SMALL` / `REASONING_SYS_SMALL`
+- `smallJsonRepair()` / `safeJsonParse()` / `SMALL_DEFAULTS` — Small 模型输出容错修复与默认值填充
+- 边界验证矩阵 7 项全部通过
+
+#### 查询缓存
+- `RecallCache` 类：LRU 缓存（默认 100 条）+ TTL（默认 5 分钟）+ 脏标记失效
+- `Recaller.recall()` 集成缓存读写：cache hit 时跳过向量嵌入→PPR→排序全流程
+- `BmConfig` 新增 `recallCacheSize` / `recallCacheTtlMs` 配置项
+
+#### 性能基准体系
+- **四级阶梯基准**（1K → 2.5K → 5K → 10K 节点）：PageRank 3.2-4.2x 加速、召回 1.1-4.6ms
+- **内容规模补测**：长文本分块（0.2ms @ 100 节点）、FTS5 搜索（1.7ms @ 1000 节点）、Token 估算（43ms @ 10K 节点）、嵌入管线 mock（95 nodes/s）
+- 关闭遗留项 P2-2（增量验证）与 TR-02（大规模性能风险）
+
+### Changed
+
+#### JSON 解析增强
+- 4 个解析器统一使用 `extractJsonTolerant()`：引号修正、尾随逗号、代码块剥离、括号补全
+- `reasoning/engine.ts` — `parseReasoningResult` 内联裸 `JSON.parse` → `extractJsonTolerant`
+- `fusion/analyzer.ts` — `parseFusionDecision` 同样迁移
+- `reflection/extractor.ts` — `extractJson` → `extractJsonTolerant`
+
+#### LanceDB Storage Adapter
+- 向量持久化真正走 LanceDB 表（`saveVector` → `bm_vectors` 表 fire-and-forget）
+- `initialize()` / `close()` 增加 try/catch 错误处理 + `_initError` 诊断
+- 测试 4 → 15 用例
+- 多版本路线图：v1.7.0 向量全链路 → v1.8.0 CRUD 迁移 → v1.9.0 完整替代
+
+#### Lite 模式维护补全
+- `runLiteMaintenancePath()`：仅去重 + PageRank + 衰减，跳过社区检测和 LLM 摘要
+- 返回 `lite: true` 标志
+
+#### 依赖升级
+- ESLint 8.57.1 → **10.4.0** — `.eslintrc.json` → `eslint.config.mjs` flat config
+- TypeScript 5.4.5 → **5.9.3**
+- rimraf 3.0.2 → **6.1.3**
+- typedoc 0.25.13 → **0.28.19**
+- glob v7 → **11.1.0**（传递依赖）
+- `@types/node` 20.19.39 → **20.19.41**
+
+#### 测试覆盖率
+- maintenance.ts 47.4% → **76.29%**（+28.9pp）
+- compressor.ts 56.09% → **92.68%**（+36.6pp）
+- reasoning/engine.ts 58.44% → **95%+**（+37pp）
+
+#### Lint 收敛
+- 122 warnings → **0**：核心 `no-unused-vars` 关闭，`@typescript-eslint/no-unused-vars` 零误报
+
+### Fixed
+
+#### 已知问题修复
+- **P2-6**：Lite 模式 `runMaintenance` 不完整 — 补全精简维护路径
+- **P2-4**：查询缓存缺失 — `RecallCache` 实现
+- **P2-1**：LanceDB 仅 POC — 向量持久化真正走表
+- **P2-2**：增量 10x 目标验证 — 四级阶梯基准实测
+
+### Quality
+
+| 指标 | 升级前 | 升级后 | 变化 |
+|------|--------|--------|------|
+| 测试用例 | 623 | **748** | +125 |
+| 测试文件 | 60 | **69** | +9 |
+| 覆盖率 | ~72% | **~78%+** | +6pp |
+| lint warnings | 122 | **0** | −122 |
+| deprecated 依赖 | 6 | **0** | −6 |
+| 构建产物 | 1.4 MB | 1.4 MB | 持平 |
+| 安全漏洞 | 0 | 0 | ✅ |
+
 ## [1.5.0] — 2026-05-14
 
 > **版本主题**：Lite 模式 + 项目身份更新
@@ -394,7 +471,9 @@ All notable changes to the brain-memory project.
 
 ---
 
-[Unreleased]: https://github.com/DylingCreation/brain-memory/compare/v0.1.9...HEAD
+[Unreleased]: https://github.com/DylingCreation/brain-memory/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/DylingCreation/brain-memory/compare/v1.5.0...v1.6.0
+[1.5.0]: https://github.com/DylingCreation/brain-memory/compare/v1.4.0...v1.5.0
 [0.1.9]: https://github.com/DylingCreation/brain-memory/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/DylingCreation/brain-memory/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/DylingCreation/brain-memory/compare/v0.1.6...v0.1.7

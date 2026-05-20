@@ -17,7 +17,9 @@ import type { IStorageAdapter } from '../store/adapter';
 import type { CompleteFn } from '../engine/llm';
 import type { EmbedFn } from '../engine/embed';
 import { FUSION_DECIDE_SYS } from './prompts';
+import { FUSION_DECIDE_SYS_SMALL } from '../prompts/small';
 import { tokenize, jaccardSimilarity } from '../utils/text';
+import { extractJsonTolerant } from '../utils/json';
 import { normalizeName } from '../store/store';
 
 function cosineSimilarityF32(a: Float32Array, b: Float32Array): number {
@@ -125,6 +127,7 @@ export async function decideFusion(
   candidates: FusionCandidate[],
   maxCandidates: number = 20,
   autoMergeThreshold: number = 0.9,
+  mode: 'full' | 'small' | 'lite' = 'full',
 ): Promise<FusionCandidate[]> {
   const topCandidates = candidates.slice(0, maxCandidates);
 
@@ -133,7 +136,7 @@ export async function decideFusion(
       const { nodeA, nodeB } = candidate;
       const userPrompt = `节点A: [${nodeA.type}] ${nodeA.name}\n描述: ${nodeA.description}\n内容: ${nodeA.content.slice(0, 300)}\n\n节点B: [${nodeB.type}] ${nodeB.name}\n描述: ${nodeB.description}\n内容: ${nodeB.content.slice(0, 300)}\n\n相似度: ${candidate.combinedScore.toFixed(2)}`;
 
-      const raw = await llm(FUSION_DECIDE_SYS, userPrompt);
+      const raw = await llm(mode === 'small' ? FUSION_DECIDE_SYS_SMALL : FUSION_DECIDE_SYS, userPrompt);
       const decision = parseFusionDecision(raw);
       candidate.decision = decision.decision;
       candidate.reason = decision.reason;
@@ -211,7 +214,7 @@ export async function runFusion(
 
   let decided: FusionCandidate[];
   if (llm) {
-    decided = await decideFusion(llm, candidates, 20, autoMergeThreshold);
+    decided = await decideFusion(llm, candidates, 20, autoMergeThreshold, cfg.mode as 'full' | 'small' | 'lite');
   } else {
     decided = candidates.map(c => {
       if (c.combinedScore >= 0.95) return { ...c, decision: 'merge' as const, reason: 'Auto-merged (high confidence, no LLM)' };
@@ -240,15 +243,12 @@ export { cosineSimilarityF32 as cosineSimilarity } from '../utils/similarity';
 
 /** 解析 LLM 融合决策输出（提取 JSON 中的 decision 和 reason）。 */
 export function parseFusionDecision(raw: string): { decision: 'merge' | 'link' | 'none'; reason: string } {
+  // B-2: 使用 tolerant JSON 解析
+  const json = extractJsonTolerant(raw);
+  if (!json) return { decision: 'none', reason: '' };
+
   try {
-    let s = raw.trim();
-    s = s.replace(/<think>[\s\S]*?<\/think>/gi, '');
-    s = s.replace(/```(?:json)?\s*\n?/i, '').replace(/\n?\s*```\s*$/i, '');
-    s = s.trim();
-    const first = s.indexOf('{');
-    const last = s.lastIndexOf('}');
-    if (first !== -1 && last > first) s = s.slice(first, last + 1);
-    const p = JSON.parse(s);
+    const p = JSON.parse(json);
     const decision = (p.decision || 'none').toLowerCase() as 'merge' | 'link' | 'none';
     if (['merge', 'link', 'none'].includes(decision)) {
       return { decision, reason: p.reason || '' };

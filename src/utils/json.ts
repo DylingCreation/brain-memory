@@ -148,3 +148,58 @@ export function extractJsonTolerant(raw: string): string | null {
 
   return null;
 }
+
+// ─── Small 模式专用 fallback (v1.6.0 B-2) ────────────────
+
+/** Small 模型 JSON 输出常见错误：缺少外层括号、字段名未加引号等 */
+export interface SmallJsonDefaults {
+  /** 缺失字段的默认值 */
+  nodeDefaults: {
+    type: string;
+    category: string;
+    description: string;
+    source: string;
+  };
+}
+
+export const SMALL_DEFAULTS: SmallJsonDefaults = {
+  nodeDefaults: {
+    type: 'TASK',
+    category: 'tasks',
+    description: '',
+    source: 'user',
+  },
+};
+
+/**
+ * Small 模式 JSON 修复：在通用修复基础上增加 Small 模型特有问题的处理。
+ * 1. 如果缺少外层 {，添加
+ * 2. 如果缺少外层 }，平衡补全
+ * 3. 填充缺失的默认字段
+ */
+export function smallJsonRepair(raw: string): string | null {
+  // Step 1: 通用 tolerant 提取
+  let json = extractJsonTolerant(raw);
+  if (json) return json;
+
+  // Step 2: Small 专属——尝试用 tryFixJson 直接处理原始文本
+  const fixed = tryFixJson(raw.trim());
+  try { JSON.parse(fixed); return fixed; } catch { /* proceed */ }
+
+  // Step 3: 如果原始文本完全不像 JSON，尝试包裹
+  if (!raw.includes('{')) {
+    const wrapped = `{"conclusions": [{"text": ${JSON.stringify(raw.slice(0, 200))}, "type": "implicit", "confidence": 0.5}]}`;
+    try { JSON.parse(wrapped); return wrapped; } catch { /* fail */ }
+  }
+
+  return null;
+}
+
+/**
+ * 安全解析 JSON，失败时返回默认值而非抛异常。
+ * Small 模型输出不稳定时避免整个流程中断。
+ */
+export function safeJsonParse<T>(json: string | null, fallback: T): T {
+  if (!json) return fallback;
+  try { return JSON.parse(json) as T; } catch { return fallback; }
+}

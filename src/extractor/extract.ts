@@ -16,6 +16,7 @@ import { extractJson, extractJsonTolerant } from '../utils/json';
 import { truncate } from '../utils/truncate';
 import { logger } from '../utils/logger';
 import { heuristicExtract, heuristicConfidence } from './heuristic';
+import { EXTRACT_SYS_SMALL } from '../prompts/small';
 
 const VALID_NODE_TYPES = new Set(['TASK', 'SKILL', 'EVENT']);
 const VALID_CATEGORIES = new Set(['profile', 'preferences', 'entities', 'events', 'tasks', 'skills', 'cases', 'patterns']);
@@ -131,13 +132,15 @@ export class Extractor {
     }`;
 
     let raw = '';
+    // B-1: Small 模式使用精简提示词
+    const sysPrompt = (this.cfg.mode === 'small') ? EXTRACT_SYS_SMALL : EXTRACT_SYS;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         if (attempt === 0) {
-          raw = await this.llm(EXTRACT_SYS, userPrompt);
+          raw = await this.llm(sysPrompt, userPrompt);
         } else {
           const fixPrompt = `上次输出 JSON 解析失败。请修正格式错误（确保双引号、无尾随逗号、完整闭合）并重新输出。原始对话：\n\n${userPrompt}`;
-          raw = await this.llm(EXTRACT_SYS, fixPrompt);
+          raw = await this.llm(sysPrompt, fixPrompt);
         }
         const llmResult = this.parseExtract(raw);
         if (llmResult.nodes.length > 0 || llmResult.edges.length > 0) {
