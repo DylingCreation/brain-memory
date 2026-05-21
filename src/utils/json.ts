@@ -179,7 +179,7 @@ export const SMALL_DEFAULTS: SmallJsonDefaults = {
  */
 export function smallJsonRepair(raw: string): string | null {
   // Step 1: 通用 tolerant 提取
-  let json = extractJsonTolerant(raw);
+  const json = extractJsonTolerant(raw);
   if (json) return json;
 
   // Step 2: Small 专属——尝试用 tryFixJson 直接处理原始文本

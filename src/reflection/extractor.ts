@@ -13,7 +13,7 @@ import type { ReflectionConfig, ReflectionInsight } from '../types';
 import type { CompleteFn } from '../engine/llm';
 import { TURN_REFLECTION_SYS, SESSION_REFLECTION_SYS } from './prompts';
 import { REFLECTION_SYS_SMALL } from '../prompts/small';
-import { extractJson, extractJsonTolerant } from '../utils/json';
+import { extractJsonTolerant } from '../utils/json';
 import { logger } from '../utils/logger';
 
 // ─── Safety filter for reflection content ──────────────────────

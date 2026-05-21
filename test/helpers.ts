@@ -124,6 +124,9 @@ export function createTestDb(): DatabaseSyncInstance {
   return db;
 }
 
+let _nodeCounter = 0;
+let _edgeCounter = 0;
+
 export function insertNode(
   db: DatabaseSyncInstance,
   opts: {
@@ -135,7 +138,7 @@ export function insertNode(
     createdAt?: number;
   },
 ): string {
-  const id = opts.id ?? `n-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const id = opts.id ?? `n-${Date.now()}-${_nodeCounter++}`;
   const now = Date.now();
   db.prepare(`
     INSERT INTO bm_nodes (id, type, category, name, description, content, status,
@@ -168,7 +171,7 @@ export function insertEdge(
   db: DatabaseSyncInstance,
   opts: { id?: string; fromId: string; toId: string; type?: string; instruction?: string; sessionId?: string },
 ): string {
-  const id = opts.id ?? `e-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const id = opts.id ?? `e-${Date.now()}-${_edgeCounter++}`;
   db.prepare(`
     INSERT INTO bm_edges (id, from_id, to_id, type, instruction, session_id, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)

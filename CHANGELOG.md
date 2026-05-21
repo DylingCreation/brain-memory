@@ -9,6 +9,25 @@ All notable changes to the brain-memory project.
 
 ## [Unreleased]
 
+## [1.6.2] — 2026-05-21
+
+> **版本主题**：质量维护 — 测试稳定性修复 + Lint 收敛 + 依赖补丁升级
+
+### Fixed
+- 修复 `perf-tiered-benchmark.test.ts` 3 个 PageRank 测试 `UNIQUE constraint` 失败：`insertNode`/`insertEdge` ID 生成改用单调计数器替代 `Date.now() + 随机串`（10K 节点批插入时生日悖论碰撞概率 ~30%）
+- 修复 `perf-tiered-benchmark.test.ts` + `perf-1k-benchmark.test.ts` PageRank/LPA 时序断言偶发失败：`incrTime < fullTime` 改为加 5% 容忍带（fork 模式 CPU 竞争导致毫秒级抖动）
+- 修复 6 个 lint errors：`src/engine/context.ts`（3 处引号）、`src/graph/maintenance.ts`（`(cfg as any)`）、`src/reflection/extractor.ts`（未用导入）、`src/utils/json.ts`（`let→const`）
+- 修复 `perf-tiered-benchmark.test.ts` 插入吞吐阈值：`opsPerSec > 5000` → `3000`（fork 竞争下隔离跑 ~7000，全量跑 ~3300）
+
+### Changed
+- `@photostructure/sqlite` 1.2.0 → 1.2.1（补丁升级，0 vulnerabilities）
+- METHODOLOGY.md 版本脉络 + 基线数据同步至 v1.6.2
+
+### Known Issues
+- `test/lancedb-poc.test.ts` forks 模式下 LanceDB 表初始化偶发竞态（POC 代码，生产不影响）
+- `test/perf-content-benchmark.test.ts` FTS5 搜索延迟偶尔超时（fork CPU 竞争）
+- 以上问题计划在 v1.7.0 通过测试分层方案系统性解决
+
 ## [1.6.0] — 2026-05-20
 
 > **版本主题**：工程夯实 + 性能起步

@@ -39,7 +39,7 @@ export async function runMaintenance(
   llm?: CompleteFn,
   embedFn?: EmbedFn,
 ) {
-  const mode: RunMode = (cfg as any).mode ?? 'full';
+  const mode: RunMode = cfg.mode ?? 'full';
   const isLite = mode === 'lite';
 
   const start = Date.now();
