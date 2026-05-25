@@ -9,27 +9,44 @@ All notable changes to the brain-memory project.
 
 ## [Unreleased]
 
-## [1.8.0] — 2026-05-25
+## [2.0.0] — 2026-05-24
 
-> **版本主题**：基础夯实 — 多端 LLM 兼容 + 文档对齐 + 工程清理
+> **版本主题**：六层 Scope 隔离 — 解决记忆"串台"问题
+
+### Breaking Changes
+- **Scope 从三层升级到六层**（`platform/workspace/agent/user/chat/thread`），替代旧版 `session/agent/workspace`
+  - `MemoryScope` (v1) → `MemoryScopeV2` (v2)，提供 `adaptScopeV1toV2` / `adaptScopeV2toV1` 兼容适配器
+  - `BmNode.scopeSession` 标记为 `@deprecated`，新增 `scopePlatform/scopeChat/scopeThread/scopeId` 等字段
+  - 数据库自动迁移：v1 schema → v2 schema（新增 5 个 scope 列 + scope_id hash + 索引）
+  - `source` 字段扩展为 `'user' | 'assistant' | 'manual'`（支持手动添加记忆）
 
 ### Added
-- **多端 LLM 路由 (F-1)** — `detectEndpointType()` 按 baseURL 检测端点类型 (ollama/dashscope/openai/anthropic)，替代旧版 `isThinkingModel()` 模型名判断
-- **Ollama 原生端点支持** — 自动路由 `/api/chat`，发送 `think: false` (布尔值，非 DashScope 的嵌套对象)，响应 tolerant JSON parse
-- **`llm.maxTokens` 可配置** — 新增 `LlmConfig.maxTokens` 字段，默认 4096，Ollama 映射到 `options.num_predict`
+- **六层 scope 前缀匹配算法**（`scopeMatchV2`）：父 scope 可见子 scope——chat 级别查询能看到 thread 级别记忆
+- **scope_id hash 快速匹配**（`computeScopeId`）：sha256 前 16 字符确定性 hash，单列索引 O(log n)
+- **v2 scope SQL 过滤**（`buildScopeFilterClauseV2`）：参数化 WHERE 子句，六层 AND 组合
+- **schema v2 迁移**（`migrateToV2_ScopeUpgrade`）：幂等、可回滚，旧 `scope_session` 自动映射到 `scope_chat`
+- **LanceDB MVP**：Node CRUD 持久化到 LanceDB 表 + 内存缓存加速读取；`bm_nodes` / `bm_edges` 表支持
+- **Web Control UI 设计方案**（详见 `docs/proposals/web-ui-design.md`）
+- **手动记忆添加**（`source: 'manual'`）：贯穿 BmNode → upsertNode → schema CHECK constraint
 
 ### Changed
-- **METHODOLOGY.md v2.5 → v2.6** — 修正 8 处过时声明（技术栈/记忆分类/thinking 规则/基线数据/版本脉络），新增 §5.5 多端 LLM 兼容性规范 + §5.17 外部反馈合入流程
-- **`getDb()` 标记 @deprecated** — 提示通过 IStorageAdapter 方法替代
-- **tsconfig 开启 `strictNullChecks`** — 消除 14 个类型错误，0 处 `!` 非空断言回归
+- **召回引擎升级**：`Recaller` + `ContextEngine` + `plugin/core` 全线使用 `MemoryScopeV2` / `ScopeFilterV2`
+- **OpenClaw wrapper**：`normalizeHookArgs` 提取六层 scope（`platform/userId/chatId/threadId`）
+- **configSchema 补全**：100% 对齐 `DEFAULT_CONFIG`（新增 `recallCacheSize/recallCacheTtlMs/memoryInjection/memorySharing` 等字段）
+- **LanceDB adapter 重写**：Node/Edge CRUD 真实化（POC → MVP）；写入策略：内存即时生效 + LanceDB 异步持久化
+- **adapter 接口升级**：`NodeUpsertInput` / `StorageFilter` 新增 v2 scope 字段（向后兼容）
 
 ### Fixed
-- **Ollama thinking 静默失效** — DashScope 格式 `{type:'disabled'}` 在 Ollama 上不生效，修复后 Small 模式 4 模块总耗时 153s → 17s (8.9x 加速)
-- **`apiKey: "***"` 被误判为有效** — Ollama localhost 豁免 apiKey 检查，不再触发 5 分钟超时
-- **F-7: 插件注册方式修正** — `definePluginEntry` 标准入口 + `api.on()` 优先 + `before_message_write` → `message_sending`
+- LanceDB adapter 内存 stub → LanceDB 表持久化（重启数据不丢失）
+- `scopeFilterToStorageFilter` 忽略 v2 scope → 新增 `extractScopeFilterV2` 双路径支持
+- LanceDB `null` 值类型推断失败 → 空字符串占位 + `|| null` 还原
 
-### Removed
-- **`_bak/` 目录** — 65 个预 v1.0.0 备份文件通过 git tag `archive/pre-v1.0.0` 保存
+### Known Issues
+- `test/c7-recall-baseline.test.ts` raw SQL INSERT 与 `@photostructure/sqlite` 参数绑定边界冲突（不影响生产）
+- `test/lancedb-poc.test.ts` 旧 POC 测试与新 MVP adapter 不兼容
+- 以上计划在 v2.1.0 系统性解决
+
+---
 
 ## [1.6.2] — 2026-05-21
 

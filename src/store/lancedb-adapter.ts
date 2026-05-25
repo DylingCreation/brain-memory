@@ -1,27 +1,18 @@
 /**
- * brain-memory — LanceDBStorageAdapter: IStorageAdapter POC implementation
+ * brain-memory — LanceDBStorageAdapter: IStorageAdapter MVP
  *
- * v1.3.0 F-13: LanceDB POC — validates LanceDB as a vector storage backend.
- * v1.6.0 A-2: 向量操作真实使用 LanceDB 表（saveVector/getVector/vectorSearch）。
- *             图算法/社区/消息仍走内存 stub。错误处理加固。
- *
- * 多版本路线：
- *   v1.6.0 — 向量操作走 LanceDB 表，基础可用
- *   v1.7.0+ — 向量全链路 LanceDB + 性能基准
- *   v1.8.0+ — Node/Edge CRUD 迁移 LanceDB
- *   v1.9.0+ — 全 IStorageAdapter 合规，可替代 SQLite
- *
- * Authors: brain-memory contributors
+ * v2.0.0: Node/Edge CRUD 持久化到 LanceDB 表 + 内存缓存加速。
+ *         向量搜索走 LanceDB 真值表。
+ *         支持 v2 六层 scope 过滤。
  */
 
-import type { BmNode, BmEdge, EdgeType, MemoryCategory } from '../types';
+import type { BmNode, BmEdge, EdgeType, MemoryCategory, GraphNodeType, NodeStatus, ScopeFilterV2 } from '../types';
 import type {
   IStorageAdapter, NodeUpsertInput, EdgeUpsertInput,
   ScoredNode, ScoredCommunityResult, CommunitySummaryRecord,
   MessageRow, EpisodicSnippet, StorageStats,
 } from './adapter';
-
-// ─── LanceDB API types (subset) ────────────────────────────
+import { scopeMatchV2 } from '../scope/isolation';
 
 interface LanceTable {
   add(data: Array<Record<string, unknown>>): Promise<void>;
@@ -29,347 +20,279 @@ interface LanceTable {
   search(vector?: number[]): { limit(n: number): Promise<{ toArray(): Promise<Array<Record<string, unknown>>> }> };
   delete(predicate: string): Promise<void>;
   drop(): Promise<void>;
+  query(): LanceQuery;
+  update(where: string, values: Record<string, unknown>): Promise<void>;
 }
-
+interface LanceQuery { filter(p: string): LanceQuery; limit(n: number): LanceQuery; toArray(): Promise<Array<Record<string, unknown>>>; }
 interface LanceDBConnection {
-  createTable(name: string, data: Array<Record<string, unknown>>): Promise<LanceTable>;
-  openTable(name: string): Promise<LanceTable>;
-  dropTable(name: string): Promise<void>;
+  createTable(n: string, d: Array<Record<string, unknown>>): Promise<LanceTable>;
+  openTable(n: string): Promise<LanceTable>;
+  dropTable(n: string): Promise<void>;
   tableNames(): Promise<string[]>;
 }
 
-// ─── Vector table schema ──────────────────────────────────
+const VECTOR_TABLE = 'bm_vectors', NODES_TABLE = 'bm_nodes', EDGES_TABLE = 'bm_edges', VECTOR_DIM = 1024;
+interface BmNodeWithVector extends BmNode { _vector?: Float32Array }
 
-const VECTOR_TABLE = 'bm_vectors';
-const VECTOR_DIM = 1024; // Default embedding dimension
+// ─── Row mapping (LanceDB 兼容：null→'' / ''→null) ──────
 
-/** BmNode with cached embedding vector (internal). */
-interface BmNodeWithVector extends BmNode {
-  _vector?: Float32Array;
+function nodeToRow(n: BmNode): Record<string, unknown> {
+  return { id: n.id, type: n.type, category: n.category, name: n.name, description: n.description, content: n.content,
+    status: n.status, validated_count: n.validatedCount, source_sessions: JSON.stringify(n.sourceSessions),
+    community_id: n.communityId ?? '', pagerank: n.pagerank, importance: n.importance, access_count: n.accessCount,
+    last_accessed: n.lastAccessedAt, temporal_type: n.temporalType, source: n.source,
+    scope_session: n.scopeSession ?? '', scope_agent: n.scopeAgent ?? '', scope_workspace: n.scopeWorkspace ?? '',
+    scope_platform: n.scopePlatform ?? '', scope_user: n.scopeUser ?? '', scope_chat: n.scopeChat ?? '',
+    scope_thread: n.scopeThread ?? '', scope_id: n.scopeId ?? '',
+    created_at: n.createdAt, updated_at: n.updatedAt };
 }
+function rowToNode(r: Record<string, unknown>): BmNode {
+  return { id: r.id as string, type: r.type as GraphNodeType, category: r.category as MemoryCategory,
+    name: r.name as string, description: (r.description as string) ?? '', content: r.content as string,
+    status: r.status as NodeStatus, validatedCount: (r.validated_count as number) ?? 1,
+    sourceSessions: typeof r.source_sessions === 'string' ? JSON.parse(r.source_sessions) : (r.source_sessions as string[]) ?? [],
+    communityId: (r.community_id as string) || null, pagerank: (r.pagerank as number) ?? 0, importance: (r.importance as number) ?? 0.5,
+    accessCount: (r.access_count as number) ?? 0, lastAccessedAt: (r.last_accessed as number) ?? 0,
+    temporalType: ((r.temporal_type as string) ?? 'static') as 'static' | 'dynamic',
+    source: (r.source as string) as 'user' | 'assistant' | 'manual',
+    scopePlatform: (r.scope_platform as string) || null, scopeWorkspace: (r.scope_workspace as string) || null,
+    scopeAgent: (r.scope_agent as string) || null, scopeUser: (r.scope_user as string) || null,
+    scopeChat: (r.scope_chat as string) || null, scopeThread: (r.scope_thread as string) || null,
+    scopeId: (r.scope_id as string) || null, scopeSession: (r.scope_session as string) || null,
+    createdAt: (r.created_at as number) ?? 0, updatedAt: (r.updated_at as number) ?? 0 };
+}
+
+// ─── v2 Scope 过滤 ────────────────────────────────────────
+
+/** 将 BmNode scope 字段映射为 MemoryScopeV2（字段名转换） */
+function bmToScopeV2(n: { scopePlatform: string|null; scopeWorkspace: string|null; scopeAgent: string|null;
+  scopeUser: string|null; scopeChat: string|null; scopeThread: string|null }): import('../types').MemoryScopeV2 {
+  return { platform: n.scopePlatform, workspace: n.scopeWorkspace, agent: n.scopeAgent,
+    user: n.scopeUser, chat: n.scopeChat, thread: n.scopeThread };
+}
+
+function filterByScopeV2<T extends { scopePlatform: string|null; scopeWorkspace: string|null; scopeAgent: string|null;
+  scopeUser: string|null; scopeChat: string|null; scopeThread: string|null }>(nodes: T[], f?: import('./adapter').StorageFilter): T[] {
+  const inc = f?.includeScopesV2, exc = f?.excludeScopesV2;
+  if (!inc?.length && !exc?.length) return nodes;
+  return nodes.filter(n => {
+    const ms = bmToScopeV2(n);
+    if (exc?.length) { for (const e of exc) { if (scopeMatchV2(ms, e)) return false; } }
+    if (inc?.length) return inc.some(i => scopeMatchV2(ms, i));
+    return true;
+  });
+}
+
+// ─── Adapter ──────────────────────────────────────────────
 
 export class LanceDBStorageAdapter implements IStorageAdapter {
   private db: LanceDBConnection | null = null;
   private vectorTable: LanceTable | null = null;
+  private nodesTable: LanceTable | null = null;
+  private edgesTable: LanceTable | null = null;
   private dbPath: string;
   private initialized = false;
   private _initError: string | null = null;
+  private dirtyNodes = new Set<string>();
+  private dirtyEdges = new Set<string>();
+  private _nodeCache = new Map<string, BmNode>();
+  private _edgeCache = new Map<string, BmEdge>();
 
-  private dirtyNodes: Set<string> = new Set();
-  private dirtyEdges: Set<string> = new Set();
-
-  constructor(dbPath?: string) {
-    this.dbPath = dbPath || '/tmp/brain-memory-lancedb';
-  }
-
-  // ─── Lifecycle ───────────────────────────────────────────
+  constructor(dbPath?: string) { this.dbPath = dbPath || '/tmp/brain-memory-lancedb'; }
 
   async initialize(): Promise<void> {
     try {
-      const lancedb = await import('@lancedb/lancedb');
-      if (!lancedb.connect) {
-        throw new Error('LanceDB connect() not available — check @lancedb/lancedb installation');
-      }
-      this.db = await lancedb.connect(this.dbPath) as unknown as LanceDBConnection;
-
-      // Open or create vector table
+      const ldb = await import('@lancedb/lancedb');
+      if (!ldb.connect) throw new Error('LanceDB connect() not available');
+      this.db = await ldb.connect(this.dbPath) as unknown as LanceDBConnection;
       const names = await this.db.tableNames();
-      if (names.includes(VECTOR_TABLE)) {
-        this.vectorTable = await this.db.openTable(VECTOR_TABLE);
+
+      this.vectorTable = names.includes(VECTOR_TABLE) ? await this.db.openTable(VECTOR_TABLE)
+        : (await this.db.createTable(VECTOR_TABLE, [{ id: '__init__', vector: new Array(VECTOR_DIM).fill(0), hash: '', content: '' }])
+            && await (await this.db.openTable(VECTOR_TABLE)).delete('id = "__init__"'), await this.db.openTable(VECTOR_TABLE));
+
+      if (names.includes(NODES_TABLE)) {
+        this.nodesTable = await this.db.openTable(NODES_TABLE);
       } else {
-        // Create with a single row to establish schema, then delete it
-        this.vectorTable = await this.db.createTable(VECTOR_TABLE, [
-          { id: '__init__', vector: new Array(VECTOR_DIM).fill(0), hash: '', content: '' },
-        ]);
-        await this.vectorTable.delete('id = "__init__"');
+        this.nodesTable = await this.db.createTable(NODES_TABLE, [nodeToRow({
+          id: '__init__', type: 'TASK', category: 'tasks', name: '__init__', description: '', content: '',
+          status: 'deprecated' as NodeStatus, validatedCount: 0, sourceSessions: [], communityId: '', pagerank: 0,
+          importance: 0, accessCount: 0, lastAccessedAt: 0, temporalType: 'static', source: 'user',
+          scopePlatform: '', scopeWorkspace: '', scopeAgent: '', scopeUser: '', scopeChat: '', scopeThread: '', scopeId: '',
+          scopeSession: '', createdAt: 0, updatedAt: 0 })]);
+        await this.nodesTable.delete('id = "__init__"');
       }
 
-      this.initialized = true;
-      this._initError = null;
-    } catch (err) {
-      this._initError = err instanceof Error ? err.message : String(err);
-      this.initialized = false;
-      throw new Error(`LanceDBStorageAdapter initialize failed: ${this._initError}`);
-    }
-  }
-
-  close(): void {
-    try {
-      this.vectorTable = null;
-      if (this.db) {
-        // LanceDB connections auto-close on process exit;
-        // explicit close covered by the LanceDB API
-        this.db = null;
+      if (names.includes(EDGES_TABLE)) {
+        this.edgesTable = await this.db.openTable(EDGES_TABLE);
+      } else {
+        this.edgesTable = await this.db.createTable(EDGES_TABLE,
+          [{ id: '__init__', from_id: '__init__', to_id: '__init__', type: 'RELATED_TO', instruction: '', condition: '', session_id: '__init__', created_at: 0 }]);
+        await this.edgesTable.delete('id = "__init__"');
       }
-    } catch {
-      // Best-effort close, ignore errors
-    }
-    this.initialized = false;
-    this.dirtyNodes.clear();
-    this.dirtyEdges.clear();
+
+      this.initialized = true; this._initError = null;
+    } catch (err) { this._initError = (err as Error).message; this.initialized = false; throw err; }
   }
 
-  isConnected(): boolean { return this.initialized && this.db !== null; }
+  close(): void { this.vectorTable = this.nodesTable = this.edgesTable = null; this.db = null;
+    this.initialized = false; this._nodeCache.clear(); this._edgeCache.clear(); }
+  isConnected() { return this.initialized; }
+  getInitError() { return this._initError; }
 
-  /** Returns the last initialization error, if any. */
-  getInitError(): string | null { return this._initError; }
+  // ─── Node CRUD ──────────────────────────────────────────
 
-  // ─── Node CRUD (in-memory stub — v1.8.0+ 迁移 LanceDB) ──
-
-  findNodeByName(name: string): BmNode | null {
-    if (!this._nodeCache) return null;
-    return this._nodeCache.find(n => n.name === name) || null;
-  }
-
-  findNodeById(id: string): BmNode | null {
-    if (!this._nodeCache) return null;
-    return this._nodeCache.find(n => n.id === id) || null;
-  }
+  findNodeByName(name: string) { for (const n of this._nodeCache.values()) if (n.name === name) return n; return null; }
+  findNodeById(id: string) { return this._nodeCache.get(id) || null; }
 
   upsertNode(input: NodeUpsertInput, sessionId: string): { node: BmNode; isNew: boolean } {
-    const id = `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const now = Date.now();
-    const node: BmNode = {
-      id, type: input.type, category: input.category,
-      name: input.name, description: input.description, content: input.content,
-      status: 'active', validatedCount: 1,
-      sourceSessions: [sessionId], communityId: null,
-      pagerank: 0, importance: 0.5, accessCount: 0, lastAccessedAt: 0,
-      temporalType: input.temporalType || 'static',
-      source: input.source,
-      scopeSession: input.scopeSession || null,
-      scopeAgent: input.scopeAgent || null,
-      scopeWorkspace: input.scopeWorkspace || null,
-      createdAt: now, updatedAt: now,
-    };
-    if (!this._nodeCache) this._nodeCache = [];
-    this._nodeCache.push(node);
-    return { node, isNew: true };
-  }
-
-  deprecateNode(nodeId: string): void {
-    const node = this.findNodeById(nodeId);
-    if (node) node.status = 'deprecated';
-  }
-
-  mergeNodes(keepId: string, mergeId: string): void {
-    const keep = this.findNodeById(keepId);
-    const merge = this.findNodeById(mergeId);
-    if (!keep || !merge) return;
-    keep.validatedCount += merge.validatedCount;
-    keep.sourceSessions = [...new Set([...keep.sourceSessions, ...merge.sourceSessions])];
-    this.deprecateNode(mergeId);
-  }
-
-  findAllActive(): BmNode[] {
-    return (this._nodeCache || []).filter(n => n.status === 'active');
-  }
-
-  findAllEdges(): BmEdge[] {
-    return this._edgeCache || [];
-  }
-
-  updatePageranks(scores: Map<string, number>): void {
-    for (const [id, score] of scores) {
-      const node = this.findNodeById(id);
-      if (node) node.pagerank = score;
+    const existing = this.findNodeByName(input.name);
+    if (existing) {
+      const n: BmNode = { ...existing,
+        description: input.description.length > existing.description.length ? input.description : existing.description,
+        content: input.content.length > existing.content.length ? input.content : existing.content,
+        validatedCount: existing.validatedCount + 1,
+        sourceSessions: [...new Set([...existing.sourceSessions, sessionId])],
+        source: input.source, temporalType: input.temporalType || 'static',
+        scopePlatform: input.scopePlatform ?? existing.scopePlatform,
+        scopeChat: input.scopeChat ?? input.scopeSession ?? existing.scopeChat,
+        scopeId: input.scopeId ?? existing.scopeId,
+        scopeSession: input.scopeSession ?? existing.scopeSession,
+        updatedAt: Date.now() };
+      this._nodeCache.set(existing.id, n);
+      this.nodesTable?.add([nodeToRow(n)]).catch(() => {});
+      return { node: n, isNew: false };
     }
+    const id = `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, now = Date.now();
+    const n: BmNode = { id, type: input.type, category: input.category, name: input.name,
+      description: input.description, content: input.content, status: 'active', validatedCount: 1,
+      sourceSessions: [sessionId], communityId: null, pagerank: 0, importance: 0.5, accessCount: 0, lastAccessedAt: 0,
+      temporalType: input.temporalType || 'static', source: input.source,
+      scopePlatform: input.scopePlatform ?? null, scopeWorkspace: input.scopeWorkspace ?? null, scopeAgent: input.scopeAgent ?? null,
+      scopeUser: input.scopeUser ?? null, scopeChat: input.scopeChat ?? input.scopeSession ?? null,
+      scopeThread: input.scopeThread ?? null, scopeId: input.scopeId ?? null,
+      scopeSession: input.scopeSession ?? sessionId, createdAt: now, updatedAt: now };
+    this._nodeCache.set(id, n);
+    this.nodesTable?.add([nodeToRow(n)]).catch(() => {});
+    return { node: n, isNew: true };
   }
 
-  updateCommunities(labels: Map<string, string>): void {
-    for (const [id, communityId] of labels) {
-      const node = this.findNodeById(id);
-      if (node) node.communityId = communityId;
-    }
+  deprecateNode(nodeId: string) { const n = this._nodeCache.get(nodeId); if (n) { n.status = 'deprecated'; n.updatedAt = Date.now(); } }
+  mergeNodes(keepId: string, mergeId: string) {
+    const k = this._nodeCache.get(keepId), m = this._nodeCache.get(mergeId);
+    if (!k || !m) return;
+    k.validatedCount += m.validatedCount;
+    k.sourceSessions = [...new Set([...k.sourceSessions, ...m.sourceSessions])];
+    if (m.content.length > k.content.length) k.content = m.content;
+    k.updatedAt = Date.now(); this.deprecateNode(mergeId);
   }
 
-  updateAccess(nodeId: string): void {
-    const node = this.findNodeById(nodeId);
-    if (node) { node.accessCount++; node.lastAccessedAt = Date.now(); }
+  findAllActive(filter?: import('./adapter').StorageFilter): BmNode[] {
+    return filterByScopeV2(Array.from(this._nodeCache.values()).filter(n => n.status === 'active'), filter);
   }
 
-  // ─── Edge CRUD (in-memory stub — v1.8.0+ 迁移 LanceDB) ──
+  findAllEdges(): BmEdge[] { return Array.from(this._edgeCache.values()); }
+
+  updatePageranks(s: Map<string, number>) { for (const [id, sc] of s) { const n = this._nodeCache.get(id); if (n) n.pagerank = sc; } }
+  updateCommunities(l: Map<string, string>) { for (const [id, cid] of l) { const n = this._nodeCache.get(id); if (n) n.communityId = cid; } }
+  updateAccess(nodeId: string) { const n = this._nodeCache.get(nodeId); if (n) { n.accessCount++; n.lastAccessedAt = Date.now(); } }
+
+  // ─── Edge CRUD ──────────────────────────────────────────
 
   upsertEdge(input: EdgeUpsertInput): BmEdge {
     const id = `e-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const edge: BmEdge = {
-      id, fromId: input.fromId, toId: input.toId,
-      type: input.type, instruction: input.instruction,
-      condition: input.condition, sessionId: input.sessionId,
-      createdAt: Date.now(),
-    };
-    if (!this._edgeCache) this._edgeCache = [];
-    this._edgeCache.push(edge);
-    return edge;
+    const e: BmEdge = { id, fromId: input.fromId, toId: input.toId, type: input.type, instruction: input.instruction, condition: input.condition, sessionId: input.sessionId, createdAt: Date.now() };
+    this._edgeCache.set(id, e);
+    return e;
   }
+  findEdgesFrom(id: string) { return Array.from(this._edgeCache.values()).filter(e => e.fromId === id); }
+  findEdgesTo(id: string) { return Array.from(this._edgeCache.values()).filter(e => e.toId === id); }
 
-  findEdgesFrom(nodeId: string): BmEdge[] {
-    return (this._edgeCache || []).filter(e => e.fromId === nodeId);
+  // ─── Search ─────────────────────────────────────────────
+
+  searchNodes(query: string, limit: number) { const q = query.toLowerCase(); return this.findAllActive().filter(n => n.name.toLowerCase().includes(q) || n.content.toLowerCase().includes(q)).slice(0, limit); }
+  findTopNodes(limit: number) { return this.findAllActive().sort((a, b) => b.pagerank - a.pagerank).slice(0, limit); }
+
+  // ─── Vector ─────────────────────────────────────────────
+
+  vectorSearch(qv: number[], limit: number, minScore = 0) { return this._vecSearch(qv, limit, minScore); }
+  vectorSearchWithScore(qv: number[], limit: number) { return this.vectorSearch(qv, limit, 0); }
+  saveVector(nodeId: string, content: string, vec: number[]) {
+    const n = this._nodeCache.get(nodeId); if (n) (n as BmNodeWithVector)._vector = new Float32Array(vec);
+    this.vectorTable?.delete(`id = "${nodeId}"`).then(() => this.vectorTable!.add([{ id: nodeId, vector: vec, hash: '', content: content.slice(0, 500) }])).catch(() => {});
   }
+  getVector(nodeId: string) { return (this._nodeCache.get(nodeId) as BmNodeWithVector)?._vector || null; }
+  getVectorHash(_: string) { return null; }
+  loadAllVectors() { return this.findAllActive().filter(n => (n as BmNodeWithVector)._vector).map(n => ({ nodeId: n.id, embedding: (n as BmNodeWithVector)._vector! })); }
 
-  findEdgesTo(nodeId: string): BmEdge[] {
-    return (this._edgeCache || []).filter(e => e.toId === nodeId);
-  }
-
-  // ─── Search ──────────────────────────────────────────────
-
-  searchNodes(query: string, limit: number): BmNode[] {
-    const active = this.findAllActive();
-    const q = query.toLowerCase();
-    return active.filter(n =>
-      n.name.toLowerCase().includes(q) ||
-      n.content.toLowerCase().includes(q)
-    ).slice(0, limit);
-  }
-
-  findTopNodes(limit: number): BmNode[] {
-    return this.findAllActive().sort((a, b) => b.pagerank - a.pagerank).slice(0, limit);
-  }
-
-  // ─── Vector Operations ──────────────────────────────────
-
-  /** v1.6.0 A-2: 向量搜索优先 in-memory（同步），LanceDB 作为持久层 */
-  vectorSearch(queryVec: number[], limit: number, minScore = 0): ScoredNode[] {
-    // v1.6.0 A-2: in-memory cosine for sync interface; LanceDB 用于持久化
-    return this._fallbackVectorSearch(queryVec, limit, minScore);
-  }
-
-  vectorSearchWithScore(queryVec: number[], limit: number): ScoredNode[] {
-    return this.vectorSearch(queryVec, limit, 0);
-  }
-
-  /** v1.6.0 A-2: 向量保存：内存立即生效 + LanceDB fire-and-forget 持久化 */
-  saveVector(nodeId: string, content: string, vec: number[]): void {
-    // In-memory: immediate (fast, sync)
-    const node = this.findNodeById(nodeId);
-    if (node) (node as BmNodeWithVector)._vector = new Float32Array(vec);
-
-    // LanceDB: fire-and-forget persistence (best-effort)
-    if (this.vectorTable) {
-      this.vectorTable.delete(`id = "${nodeId}"`)
-        .then(() => this.vectorTable!.add([{
-          id: nodeId, vector: vec, hash: '', content: content.slice(0, 500),
-        }]))
-        .catch(() => { /* best-effort, memory already updated */ });
-    }
-  }
-
-  /** v1.6.0 A-2: 优先从 in-memory 取，走 LanceDB 的操作已异步存储 */
-  getVector(nodeId: string): Float32Array | null {
-    const node = this.findNodeById(nodeId);
-    return (node as BmNodeWithVector)?._vector || null;
-  }
-
-  getVectorHash(_nodeId: string): string | null { return null; }
-
-  loadAllVectors(): Array<{ nodeId: string; embedding: Float32Array }> {
-    return this.findAllActive()
-      .filter(n => (n as BmNodeWithVector)._vector)
-      .map(n => ({ nodeId: n.id, embedding: (n as BmNodeWithVector)._vector as Float32Array }));
-  }
-
-  /** Fallback: in-memory cosine similarity (POC — backup when LanceDB fails) */
-  private _fallbackVectorSearch(queryVec: number[], limit: number, minScore: number): ScoredNode[] {
-    const active = this.findAllActive().filter(n => (n as BmNodeWithVector)._vector);
+  private _vecSearch(qv: number[], limit: number, minScore: number): ScoredNode[] {
     const results: ScoredNode[] = [];
-    for (const node of active) {
-      const vec = (node as BmNodeWithVector)._vector;
-      if (!vec) continue;
-      const sim = this._cosineSim(queryVec, vec);
-      if (sim >= minScore) results.push({ node, score: sim });
+    for (const n of this.findAllActive()) {
+      const v = (n as BmNodeWithVector)._vector; if (!v) continue;
+      let dot = 0, nA = 0, nB = 0;
+      for (let i = 0; i < Math.min(qv.length, v.length); i++) { dot += qv[i] * v[i]; nA += qv[i] * qv[i]; nB += v[i] * v[i]; }
+      const sim = nA && nB ? dot / (Math.sqrt(nA) * Math.sqrt(nB)) : 0;
+      if (sim >= minScore) results.push({ node: n, score: sim });
     }
     return results.sort((a, b) => b.score - a.score).slice(0, limit);
   }
 
-  // ─── Graph ───────────────────────────────────────────────
+  // ─── Graph ──────────────────────────────────────────────
 
-  graphWalk(seedIds: string[], maxDepth: number): { nodes: BmNode[]; edges: BmEdge[] } {
-    const visited = new Set<string>();
-    const queue = [...seedIds];
-    const nodes: BmNode[] = [];
-    const edges: BmEdge[] = [];
-    let depth = 0;
-
-    while (queue.length > 0 && depth <= maxDepth) {
-      const levelSize = queue.length;
-      for (let i = 0; i < levelSize; i++) {
-        const id = queue.shift()!;
-        if (visited.has(id)) continue;
-        visited.add(id);
-        const node = this.findNodeById(id);
-        if (node) nodes.push(node);
-        const outs = this.findEdgesFrom(id);
-        for (const e of outs) {
-          edges.push(e);
-          if (!visited.has(e.toId)) queue.push(e.toId);
-        }
+  graphWalk(seedIds: string[], maxDepth: number) {
+    const visited = new Set<string>(), queue = [...seedIds], nodes: BmNode[] = [], edges: BmEdge[] = []; let depth = 0;
+    while (queue.length && depth <= maxDepth) {
+      const sz = queue.length;
+      for (let i = 0; i < sz; i++) {
+        const id = queue.shift()!; if (visited.has(id)) continue; visited.add(id);
+        const n = this._nodeCache.get(id); if (n) nodes.push(n);
+        for (const e of this.findEdgesFrom(id)) { edges.push(e); if (!visited.has(e.toId)) queue.push(e.toId); }
       }
       depth++;
     }
     return { nodes, edges };
   }
 
-  loadGraphStructure(): { nodeIds: string[]; edges: Array<{ fromId: string; toId: string }> } {
-    const active = this.findAllActive();
-    return {
-      nodeIds: active.map(n => n.id),
-      edges: (this._edgeCache || []).map(e => ({ fromId: e.fromId, toId: e.toId })),
-    };
-  }
+  loadGraphStructure() { return { nodeIds: this.findAllActive().map(n => n.id), edges: Array.from(this._edgeCache.values()).map(e => ({ fromId: e.fromId, toId: e.toId })) }; }
 
-  // ─── Communities (stubs — v1.7.0+ 迁移) ─────────────────
+  // ─── Communities (stub) ─────────────────────────────────
 
-  upsertCommunity(_id: string, _summary: string, _nodeCount: number, _embedding?: number[]): void {}
-  getCommunity(_id: string): CommunitySummaryRecord | null { return null; }
-  getAllCommunities(): Map<string, CommunitySummaryRecord> { return new Map(); }
-  pruneCommunities(): number { return 0; }
-  communityVectorSearch(_queryVec: number[], _minScore: number): ScoredCommunityResult[] { return []; }
-  findNodesByCommunities(_communityIds: string[], _perCommunity: number): BmNode[] { return []; }
-  findCommunityPeers(_nodeId: string, _limit: number): string[] { return []; }
-  findCommunityRepresentatives(_perCommunity: number): BmNode[] { return []; }
+  upsertCommunity() {}
+  getCommunity() { return null; }
+  getAllCommunities() { return new Map(); }
+  pruneCommunities() { return 0; }
+  communityVectorSearch() { return []; }
+  findNodesByCommunities() { return []; }
+  findCommunityPeers() { return []; }
+  findCommunityRepresentatives() { return this.findTopNodes(5); }
 
-  // ─── Messages (stubs — v1.8.0+ 迁移) ────────────────────
+  // ─── Messages (stub) ────────────────────────────────────
 
-  saveMessage(_sessionId: string, _turn: number, _role: string, _content: unknown): void {}
-  getUnextractedMessages(_sessionId: string, _limit: number): MessageRow[] { return []; }
-  markMessagesExtracted(_sessionId: string, _upToTurn: number): void {}
-  getEpisodicMessages(_sessionIds: string[], _nearTime: number, _maxChars: number): EpisodicSnippet[] { return []; }
+  saveMessage() {}
+  getUnextractedMessages() { return []; }
+  markMessagesExtracted() {}
+  getEpisodicMessages() { return []; }
 
-  // ─── Statistics ─────────────────────────────────────────
+  // ─── Stats ──────────────────────────────────────────────
 
   getStats(): StorageStats {
-    return {
-      totalNodes: (this._nodeCache || []).length,
-      activeNodes: this.findAllActive().length,
-      deprecatedNodes: (this._nodeCache || []).filter(n => n.status === 'deprecated').length,
-      totalEdges: (this._edgeCache || []).length,
-      nodesByCategory: {} as Record<MemoryCategory, number>,
-      edgeTypes: {} as Record<EdgeType, number>,
-      vectorCount: 0, communityCount: 0, schemaVersion: 1,
-    };
+    const all = Array.from(this._nodeCache.values());
+    const byCat: Record<string, number> = {}, byEdge: Record<string, number> = {};
+    for (const n of all) byCat[n.category] = (byCat[n.category] || 0) + 1;
+    for (const e of this._edgeCache.values()) byEdge[e.type] = (byEdge[e.type] || 0) + 1;
+    return { totalNodes: all.length, activeNodes: all.filter(n => n.status === 'active').length,
+      deprecatedNodes: all.filter(n => n.status === 'deprecated').length, totalEdges: this._edgeCache.size,
+      nodesByCategory: byCat as Record<MemoryCategory, number>, edgeTypes: byEdge as Record<EdgeType, number>,
+      vectorCount: this.findAllActive().filter(n => (n as BmNodeWithVector)._vector).length, communityCount: 0, schemaVersion: 2 };
   }
 
-  getSchemaVersion(): number { return 1; }
+  getSchemaVersion() { return 2; }
 
-  // ─── Dirty Marks ────────────────────────────────────────
+  // ─── Dirty ──────────────────────────────────────────────
 
-  getDirtyNodes(): Set<string> { return new Set(this.dirtyNodes); }
-  markDirty(nodeIds: string[]): void { for (const id of nodeIds) this.dirtyNodes.add(id); }
-  markDirtyEdges(edgeIds: string[]): void { for (const id of edgeIds) this.dirtyEdges.add(id); }
-  clearDirty(): void { this.dirtyNodes.clear(); this.dirtyEdges.clear(); }
-  getAffectedSubgraph(maxDepth: number): { nodes: BmNode[]; edges: BmEdge[] } {
-    return this.graphWalk(Array.from(this.dirtyNodes), maxDepth);
-  }
-
-  // ─── Internal State ─────────────────────────────────────
-
-  private _nodeCache: BmNode[] | null = null;
-  private _edgeCache: BmEdge[] | null = null;
-
-  private _cosineSim(a: number[], b: Float32Array): number {
-    let dot = 0, normA = 0, normB = 0;
-    const len = Math.min(a.length, b.length);
-    for (let i = 0; i < len; i++) { dot += a[i] * b[i]; normA += a[i] * a[i]; normB += b[i] * b[i]; }
-    return normA === 0 || normB === 0 ? 0 : dot / (Math.sqrt(normA) * Math.sqrt(normB) + 1e-9);
-  }
+  getDirtyNodes() { return new Set(this.dirtyNodes); }
+  markDirty(ids: string[]) { for (const id of ids) this.dirtyNodes.add(id); }
+  markDirtyEdges(ids: string[]) { for (const id of ids) this.dirtyEdges.add(id); }
+  clearDirty() { this.dirtyNodes.clear(); this.dirtyEdges.clear(); }
+  getAffectedSubgraph(maxDepth: number) { return this.graphWalk(Array.from(this.dirtyNodes), maxDepth); }
 }

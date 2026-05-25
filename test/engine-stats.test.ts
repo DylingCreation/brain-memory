@@ -1,5 +1,5 @@
 /**
- * brain-memory â€” F-5 Engine Stats (getStats) tests
+ * brain-memory â€?F-5 Engine Stats (getStats) tests
  *
  * Verifies that getStats() returns comprehensive statistics with
  * proper structure and accuracy.
@@ -70,7 +70,7 @@ function makeConfig(overrides: Partial<BmConfig> = {}): BmConfig {
   };
 }
 
-describe("getStats() â€” F-5", () => {
+describe("getStats() â€?F-5", () => {
   it("returns complete structure on empty database", () => {
     const config = makeConfig();
     const engine = new ContextEngine(config);
@@ -100,7 +100,7 @@ describe("getStats() â€” F-5", () => {
       expect(stats.vectors).toBe(0);
 
       // Metadata
-      expect(stats.schemaVersion).toBe(1);
+      expect(stats.schemaVersion).toBe(2);
       expect(stats.uptimeMs).toBeGreaterThanOrEqual(0);
       expect(typeof stats.dbSizeBytes).toBe("number");
       expect(stats.queryTimeMs).toBeGreaterThanOrEqual(0);

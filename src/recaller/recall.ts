@@ -18,6 +18,7 @@ import { createHash } from 'crypto';
 import type { BmConfig, RecallResult, BmNode } from '../types';
 import type { EmbedFn, BatchEmbedFn } from '../engine/embed';
 import type { ScopeFilter } from '../scope/isolation';
+import type { ScopeFilterV2 } from '../types';
 import type { IStorageAdapter, StorageFilter } from '../store/adapter';
 import { personalizedPageRank } from '../graph/pagerank';
 import { applyTimeDecay } from '../decay/engine';
@@ -28,12 +29,12 @@ import { analyzeIntent } from '../retriever/intent-analyzer';
 import { expandQuery } from '../retriever/query-expander';
 import { RecallCache } from './cache';
 
-/** Convert ScopeFilter to StorageFilter for adapter calls */
-function toStorageFilter(filter?: ScopeFilter): StorageFilter | undefined {
+/** Convert ScopeFilterV2 to StorageFilter for adapter calls */
+function toStorageFilterV2(filter?: ScopeFilterV2): StorageFilter | undefined {
   if (!filter) return undefined;
   return {
-    includeScopes: filter.includeScopes,
-    excludeScopes: filter.excludeScopes,
+    includeScopesV2: filter.includeScopes,
+    excludeScopesV2: filter.excludeScopes,
     sharingMode: filter.sharingMode,
     sharedCategories: filter.sharedCategories,
     currentAgentId: filter.currentAgentId,
@@ -54,7 +55,7 @@ export class Recaller {
   setEmbedFn(fn: EmbedFn): void { this.embed = fn; }
   setBatchEmbedFn(fn: BatchEmbedFn): void { this.batchEmbed = fn; }
 
-  async recall(query: string, scopeFilter?: ScopeFilter, sourceFilter?: 'user' | 'assistant' | 'both'): Promise<RecallResult> {
+  async recall(query: string, scopeFilter?: ScopeFilterV2, sourceFilter?: 'user' | 'assistant' | 'both'): Promise<RecallResult> {
     const limit = this.cfg.recallMaxNodes;
 
     // A-1: 查询缓存 — 图无变更时复用上一次相同查询的结果
@@ -139,9 +140,9 @@ export class Recaller {
   // ─── Seed Acquisition ───────────────────────────────────────
 
   /** Get precise path seeds: vector/FTS5 → community expansion */
-  private async getPreciseSeeds(query: string, limit: number, scopeFilter?: ScopeFilter, sourceFilter?: 'user' | 'assistant' | 'both'): Promise<string[]> {
+  private async getPreciseSeeds(query: string, limit: number, scopeFilter?: ScopeFilterV2, sourceFilter?: 'user' | 'assistant' | 'both'): Promise<string[]> {
     let seeds: BmNode[] = [];
-    const sf = toStorageFilter(scopeFilter);
+    const sf = toStorageFilterV2(scopeFilter);
 
     if (this.embed) {
       try {
@@ -171,7 +172,7 @@ export class Recaller {
   }
 
   /** Get generalized path seeds: community vector match → members */
-  private async getGeneralizedSeeds(query: string, limit: number, scopeFilter?: ScopeFilter, sourceFilter?: 'user' | 'assistant' | 'both'): Promise<string[]> {
+  private async getGeneralizedSeeds(query: string, limit: number, scopeFilter?: ScopeFilterV2, sourceFilter?: 'user' | 'assistant' | 'both'): Promise<string[]> {
     let seeds: BmNode[] = [];
 
     if (this.embed) {
@@ -338,8 +339,8 @@ export class Recaller {
   }
 
   /** Helper: search nodes with source filter */
-  private searchNodesWithSourceFilter(query: string, limit: number, scopeFilter?: ScopeFilter, sourceFilter?: 'user' | 'assistant' | 'both'): BmNode[] {
-    const nodes = this.storage.searchNodes(query, limit, toStorageFilter(scopeFilter));
+  private searchNodesWithSourceFilter(query: string, limit: number, scopeFilter?: ScopeFilterV2, sourceFilter?: 'user' | 'assistant' | 'both'): BmNode[] {
+    const nodes = this.storage.searchNodes(query, limit, toStorageFilterV2(scopeFilter));
     if (sourceFilter && sourceFilter !== 'both') {
       return nodes.filter(n => n.source === sourceFilter);
     }
@@ -347,20 +348,26 @@ export class Recaller {
   }
 }
 
-function matchesScope(node: BmNode, filter: ScopeFilter): boolean {
+function matchesScope(node: BmNode, filter: ScopeFilterV2): boolean {
   for (const ex of filter.excludeScopes) {
     if (
-      (!ex.sessionId || node.scopeSession === ex.sessionId) &&
-      (!ex.agentId || node.scopeAgent === ex.agentId) &&
-      (!ex.workspaceId || node.scopeWorkspace === ex.workspaceId)
+      (!ex.platform || node.scopePlatform === ex.platform) &&
+      (!ex.workspace || node.scopeWorkspace === ex.workspace) &&
+      (!ex.agent || node.scopeAgent === ex.agent) &&
+      (!ex.user || node.scopeUser === ex.user) &&
+      (!ex.chat || node.scopeChat === ex.chat) &&
+      (!ex.thread || node.scopeThread === ex.thread)
     ) return false;
   }
   if (filter.includeScopes.length > 0) {
     return filter.includeScopes.some(
       inc =>
-        (!inc.sessionId || node.scopeSession === inc.sessionId) &&
-        (!inc.agentId || node.scopeAgent === inc.agentId) &&
-        (!inc.workspaceId || node.scopeWorkspace === inc.workspaceId),
+        (!inc.platform || node.scopePlatform === inc.platform) &&
+        (!inc.workspace || node.scopeWorkspace === inc.workspace) &&
+        (!inc.agent || node.scopeAgent === inc.agent) &&
+        (!inc.user || node.scopeUser === inc.user) &&
+        (!inc.chat || node.scopeChat === inc.chat) &&
+        (!inc.thread || node.scopeThread === inc.thread),
     );
   }
   return true;

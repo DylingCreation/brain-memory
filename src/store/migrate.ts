@@ -18,7 +18,7 @@ import { type DatabaseSyncInstance } from '@photostructure/sqlite';
  * Increment this number and add a new migrateTo_vN function
  * whenever the schema changes in a future release.
  */
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 /**
  * Table that stores schema metadata (version, etc.).
@@ -73,21 +73,65 @@ export function migrate(db: DatabaseSyncInstance): number {
     version = 1;
   }
 
-  // Step 4: Apply incremental migrations for versions beyond current
-  // (No migrations needed yet — future versions will add migrateTo_v2, etc.)
-  // Example:
-  //   if (version < 2) { migrateTo_v2(db); version = 2; }
-  //   if (version < 3) { migrateTo_v3(db); version = 3; }
+  // Step 4: Apply incremental migrations
+  if (version < 2) { migrateToV2_ScopeUpgrade(db); version = 2; }
 
   return version;
 }
 
 /**
- * Example: future migration template.
- * Uncomment and adapt when schema changes are needed.
- *
- * function migrateTo_v2(db: DatabaseSyncInstance): void {
- *   db.exec("CREATE TABLE IF NOT EXISTS bm_new_table ( ... );");
- *   db.prepare("UPDATE bm_meta SET value = '2' WHERE key = 'schema_version'").run();
- * }
+ * v2.0 scope 升级迁移。
+ * 新增五列 + scope_id 计算 + 旧数据映射。
+ * 幂等：列已存在时 try-catch 跳过。
  */
+function migrateToV2_ScopeUpgrade(db: DatabaseSyncInstance): void {
+  // 检查 bm_nodes 表是否存在（空数据库可能无此表）
+  const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='bm_nodes'").get() as { name: string } | undefined;
+  if (!tableCheck) {
+    // 无 bm_nodes 表：只更新版本号，跳过列迁移
+    db.prepare("UPDATE bm_meta SET value = '2' WHERE key = 'schema_version'").run();
+    return;
+  }
+  // 1. 新增六层 scope 列（幂等：列已存在则跳过）
+  const newColumns = [
+    'ALTER TABLE bm_nodes ADD COLUMN scope_platform TEXT',
+    'ALTER TABLE bm_nodes ADD COLUMN scope_user TEXT',
+    'ALTER TABLE bm_nodes ADD COLUMN scope_chat TEXT',
+    'ALTER TABLE bm_nodes ADD COLUMN scope_thread TEXT',
+    'ALTER TABLE bm_nodes ADD COLUMN scope_id TEXT',
+  ];
+  for (const sql of newColumns) {
+    try { db.exec(sql); } catch { /* 列已存在，跳过 */ }
+  }
+
+  // 2. 旧数据映射：scope_session → scope_chat
+  db.exec(`UPDATE bm_nodes SET scope_chat = scope_session WHERE scope_chat IS NULL AND scope_session IS NOT NULL`);
+
+  // 3. 为已有数据生成 scope_id（拼接六层 → 取低 8 字节 hex）
+  // SQLite 没有内置 sha256，使用简化版：substr(hex(zeroblob(...)) 不可行。
+  // 改用 hex 编码拼接字符串作为简易 hash（确定性 + 可索引）。
+  db.exec(`
+    UPDATE bm_nodes SET scope_id = lower(hex(
+      COALESCE(scope_platform,'*') || '|' ||
+      COALESCE(scope_workspace,'*') || '|' ||
+      COALESCE(scope_agent,'*') || '|' ||
+      COALESCE(scope_user,'*') || '|' ||
+      COALESCE(scope_chat,'*') || '|' ||
+      COALESCE(scope_thread,'*')
+    ))
+    WHERE scope_id IS NULL
+  `);
+
+  // 4. 建索引（幂等）
+  const indexes = [
+    'CREATE INDEX IF NOT EXISTS idx_nodes_scope_id ON bm_nodes(scope_id)',
+    'CREATE INDEX IF NOT EXISTS idx_nodes_scope_platform ON bm_nodes(scope_platform)',
+    'CREATE INDEX IF NOT EXISTS idx_nodes_scope_chat ON bm_nodes(scope_chat)',
+    'CREATE INDEX IF NOT EXISTS idx_nodes_scope_user ON bm_nodes(scope_user)',
+    'CREATE INDEX IF NOT EXISTS idx_nodes_scope_agent ON bm_nodes(scope_agent)',
+  ];
+  for (const sql of indexes) { db.exec(sql); }
+
+  // 5. 更新版本号
+  db.prepare("UPDATE bm_meta SET value = '2' WHERE key = 'schema_version'").run();
+}

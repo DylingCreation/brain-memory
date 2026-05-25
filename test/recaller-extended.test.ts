@@ -567,8 +567,8 @@ describe("Recaller — scope filtering via generalized seeds", () => {
   it("excludes nodes matching excludeScopes (matchesScope exclude path)", async () => {
     const id1 = insertNode(db, { name: "included", type: "SKILL", category: "skills", content: "Included node" });
     const id2 = insertNode(db, { name: "excluded", type: "SKILL", category: "skills", content: "Excluded node" });
-    // Set scopeSession on id2 so it can be matched by exclude filter
-    db.prepare("UPDATE bm_nodes SET scope_session = ? WHERE id = ?").run("excl-session", id2);
+    // Set scopeChat on id2 so it can be matched by exclude filter
+    db.prepare("UPDATE bm_nodes SET scope_chat = ? WHERE id = ?").run("excl-session", id2);
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG, recallMaxNodes: 10, recallMaxDepth: 2 };
     const recaller = new Recaller(storage, cfg);
@@ -576,7 +576,7 @@ describe("Recaller — scope filtering via generalized seeds", () => {
 
     // generalized seeds will trigger matchesScope with excludeScopes
     const scopeFilter = {
-      excludeScopes: [{ sessionId: "excl-session", agentId: undefined, workspaceId: undefined }],
+      excludeScopes: [{ chat: "excl-session", platform: null, workspace: null, agent: null, user: null, thread: null }],
       includeScopes: [],
     };
     const result = await recaller.recall("node", scopeFilter);
@@ -586,7 +586,7 @@ describe("Recaller — scope filtering via generalized seeds", () => {
 
   it("filters by includeScopes (matchesScope include path)", async () => {
     const id1 = insertNode(db, { name: "scope-match", type: "SKILL", category: "skills", content: "Matching scope" });
-    db.prepare("UPDATE bm_nodes SET scope_session = ? WHERE id = ?").run("match-session", id1);
+    db.prepare("UPDATE bm_nodes SET scope_chat = ? WHERE id = ?").run("match-session", id1);
 
     const cfg: BmConfig = { ...DEFAULT_CONFIG, recallMaxNodes: 10, recallMaxDepth: 2 };
     const recaller = new Recaller(storage, cfg);
@@ -594,7 +594,7 @@ describe("Recaller — scope filtering via generalized seeds", () => {
 
     const scopeFilter = {
       excludeScopes: [],
-      includeScopes: [{ sessionId: "match-session", agentId: undefined, workspaceId: undefined }],
+      includeScopes: [{ chat: "match-session", platform: null, workspace: null, agent: null, user: null, thread: null }],
     };
     const result = await recaller.recall("scope", scopeFilter);
     expect(result.nodes.length).toBeGreaterThanOrEqual(0);

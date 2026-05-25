@@ -35,11 +35,17 @@ CREATE TABLE IF NOT EXISTS bm_nodes (
   access_count    INTEGER NOT NULL DEFAULT 0,
   last_accessed   INTEGER NOT NULL DEFAULT 0,
   temporal_type   TEXT NOT NULL DEFAULT 'static' CHECK(temporal_type IN ('static','dynamic')),
-  source          TEXT NOT NULL DEFAULT 'user' CHECK(source IN ('user', 'assistant')),
-  -- Scope isolation fields
+  source          TEXT NOT NULL DEFAULT 'user' CHECK(source IN ('user', 'assistant', 'manual')),
+  -- v1.x Scope isolation fields (保留向后兼容)
   scope_session   TEXT,
   scope_agent     TEXT,
   scope_workspace TEXT,
+  -- v2.0 六层 Scope isolation fields
+  scope_platform  TEXT,
+  scope_user      TEXT,
+  scope_chat      TEXT,
+  scope_thread    TEXT,
+  scope_id        TEXT,
   created_at      INTEGER NOT NULL,
   updated_at      INTEGER NOT NULL
 );
@@ -121,6 +127,7 @@ CREATE INDEX IF NOT EXISTS idx_edges_from ON bm_edges(from_id);
 CREATE INDEX IF NOT EXISTS idx_edges_to ON bm_edges(to_id);
 CREATE INDEX IF NOT EXISTS idx_edges_type ON bm_edges(type);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON bm_messages(session_id, turn_index);
+-- v2.0 scope 索引由迁移脚本创建（不在此处，避免旧数据库升级时报 no such column）
 `;
 
 import { migrate } from './migrate';

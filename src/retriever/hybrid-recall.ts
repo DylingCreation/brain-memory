@@ -9,7 +9,7 @@
 
 import type { BmConfig, BmNode, BmEdge } from '../types';
 import type { EmbedFn } from '../engine/embed';
-import type { ScopeFilter } from '../scope/isolation';
+import type { ScopeFilterV2 } from '../types';
 import type { IStorageAdapter } from '../store/adapter';
 import { Recaller } from '../recaller/recall';
 import { VectorRecaller } from './vector-recall';
@@ -49,7 +49,7 @@ export class HybridRecaller {
     this.vectorRecaller.setEmbedFn(fn);
   }
 
-  async recall(query: string, scopeFilter?: ScopeFilter): Promise<HybridRecallResult> {
+  async recall(query: string, scopeFilter?: ScopeFilterV2): Promise<HybridRecallResult> {
     const [graphResult, vectorResult] = await Promise.allSettled([
       this.graphRecaller.recall(query, scopeFilter),
       this.vectorRecaller.recall(query, scopeFilter),

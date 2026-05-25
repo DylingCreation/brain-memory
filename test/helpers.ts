@@ -5,7 +5,9 @@
 import { createHash } from "crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { rmSync } from "node:fs";
 import { DatabaseSync, type DatabaseSyncInstance } from "@photostructure/sqlite";
+import type { BmNode } from "../src/types.ts";
 import { IStorageAdapter } from "../src/store/adapter";
 import { SQLiteStorageAdapter } from "../src/store/sqlite-adapter";
 
@@ -32,10 +34,16 @@ export function createTestDb(): DatabaseSyncInstance {
       access_count    INTEGER NOT NULL DEFAULT 0,
       last_accessed   INTEGER NOT NULL DEFAULT 0,
       temporal_type   TEXT NOT NULL DEFAULT 'static' CHECK(temporal_type IN ('static','dynamic')),
-      source          TEXT NOT NULL DEFAULT 'user' CHECK(source IN ('user', 'assistant')),
+      source          TEXT NOT NULL DEFAULT 'user' CHECK(source IN ('user', 'assistant', 'manual')),
       scope_session   TEXT,
       scope_agent     TEXT,
       scope_workspace TEXT,
+      -- v2.0 六层 scope
+      scope_platform  TEXT,
+      scope_user      TEXT,
+      scope_chat      TEXT,
+      scope_thread    TEXT,
+      scope_id        TEXT,
       created_at      INTEGER NOT NULL,
       updated_at      INTEGER NOT NULL
     );

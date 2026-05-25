@@ -48,7 +48,9 @@
   "license": "MIT",
   "dependencies": {
     "@photostructure/sqlite": "1.2.1",
-    "tsx": "^4.21.0"
+    "hono": "^4.12.23",
+    "tsx": "^4.21.0",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -79,7 +81,9 @@
   },
   "homepage": "https://github.com/DylingCreation/brain-memory#readme",
   "openclaw": {
-    "extensions": ["./dist/openclaw-register.js"],
+    "extensions": [
+      "./dist/openclaw-register.js"
+    ],
     "compat": {
       "pluginApi": ">=2026.3.24-beta.2",
       "minGatewayVersion": "2026.3.24-beta.2"

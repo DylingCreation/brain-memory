@@ -1,18 +1,12 @@
 {
   "id": "brain-memory",
   "name": "Brain Memory",
-  "version": "1.8.0",
-  "description": "Unified knowledge graph + vector memory system for AI agents",
+  "version": "2.0.0",
+  "description": "Unified knowledge graph + vector memory system for AI agents — v2.0 六层 scope 隔离",
   "author": "DylingCreation",
   "license": "MIT",
   "contracts": {
-    "hooks": [
-      "session_start",
-      "session_end",
-      "message_received",
-      "message_sent",
-      "message_sending"
-    ]
+    "hooks": ["message_received", "message_sent", "message_sending", "session_start", "session_end"]
   },
   "activation": {
     "onStartup": true
@@ -21,302 +15,188 @@
     "type": "object",
     "properties": {
       "enabled": {
-        "type": "boolean",
-        "default": true,
+        "type": "boolean", "default": true,
         "description": "Enable the brain-memory plugin"
       },
       "mode": {
-        "type": "string",
-        "enum": ["full", "lite", "small"],
-        "default": "full",
-        "description": "Run mode: full=complete LLM pipeline, lite=heuristic-only, small=compact prompts for local models"
+        "type": "string", "enum": ["full", "lite", "small"], "default": "full",
+        "description": "运行模式：full=完整提示词, lite=仅启发式, small=精简提示词(本地小模型)"
       },
       "engine": {
-        "type": "string",
-        "enum": ["graph", "vector", "hybrid"],
-        "default": "graph",
-        "description": "Engine mode: graph=knowledge graph, vector=vector search, hybrid=both"
+        "type": "string", "enum": ["graph", "vector", "hybrid"], "default": "graph",
+        "description": "Engine mode"
       },
       "storage": {
-        "type": "string",
-        "enum": ["sqlite", "lancedb"],
-        "default": "sqlite",
+        "type": "string", "enum": ["sqlite", "lancedb"], "default": "sqlite",
         "description": "Storage backend"
       },
       "dbPath": {
-        "type": "string",
-        "default": "~/.openclaw/brain-memory.db",
+        "type": "string", "default": "~/.openclaw/brain-memory.db",
         "description": "Path to the database file"
       },
       "injectMemories": {
-        "type": "boolean",
-        "default": true,
+        "type": "boolean", "default": true,
         "description": "Whether to inject memories into conversation context"
       },
       "extractMemories": {
-        "type": "boolean",
-        "default": true,
+        "type": "boolean", "default": true,
         "description": "Whether to extract memories from conversations"
       },
       "autoMaintain": {
-        "type": "boolean",
-        "default": true,
+        "type": "boolean", "default": true,
         "description": "Whether to run maintenance automatically"
       },
+      "compactTurnCount": {
+        "type": "number", "default": 6
+      },
+      "recallMaxNodes": {
+        "type": "number", "default": 6
+      },
+      "recallMaxDepth": {
+        "type": "number", "default": 2
+      },
       "recallCacheSize": {
-        "type": "number",
-        "default": 100,
-        "description": "LRU cache capacity for recall queries"
+        "type": "number", "default": 100,
+        "description": "LRU 缓存容量上限"
       },
       "recallCacheTtlMs": {
-        "type": "number",
-        "default": 300000,
-        "description": "Cache TTL in milliseconds (default 5 minutes)"
+        "type": "number", "default": 300000,
+        "description": "缓存 TTL 毫秒（默认 5 分钟）"
+      },
+      "recallStrategy": {
+        "type": "string", "enum": ["full", "summary", "adaptive", "off"], "default": "full"
+      },
+      "dedupThreshold": {
+        "type": "number", "default": 0.9
+      },
+      "pagerankDamping": {
+        "type": "number", "default": 0.85
+      },
+      "pagerankIterations": {
+        "type": "number", "default": 20
       },
       "llm": {
         "type": "object",
         "properties": {
-          "apiKey": {
-            "type": "string",
-            "description": "LLM API key"
-          },
-          "baseURL": {
-            "type": "string",
-            "default": "https://api.openai.com/v1",
-            "description": "LLM API base URL"
-          },
-          "model": {
-            "type": "string",
-            "default": "gpt-4o-mini",
-            "description": "LLM model to use"
-          },
-          "maxTokens": {
-            "type": "number",
-            "default": 4096,
-            "description": "Max output tokens (v1.8.0)"
-          }
+          "apiKey": { "type": "string", "description": "LLM API key" },
+          "baseURL": { "type": "string", "default": "https://api.openai.com/v1" },
+          "model": { "type": "string", "default": "gpt-4o-mini" }
         }
       },
       "embedding": {
         "type": "object",
         "properties": {
-          "apiKey": {
-            "type": "string",
-            "description": "Embedding API key"
-          },
-          "baseURL": {
-            "type": "string",
-            "default": "https://api.openai.com/v1",
-            "description": "Embedding API base URL"
-          },
-          "model": {
-            "type": "string",
-            "default": "text-embedding-3-small",
-            "description": "Embedding model to use"
-          }
+          "apiKey": { "type": "string", "description": "Embedding API key" },
+          "baseURL": { "type": "string", "default": "https://api.openai.com/v1" },
+          "model": { "type": "string", "default": "text-embedding-3-small" },
+          "dimensions": { "type": "number", "description": "Embedding 向量维度" }
         }
       },
       "reflection": {
         "type": "object",
         "properties": {
-          "enabled": {
-            "type": "boolean",
-            "default": true
-          },
-          "turnReflection": {
-            "type": "boolean",
-            "default": false
-          },
-          "sessionReflection": {
-            "type": "boolean",
-            "default": true
-          }
+          "enabled": { "type": "boolean", "default": true },
+          "turnReflection": { "type": "boolean", "default": false },
+          "sessionReflection": { "type": "boolean", "default": true },
+          "safetyFilter": { "type": "boolean", "default": true },
+          "maxInsights": { "type": "number", "default": 8 },
+          "importanceBoost": { "type": "number", "default": 0.15 },
+          "minConfidence": { "type": "number", "default": 0.6 }
         }
       },
       "noiseFilter": {
         "type": "object",
         "properties": {
-          "enabled": {
-            "type": "boolean",
-            "default": true
-          },
-          "minContentLength": {
-            "type": "number",
-            "default": 10
-          }
+          "enabled": { "type": "boolean", "default": true },
+          "minContentLength": { "type": "number", "default": 10 }
         }
       },
       "workingMemory": {
         "type": "object",
         "properties": {
-          "enabled": {
-            "type": "boolean",
-            "default": true
-          },
-          "maxTasks": {
-            "type": "number",
-            "default": 3
-          },
-          "maxDecisions": {
-            "type": "number",
-            "default": 5
-          },
-          "maxConstraints": {
-            "type": "number",
-            "default": 5
-          }
+          "enabled": { "type": "boolean", "default": true },
+          "maxTasks": { "type": "number", "default": 3 },
+          "maxDecisions": { "type": "number", "default": 5 },
+          "maxConstraints": { "type": "number", "default": 5 }
         }
       },
       "fusion": {
         "type": "object",
         "properties": {
-          "enabled": {
-            "type": "boolean",
-            "default": true
-          },
-          "similarityThreshold": {
-            "type": "number",
-            "default": 0.75
-          },
-          "minNodes": {
-            "type": "number",
-            "default": 20
-          },
-          "minCommunities": {
-            "type": "number",
-            "default": 3
-          }
+          "enabled": { "type": "boolean", "default": true },
+          "similarityThreshold": { "type": "number", "default": 0.75 },
+          "minNodes": { "type": "number", "default": 20 },
+          "minCommunities": { "type": "number", "default": 3 },
+          "namePreFilterThreshold": { "type": "number", "default": 0.2 },
+          "nameWeight": { "type": "number", "default": 0.6 },
+          "vectorWeight": { "type": "number", "default": 0.4 },
+          "autoMergeThreshold": { "type": "number", "default": 0.9 }
         }
       },
       "reasoning": {
         "type": "object",
         "properties": {
-          "enabled": {
-            "type": "boolean",
-            "default": true
-          },
-          "maxHops": {
-            "type": "number",
-            "default": 2
-          },
-          "maxConclusions": {
-            "type": "number",
-            "default": 3
-          },
-          "minRecallNodes": {
-            "type": "number",
-            "default": 3
-          }
-        }
-      },
-      "memoryInjection": {
-        "type": "object",
-        "properties": {
-          "enabled": {
-            "type": "boolean",
-            "default": true
-          },
-          "strategy": {
-            "type": "string",
-            "enum": ["full", "summary", "adaptive", "off"],
-            "default": "adaptive"
-          },
-          "tokenBudget": {
-            "type": "number",
-            "default": 6000
-          },
-          "maxNodes": {
-            "type": "number",
-            "default": 12
-          },
-          "includeEpisodic": {
-            "type": "boolean",
-            "default": true
-          }
-        }
-      },
-      "memorySharing": {
-        "type": "object",
-        "properties": {
-          "enabled": {
-            "type": "boolean",
-            "default": true
-          },
-          "mode": {
-            "type": "string",
-            "enum": ["isolated", "mixed", "shared"],
-            "default": "mixed"
-          },
-          "sharedCategories": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "default": ["profile", "preferences"]
-          },
-          "allowedAgents": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "default": []
-          }
+          "enabled": { "type": "boolean", "default": true },
+          "maxHops": { "type": "number", "default": 2 },
+          "maxConclusions": { "type": "number", "default": 3 },
+          "minRecallNodes": { "type": "number", "default": 3 }
         }
       },
       "decay": {
         "type": "object",
         "properties": {
-          "enabled": {
-            "type": "boolean",
-            "default": true
-          },
-          "recencyHalfLifeDays": {
-            "type": "number",
-            "default": 30
-          },
-          "timeDecayHalfLifeDays": {
-            "type": "number",
-            "default": 60
-          }
+          "enabled": { "type": "boolean", "default": true },
+          "recencyHalfLifeDays": { "type": "number", "default": 30 },
+          "recencyWeight": { "type": "number", "default": 0.4 },
+          "frequencyWeight": { "type": "number", "default": 0.3 },
+          "intrinsicWeight": { "type": "number", "default": 0.3 },
+          "timeDecayHalfLifeDays": { "type": "number", "default": 60 },
+          "betaCore": { "type": "number", "default": 0.8 },
+          "betaWorking": { "type": "number", "default": 1.0 },
+          "betaPeripheral": { "type": "number", "default": 1.3 },
+          "coreDecayFloor": { "type": "number", "default": 0.9 },
+          "workingDecayFloor": { "type": "number", "default": 0.7 },
+          "peripheralDecayFloor": { "type": "number", "default": 0.5 }
         }
       },
       "rerank": {
         "type": "object",
         "properties": {
-          "enabled": {
-            "type": "boolean",
-            "default": false
-          }
+          "enabled": { "type": "boolean", "default": false },
+          "apiKey": { "type": "string" },
+          "model": { "type": "string" },
+          "endpoint": { "type": "string" },
+          "provider": { "type": "string" },
+          "timeoutMs": { "type": "number" }
         }
       },
-      "compactTurnCount": {
-        "type": "number",
-        "default": 6
+      "memoryInjection": {
+        "type": "object",
+        "description": "记忆注入格式配置（v2.0）",
+        "properties": {
+          "enabled": { "type": "boolean", "default": true },
+          "strategy": { "type": "string", "enum": ["full", "summary", "adaptive", "off"], "default": "adaptive" },
+          "tokenBudget": { "type": "number", "default": 6000 },
+          "maxNodes": { "type": "number", "default": 12 },
+          "includeEpisodic": { "type": "boolean", "default": true }
+        }
       },
-      "recallMaxNodes": {
-        "type": "number",
-        "default": 6
-      },
-      "recallMaxDepth": {
-        "type": "number",
-        "default": 2
-      },
-      "recallStrategy": {
-        "type": "string",
-        "enum": ["full", "summary", "adaptive", "off"],
-        "default": "full"
-      },
-      "dedupThreshold": {
-        "type": "number",
-        "default": 0.9
-      },
-      "pagerankDamping": {
-        "type": "number",
-        "default": 0.85
-      },
-      "pagerankIterations": {
-        "type": "number",
-        "default": 20
+      "memorySharing": {
+        "type": "object",
+        "description": "多 Agent 记忆共享配置（v2.0）",
+        "properties": {
+          "enabled": { "type": "boolean", "default": true },
+          "mode": { "type": "string", "enum": ["isolated", "mixed", "shared"], "default": "mixed" },
+          "sharedCategories": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["profile", "preferences", "entities", "events", "tasks", "skills", "cases", "patterns"] }
+          },
+          "allowedAgents": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "空=所有 Agent"
+          }
+        }
       }
     },
     "required": ["enabled"]

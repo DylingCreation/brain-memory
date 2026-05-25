@@ -86,6 +86,77 @@ export const EDGE_TO_CONSTRAINT: Record<EdgeType, Set<GraphNodeType>> = {
   OBSERVED_IN:    new Set(['SKILL', 'EVENT']),
 };
 
+// ─── Scope 隔离（v2.0 六层）───────────────────────────────────
+
+/**
+ * v2.0 六层 MemoryScope。
+ * 每层可选；NULL = "未限定"，匹配任意值。
+ * platform/workspace/agent/user/chat/thread 共同界定记忆的可见范围。
+ */
+export interface MemoryScopeV2 {
+  /** 平台标识：discord | telegram | qqbot | webchat | slack | signal | ... */
+  platform?: string | null;
+  /** 工作空间路径 */
+  workspace?: string | null;
+  /** Agent 标识符 */
+  agent?: string | null;
+  /** 用户/对话者标识符 */
+  user?: string | null;
+  /** 会话/频道/群组标识符 */
+  chat?: string | null;
+  /** 子话题/线程标识符（最细粒度） */
+  thread?: string | null;
+}
+
+/**
+ * v2.0 Scope 查询过滤器。
+ * includeScopes：OR 连接的匹配范围
+ * excludeScopes：AND 连接的排除范围
+ */
+export interface ScopeFilterV2 {
+  includeScopes: MemoryScopeV2[];
+  excludeScopes: MemoryScopeV2[];
+  allowCrossScope: boolean;
+  /** v1.0.0 B-2: Multi-agent sharing */
+  sharingMode?: SharingMode;
+  sharedCategories?: MemoryCategory[];
+  currentAgentId?: string;
+  allowedAgents?: string[];
+}
+
+/** v2.0 默认 scope 过滤器：不限制任何范围。 */
+export const DEFAULT_SCOPE_FILTER_V2: ScopeFilterV2 = {
+  includeScopes: [],
+  excludeScopes: [],
+  allowCrossScope: false,
+};
+
+/**
+ * 将旧版三层 MemoryScope 适配为新版六层。
+ * 缺失字段 → NULL。
+ */
+export function adaptScopeV1toV2(v1: { sessionId?: string; agentId?: string; workspaceId?: string }): MemoryScopeV2 {
+  return {
+    platform: null,
+    workspace: v1.workspaceId ?? null,
+    agent: v1.agentId ?? null,
+    user: null,
+    chat: v1.sessionId ?? null,
+    thread: null,
+  };
+}
+
+/**
+ * 将新版六层 scope 压缩回旧版三层（用于向下兼容的 API 调用）。
+ */
+export function adaptScopeV2toV1(v2: MemoryScopeV2): { sessionId?: string; agentId?: string; workspaceId?: string } {
+  return {
+    sessionId: v2.chat ?? undefined,
+    agentId: v2.agent ?? undefined,
+    workspaceId: v2.workspace ?? undefined,
+  };
+}
+
 // ─── 节点 ─────────────────────────────────────────────────────
 
 /** 节点状态：active=活跃, deprecated=已弃用。 */
@@ -113,12 +184,19 @@ export interface BmNode {
   lastAccessedAt: number;
   /** Temporal: static facts vs dynamic info */
   temporalType: 'static' | 'dynamic';
-  /** Knowledge source: "user"=user message, "assistant"=AI reply */
-  source: 'user' | 'assistant';
-  /** Scope isolation fields */
-  scopeSession: string | null;
-  scopeAgent: string | null;
+  /** Knowledge source: "user"=user message, "assistant"=AI reply, "manual"=手动添加 */
+  source: 'user' | 'assistant' | 'manual';
+  /** v2.0 六层 scope 隔离字段 */
+  scopePlatform: string | null;
   scopeWorkspace: string | null;
+  scopeAgent: string | null;
+  scopeUser: string | null;
+  scopeChat: string | null;
+  scopeThread: string | null;
+  /** v2.0 computed scope_id（hash），用于快速等值匹配 */
+  scopeId: string | null;
+  /** @deprecated v2.0: 使用 scopeChat 替代 */
+  scopeSession: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -394,7 +472,7 @@ export interface BmConfig {
     apiKey?: string;
     baseURL?: string;
     model?: string;
-    /** 最大输出 token 数，默认 4096。v1.8.0 F-1 新增 */
+    /** 最大输出 token 数，默认 4096。v1.8.0 F-1 */
     maxTokens?: number;
   };
   dedupThreshold: number;

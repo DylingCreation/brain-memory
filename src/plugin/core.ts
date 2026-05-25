@@ -5,10 +5,11 @@
  */
 
 import { ContextEngine } from '../engine/context';
-import { createCompleteFn } from '../engine/llm';
-import type { BmConfig, BmNode } from '../types';
+import type { BmConfig, BmNode, MemoryScopeV2 } from '../types';
 import { assembleContext } from '../format/assemble';
 import { logger } from '../utils/logger';
+import { createCompleteFn } from '../engine/llm';
+import { createUiServer, type UiServerConfig } from '../ui/server';
 
 // Define minimal OpenClaw plugin interfaces
 export interface Message {
@@ -17,6 +18,11 @@ export interface Message {
   workspaceId?: string;
   content: string;
   role?: string;
+  // v2.0 六层 scope
+  platform?: string;
+  userId?: string;
+  chatId?: string;
+  threadId?: string;
   /** Attached by getMemoryContext — memory injection for downstream consumers. */
   memoryContext?: string;
   formattedMemory?: {
@@ -56,14 +62,16 @@ export interface OpenClawPlugin {
 
 export interface BrainMemoryPluginConfig extends BmConfig {
   enabled?: boolean;
-  injectMemories?: boolean; // Whether to inject memories into conversation context
-  extractMemories?: boolean; // Whether to extract memories from conversation
-  autoMaintain?: boolean; // Whether to run maintenance automatically
+  injectMemories?: boolean;
+  extractMemories?: boolean;
+  autoMaintain?: boolean;
+  uiPort?: number;
 }
 
 export class BrainMemoryPluginCore implements OpenClawPlugin {
   private engine: ContextEngine | null = null;
   private config: BrainMemoryPluginConfig;
+  private uiServer: ReturnType<typeof createUiServer> | null = null;
   /** v1.8.0 F-10: AbortController for fire-and-forget LLM health check */
   private _healthCheckAbort: AbortController | null = null;
 
@@ -82,9 +90,38 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
       logger.info('plugin', 'Plugin initialized successfully');
 
       // v1.8.0 F-10: fire-and-forget LLM connectivity check
-      // 不阻塞 init 返回 — 延迟 1s 让 Gateway 启动日志先输出。
       this._startHealthCheck();
 
+      // v2.0: 启动 Web Control UI Server
+      try {
+        const storage = this.engine.getStorage();
+        if (storage) {
+          this.uiServer = createUiServer(storage, {
+            port: this.config.uiPort || 0,
+            authToken: (this.config as any)._gatewayToken,
+          });
+          const port = this.uiServer.start();
+          logger.info('plugin', `Web UI started on port ${port}`);
+        }
+      } catch (e) {
+        logger.warn('plugin', `Web UI failed to start: ${(e as Error).message}`);
+      }
+
+      // P2-14: LLM connectivity health check (fire-and-forget, non-blocking)
+      if (this.config.llm?.apiKey || (this.config.llm?.baseURL?.includes('11434'))) {
+        const llm = createCompleteFn(this.config.llm);
+        if (llm) {
+          (async () => {
+            try {
+              const start = Date.now();
+              await llm('ping', 'ok');
+              logger.info('plugin', `LLM connectivity check passed (${Date.now() - start}ms)`);
+            } catch (err: any) {
+              logger.warn('plugin', `LLM connectivity check failed — extraction/injection will fall back to heuristic: ${err.message}`);
+            }
+          })();
+        }
+      }
     } catch (error) {
       logger.error('plugin', 'Failed to initialize:', error);
       throw error;
@@ -136,6 +173,10 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
         sessionId: message.sessionId,
         agentId: message.agentId || 'default',
         workspaceId: message.workspaceId || 'default',
+        platform: message.platform,
+        userId: message.userId,
+        chatId: message.chatId,
+        threadId: message.threadId,
         messages: [{
           role: message.role || 'user',
           content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content),
@@ -170,12 +211,20 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
         return this._getRawMemoryContext(message);
       }
 
+      // v2.0: 构建六层 scope
+      const scope: MemoryScopeV2 = {
+        platform: (message as any).platform ?? null,
+        workspace: message.workspaceId ?? null,
+        agent: message.agentId ?? null,
+        user: (message as any).userId ?? null,
+        chat: (message as any).chatId ?? message.sessionId ?? null,
+        thread: (message as any).threadId ?? null,
+      };
+
       // Query relevant memories for this conversation
       const recallResult = await this.engine.recall(
         message.content.toString(),
-        message.sessionId,
-        message.agentId,
-        message.workspaceId
+        scope
       );
 
       if (recallResult.nodes.length > 0) {
@@ -220,11 +269,17 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
   private async _getRawMemoryContext(message: Message): Promise<MemoryContextResult | null> {
     if (!this.engine) return null;
     try {
+      const scope: MemoryScopeV2 = {
+        platform: (message as any).platform ?? null,
+        workspace: message.workspaceId ?? null,
+        agent: message.agentId ?? null,
+        user: (message as any).userId ?? null,
+        chat: (message as any).chatId ?? message.sessionId ?? null,
+        thread: (message as any).threadId ?? null,
+      };
       const recallResult = await this.engine.recall(
         message.content.toString(),
-        message.sessionId,
-        message.agentId,
-        message.workspaceId
+        scope
       );
       if (recallResult.nodes.length > 0) {
         return {
@@ -295,6 +350,10 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
     this._healthCheckAbort?.abort();
     this._healthCheckAbort = null;
 
+    if (this.uiServer) {
+      try { await this.uiServer.stop(); } catch {}
+      this.uiServer = null;
+    }
     if (this.engine) {
       this.engine.close();
       this.engine = null;
@@ -304,13 +363,6 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
 
   // ─── LLM Health Check (fire-and-forget) ─────────────────
 
-  /**
-   * v1.8.0 F-10: fire-and-forget LLM connectivity check.
-   *
-   * 延迟 1s 执行，避免干扰 Gateway 启动日志。
-   * 发送轻量 ping → LLM 连通则静默，失败则 warn 日志。
-   * shutdown() 通过 _healthCheckAbort 可取消飞行中的请求。
-   */
   private _startHealthCheck(): void {
     this._healthCheckAbort = new AbortController();
     const { signal } = this._healthCheckAbort;
@@ -319,15 +371,13 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
       if (signal.aborted) return;
 
       const fn = createCompleteFn(this.config.llm);
-      if (!fn) return; // LLM not configured — not an error
+      if (!fn) return;
 
-      // 3s timeout for ping request
       const timeoutId = setTimeout(() => this._healthCheckAbort!.abort(), 3000);
 
       try {
         await fn('ping', 'ok');
         clearTimeout(timeoutId);
-        // Connected successfully — silent pass
       } catch {
         if (!signal.aborted) {
           logger.warn('plugin',

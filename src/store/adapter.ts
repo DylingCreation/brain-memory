@@ -14,6 +14,7 @@ import type {
   SharingMode,
 } from '../types';
 import type { MemoryScope } from '../scope/isolation';
+import type { MemoryScopeV2 } from '../types';
 
 // ─── Input / Output Types ──────────────────────────────────────
 
@@ -25,11 +26,21 @@ export interface NodeUpsertInput {
   name: string;
   description: string;
   content: string;
-  source: 'user' | 'assistant';
+  source: 'user' | 'assistant' | 'manual';
   temporalType?: 'static' | 'dynamic';
+  // v1.x 旧 scope 字段
+  /** @deprecated v2.0: 使用 scopeChat 替代 */
   scopeSession?: string | null;
+  /** @deprecated v2.0: 使用 scopeAgent（同名保留，兼容） */
   scopeAgent?: string | null;
+  /** @deprecated v2.0: 使用 scopeWorkspace（同名保留，兼容） */
   scopeWorkspace?: string | null;
+  // v2.0 六层 scope 字段
+  scopePlatform?: string | null;
+  scopeUser?: string | null;
+  scopeChat?: string | null;
+  scopeThread?: string | null;
+  scopeId?: string | null;
 }
 
 /** Edge insert/update input */
@@ -46,8 +57,14 @@ export interface EdgeUpsertInput {
 /** Storage-layer query filter (replaces direct ScopeFilter usage in storage) */
 /** 存储层查询过滤器（替代 ScopeFilter 的直接使用）。 */
 export interface StorageFilter {
+  // v1.x 旧 scope 过滤
+  /** @deprecated v2.0: 使用 includeScopesV2 */
   includeScopes?: MemoryScope[];
+  /** @deprecated v2.0: 使用 excludeScopesV2 */
   excludeScopes?: MemoryScope[];
+  // v2.0 六层 scope 过滤
+  includeScopesV2?: MemoryScopeV2[];
+  excludeScopesV2?: MemoryScopeV2[];
   sharingMode?: SharingMode;
   sharedCategories?: MemoryCategory[];
   currentAgentId?: string;

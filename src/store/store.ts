@@ -7,9 +7,9 @@
 
 import { type DatabaseSyncInstance } from '@photostructure/sqlite';
 import { createHash } from 'crypto';
-import type { BmNode, BmEdge, EdgeType, GraphNodeType, MemoryCategory, NodeStatus } from '../types';
+import type { BmNode, BmEdge, EdgeType, GraphNodeType, MemoryCategory, NodeStatus, ScopeFilterV2 } from '../types';
 import type { ScopeFilter } from '../scope/isolation';
-import { buildScopeFilterClause } from '../scope/isolation';
+import { buildScopeFilterClause, buildScopeFilterClauseV2 } from '../scope/isolation';
 
 // ─── SQL Row Type ──────────────────────────────────────────────
 
@@ -33,9 +33,16 @@ function toNode(r: SqlRow): BmNode {
     lastAccessedAt: (r.last_accessed as number) ?? 0,
     temporalType: ((r.temporal_type as string) ?? 'static') as 'static' | 'dynamic',
     source: (r.source as string) as 'user' | 'assistant',
-    scopeSession: (r.scope_session as string) ?? null,
-    scopeAgent: (r.scope_agent as string) ?? null,
+    // v2.0 六层 scope 字段
+    scopePlatform: (r.scope_platform as string) ?? null,
     scopeWorkspace: (r.scope_workspace as string) ?? null,
+    scopeAgent: (r.scope_agent as string) ?? null,
+    scopeUser: (r.scope_user as string) ?? null,
+    scopeChat: ((r.scope_chat as string) ?? (r.scope_session as string)) ?? null,
+    scopeThread: (r.scope_thread as string) ?? null,
+    scopeId: (r.scope_id as string) ?? null,
+    // @deprecated v1.x 旧字段（兼容）
+    scopeSession: (r.scope_session as string) ?? null,
     createdAt: r.created_at as number, updatedAt: r.updated_at as number,
   };
 }
@@ -84,8 +91,12 @@ export function findById(db: DatabaseSyncInstance, id: string): BmNode | null {
 
 /** Return all active nodes, optionally filtered by scope (agent/workspace/session). */
 /** 查询所有活跃节点,可选范围过滤。 */
-export function allActiveNodes(db: DatabaseSyncInstance, scopeFilter?: ScopeFilter): BmNode[] {
-  const { clause, params } = scopeFilter ? buildScopeFilterClause(scopeFilter) : { clause: '', params: [] };
+export function allActiveNodes(db: DatabaseSyncInstance, scopeFilter?: ScopeFilter, scopeFilterV2?: ScopeFilterV2): BmNode[] {
+  const { clause, params } = scopeFilterV2
+    ? buildScopeFilterClauseV2(scopeFilterV2)
+    : scopeFilter
+      ? buildScopeFilterClause(scopeFilter)
+      : { clause: '', params: [] };
   return (db.prepare(`SELECT * FROM bm_nodes WHERE status='active'${clause}`)
     .all(...params) as SqlRow[]).map(toNode);
 }
@@ -100,7 +111,15 @@ export function allEdges(db: DatabaseSyncInstance): BmEdge[] {
 /** 插入或更新节点(按名称匹配)。合并 content、description 和 source_sessions。返回节点和是否新建。 */
 export function upsertNode(
   db: DatabaseSyncInstance,
-  c: { type: GraphNodeType; category: MemoryCategory; name: string; description: string; content: string; source: 'user' | 'assistant'; temporalType?: 'static' | 'dynamic'; scopeSession?: string | null; scopeAgent?: string | null; scopeWorkspace?: string | null },
+  c: {
+    type: GraphNodeType; category: MemoryCategory; name: string; description: string; content: string;
+    source: 'user' | 'assistant' | 'manual'; temporalType?: 'static' | 'dynamic';
+    // v1.x 旧 scope 字段
+    scopeSession?: string | null; scopeAgent?: string | null; scopeWorkspace?: string | null;
+    // v2.0 新 scope 字段（可选，兼容旧调用）
+    scopePlatform?: string | null; scopeUser?: string | null; scopeChat?: string | null;
+    scopeThread?: string | null; scopeId?: string | null;
+  },
   sessionId: string,
 ): { node: BmNode; isNew: boolean } {
   const name = normalizeName(c.name);
@@ -109,6 +128,12 @@ export function upsertNode(
   const scopeSession = c.scopeSession ?? sessionId;
   const scopeAgent = c.scopeAgent ?? null;
   const scopeWorkspace = c.scopeWorkspace ?? null;
+  // v2.0 新 scope 字段
+  const scopePlatform = c.scopePlatform ?? null;
+  const scopeUser = c.scopeUser ?? null;
+  const scopeChat = c.scopeChat ?? c.scopeSession ?? sessionId;
+  const scopeThread = c.scopeThread ?? null;
+  const scopeId = c.scopeId ?? null;
   const ex = findByName(db, name);
 
   if (ex) {
@@ -117,8 +142,12 @@ export function upsertNode(
     const desc = c.description.length > ex.description.length ? c.description : ex.description;
     const count = ex.validatedCount + 1;
     db.prepare(`UPDATE bm_nodes SET content=?, description=?, validated_count=?,
-      source_sessions=?, updated_at=?, category=?, temporal_type=?, source=?, scope_session=?, scope_agent=?, scope_workspace=? WHERE id=?`)
-      .run(content, desc, count, sessions, Date.now(), c.category, temporalType, source, scopeSession, scopeAgent, scopeWorkspace, ex.id);
+      source_sessions=?, updated_at=?, category=?, temporal_type=?, source=?, scope_session=?, scope_agent=?, scope_workspace=?,
+      scope_platform=?, scope_user=?, scope_chat=?, scope_thread=?, scope_id=? WHERE id=?`)
+      .run(content, desc, count, sessions, Date.now(), c.category, temporalType, source,
+        scopeSession, scopeAgent, scopeWorkspace,
+        scopePlatform, scopeUser, scopeChat, scopeThread, scopeId,
+        ex.id);
     return { node: { ...ex, content, description: desc, validatedCount: count, category: c.category, temporalType, source, scopeSession, scopeAgent, scopeWorkspace }, isNew: false };
   }
 
@@ -127,10 +156,16 @@ export function upsertNode(
   db.prepare(`INSERT INTO bm_nodes
     (id, type, category, name, description, content, status, validated_count,
      source_sessions, pagerank, importance, access_count, last_accessed,
-     temporal_type, source, scope_session, scope_agent, scope_workspace, created_at, updated_at)
-    VALUES (?,?,?,?,?,?,'active',1,?,0,0.5,0,0,?,?,?,?,?,?,?)`)
+     temporal_type, source, scope_session, scope_agent, scope_workspace,
+     scope_platform, scope_user, scope_chat, scope_thread, scope_id,
+     created_at, updated_at)
+    VALUES (?,?,?,?,?,?,'active',1,?,0,0.5,0,0,?,?,?,?,?,
+            ?,?,?,?,?,
+            ?,?)`)
     .run(id, c.type, c.category, name, c.description, c.content,
-      JSON.stringify([sessionId]), temporalType, source, scopeSession, scopeAgent, scopeWorkspace, now, now);
+      JSON.stringify([sessionId]), temporalType, source, scopeSession, scopeAgent, scopeWorkspace,
+      scopePlatform, scopeUser, scopeChat, scopeThread, scopeId,
+      now, now);
   return { node: findByName(db, name)!, isNew: true };
 }
 
@@ -235,11 +270,15 @@ export function edgesTo(db: DatabaseSyncInstance, id: string): BmEdge[] {
 
 /** Search active nodes by text. Tries FTS5 first (fast for English), falls back to LIKE search (better for Chinese). Returns top-N by rank or pagerank. Supports optional scope filtering. */
 /** 文本搜索节点(FTS5 → LIKE 回退)。返回 top-N 按 rank 或 PageRank 排序,支持范围过滤。 */
-export function searchNodes(db: DatabaseSyncInstance, query: string, limit = 6, scopeFilter?: ScopeFilter): BmNode[] {
+export function searchNodes(db: DatabaseSyncInstance, query: string, limit = 6, scopeFilter?: ScopeFilter, scopeFilterV2?: ScopeFilterV2): BmNode[] {
   const terms = query.trim().split(/\s+/).filter(Boolean).slice(0, 8);
   if (!terms.length) return topNodes(db, limit, scopeFilter);
 
-  const { clause, params: scopeParams } = scopeFilter ? buildScopeFilterClause(scopeFilter) : { clause: '', params: [] };
+  const { clause, params: scopeParams } = scopeFilterV2
+    ? buildScopeFilterClauseV2(scopeFilterV2)
+    : scopeFilter
+      ? buildScopeFilterClause(scopeFilter)
+      : { clause: '', params: [] };
 
   // Try FTS5 search first
   try {
@@ -267,8 +306,12 @@ export function searchNodes(db: DatabaseSyncInstance, query: string, limit = 6, 
 
 /** Return the top-N active nodes sorted by pagerank, validated_count, and updated_at. Supports optional scope filtering. */
 /** 返回 top-N 活跃节点,按 PageRank 降序。 */
-export function topNodes(db: DatabaseSyncInstance, limit = 6, scopeFilter?: ScopeFilter): BmNode[] {
-  const { clause, params } = scopeFilter ? buildScopeFilterClause(scopeFilter) : { clause: '', params: [] };
+export function topNodes(db: DatabaseSyncInstance, limit = 6, scopeFilter?: ScopeFilter, scopeFilterV2?: ScopeFilterV2): BmNode[] {
+  const { clause, params } = scopeFilterV2
+    ? buildScopeFilterClauseV2(scopeFilterV2)
+    : scopeFilter
+      ? buildScopeFilterClause(scopeFilter)
+      : { clause: '', params: [] };
   return (db.prepare(`
     SELECT * FROM bm_nodes WHERE status='active'${clause}
     ORDER BY pagerank DESC, validated_count DESC, updated_at DESC LIMIT ?
@@ -277,9 +320,13 @@ export function topNodes(db: DatabaseSyncInstance, limit = 6, scopeFilter?: Scop
 
 /** Cosine-similarity vector search. Returns nodes with their similarity scores, sorted descending. Applies scope filtering if provided. Only loads vectors for valid active nodes. */
 /** 向量相似度搜索(余弦距离)。返回节点及相似度分数。 */
-export function vectorSearchWithScore(db: DatabaseSyncInstance, vec: number[], limit: number, scopeFilter?: ScopeFilter): Array<{ node: BmNode; score: number }> {
+export function vectorSearchWithScore(db: DatabaseSyncInstance, vec: number[], limit: number, scopeFilter?: ScopeFilter, scopeFilterV2?: ScopeFilterV2): Array<{ node: BmNode; score: number }> {
   // First get all active nodes with scope filtering applied
-  const { clause, params } = scopeFilter ? buildScopeFilterClause(scopeFilter) : { clause: '', params: [] };
+  const { clause, params } = scopeFilterV2
+    ? buildScopeFilterClauseV2(scopeFilterV2)
+    : scopeFilter
+      ? buildScopeFilterClause(scopeFilter)
+      : { clause: '', params: [] };
   const nodes = db.prepare(`SELECT * FROM bm_nodes WHERE status='active'${clause}`).all(...params) as SqlRow[];
 
   if (!nodes.length) return [];

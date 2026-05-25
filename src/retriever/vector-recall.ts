@@ -8,17 +8,17 @@
 
 import type { BmConfig, BmNode, BmEdge } from '../types';
 import type { EmbedFn } from '../engine/embed';
-import type { ScopeFilter } from '../scope/isolation';
+import type { ScopeFilterV2 } from '../types';
 import type { IStorageAdapter, StorageFilter } from '../store/adapter';
 import { applyTimeDecay } from '../decay/engine';
 import { expandQuery } from './query-expander';
 import { analyzeIntent } from './intent-analyzer';
 
-function toStorageFilter(filter?: ScopeFilter): StorageFilter | undefined {
+function toStorageFilter(filter?: ScopeFilterV2): StorageFilter | undefined {
   if (!filter) return undefined;
   return {
-    includeScopes: filter.includeScopes,
-    excludeScopes: filter.excludeScopes,
+    includeScopesV2: filter.includeScopes,
+    excludeScopesV2: filter.excludeScopes,
     sharingMode: filter.sharingMode,
     sharedCategories: filter.sharedCategories,
     currentAgentId: filter.currentAgentId,
@@ -56,7 +56,7 @@ export class VectorRecaller {
 
   setEmbedFn(fn: EmbedFn): void { this.embed = fn; }
 
-  async recall(query: string, scopeFilter?: ScopeFilter): Promise<VectorRecallResult> {
+  async recall(query: string, scopeFilter?: ScopeFilterV2): Promise<VectorRecallResult> {
     const intent = analyzeIntent(query);
     const limit = this.cfg.recallMaxNodes;
     const candidatePool = Math.max(limit * 3, 15);

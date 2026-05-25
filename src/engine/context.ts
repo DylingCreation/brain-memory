@@ -20,6 +20,7 @@ import type {
   ReflectionInsight,
   WorkingMemoryState,
   MemoryCategory,
+  MemoryScopeV2,
 } from '../types';
 import type { FusionResult } from '../fusion/analyzer';
 import { getEmbedCacheStats, type EmbedCacheStats } from '../engine/embed';
@@ -122,6 +123,10 @@ export class ContextEngine {
     sessionId: string;
     agentId: string;
     workspaceId: string;
+    platform?: string;
+    userId?: string;
+    chatId?: string;
+    threadId?: string;
     messages: Array<{ role?: string; content: string; turn_index?: number }>;
   }): Promise<{
     extractedNodes: BmNode[];
@@ -180,9 +185,15 @@ export class ContextEngine {
             content: nodeData.content,
             source,
             temporalType: nodeData.temporalType || 'static',
+            // v1.x 旧字段
             scopeSession: params.sessionId,
             scopeAgent: params.agentId,
             scopeWorkspace: params.workspaceId,
+            // v2.0 六层 scope
+            scopePlatform: params.platform ?? null,
+            scopeUser: params.userId ?? null,
+            scopeChat: params.chatId ?? params.sessionId ?? null,
+            scopeThread: params.threadId ?? null,
           }, params.sessionId);
           upsertedNodes.push(node);
 
@@ -295,7 +306,7 @@ export class ContextEngine {
   }
 
   /** 召回与查询相关的记忆节点和边。 */
-  async recall(query: string, sessionId?: string, agentId?: string, workspaceId?: string): Promise<RecallResult> {
+  async recall(query: string, scope?: MemoryScopeV2): Promise<RecallResult> {
     try {
       // v1.2.0 F-7: Before-recall hook
       let hookQuery = query;
@@ -306,20 +317,26 @@ export class ContextEngine {
         } catch (err) { logger.warn('context', `beforeRecall hook failed: ${err}`); }
       }
 
-      const excludeScopes: Array<Record<string, unknown>> = [];
-      const includeScopes: Array<Record<string, unknown>> = [];
-      if (agentId || workspaceId) {
+      const excludeScopes: MemoryScopeV2[] = [];
+      const includeScopes: MemoryScopeV2[] = [];
+      if (scope && (scope.agent || scope.workspace || scope.platform || scope.chat)) {
         includeScopes.push({
-          sessionId: null, agentId: agentId || null, workspaceId: workspaceId || null, allowCrossScope: true,
+          platform: scope.platform ?? null,
+          workspace: scope.workspace ?? null,
+          agent: scope.agent ?? null,
+          user: scope.user ?? null,
+          chat: scope.chat ?? null,
+          thread: scope.thread ?? null,
         });
       }
       const sharingCfg = this.config.memorySharing || { enabled: true, mode: 'mixed' as const, sharedCategories: [] as MemoryCategory[], allowedAgents: [] as string[] };
       const scopeFilter = {
-        excludeScopes, includeScopes,
+        excludeScopes,
+        includeScopes,
         allowCrossScope: includeScopes.length === 0,
         sharingMode: sharingCfg.enabled ? sharingCfg.mode : 'isolated',
         sharedCategories: sharingCfg.sharedCategories,
-        currentAgentId: agentId,
+        currentAgentId: scope?.agent ?? undefined,
         allowedAgents: sharingCfg.allowedAgents,
       };
       let result = await this.recaller.recall(hookQuery, scopeFilter);
@@ -411,6 +428,9 @@ export class ContextEngine {
 
   /** @deprecated v1.8.0 — 破坏 IStorageAdapter 抽象。请通过适配器方法替代。 */
   getDb(): DatabaseSyncInstance { return (this.storage as SQLiteStorageAdapter).getDb(); }
+
+  /** 获取底层存储适配器（供 UI Server 等内部组件使用） */
+  getStorage(): IStorageAdapter { return this.storage; }
 
   close(): void {
     try { this.storage.close(); } catch (error) { logger.error('context', 'Failed to close database:', error); }

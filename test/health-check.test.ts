@@ -1,5 +1,5 @@
 /**
- * brain-memory â€” F-2 Health Check API tests
+ * brain-memory â€?F-2 Health Check API tests
  *
  * Verifies that healthCheck() returns accurate status for:
  * - Database connection
@@ -93,7 +93,7 @@ describe("healthCheck()", () => {
       expect(health.components.embedding.detail).toBeDefined();
       expect(typeof health.uptimeMs).toBe("number");
       expect(health.uptimeMs).toBeGreaterThanOrEqual(0);
-      expect(health.schemaVersion).toBe(1);
+      expect(health.schemaVersion).toBe(2);
       expect(health.stats).toBeDefined();
     } finally {
       engine.close();
@@ -105,7 +105,7 @@ describe("healthCheck()", () => {
     const engine = new ContextEngine(config);
     try {
       const health = engine.healthCheck();
-      expect(health.schemaVersion).toBe(1);
+      expect(health.schemaVersion).toBe(2);
     } finally {
       engine.close();
     }
@@ -150,7 +150,7 @@ describe("healthCheck()", () => {
         model: "gpt-4o-mini",
       },
     });
-    // Should not throw â€” engine accepts the config even if the key is fake
+    // Should not throw â€?engine accepts the config even if the key is fake
     const engine = new ContextEngine(config);
     try {
       const health = engine.healthCheck();

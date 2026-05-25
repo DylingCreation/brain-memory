@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>brain-memory embed</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e1e4e8;padding:12px 16px;font-size:13px}
+h2{font-size:15px;margin-bottom:8px;color:#58a6ff}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px;margin-bottom:10px}
+.stat{display:flex;gap:16px;flex-wrap:wrap}
+.stat-item{flex:1;min-width:80px}
+.stat-val{font-size:20px;font-weight:700;color:#58a6ff}
+.stat-lbl{font-size:11px;color:#8b949e}
+.node-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #21262d}
+.node-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.node-info{flex:1}
+.node-name{font-weight:500}
+.node-meta{font-size:11px;color:#484f58}
+</style></head>
+<body>
+<div id="app">加载中...</div>
+<script>
+(async()=>{
+  try{
+    const res=await fetch('/api/stats');
+    const d=await res.json();
+    document.getElementById('app').innerHTML=
+      '<h2>🧠 brain-memory</h2>'+
+      '<div class=card>'+
+        '<div class=stat>'+
+          '<div class=stat-item><div class=stat-val>'+d.activeNodes+'</div><div class=stat-lbl>活跃节点</div></div>'+
+          '<div class=stat-item><div class=stat-val>'+d.totalEdges+'</div><div class=stat-lbl>边关系</div></div>'+
+          '<div class=stat-item><div class=stat-val>'+d.decay.healthy+'</div><div class=stat-lbl>健康</div></div>'+
+          '<div class=stat-item><div class=stat-val>'+d.dbSizeReadable+'</div><div class=stat-lbl>存储</div></div>'+
+        '</div>'+
+      '</div>';
+  }catch(e){
+    document.getElementById('app').innerHTML='<div style=color:#f85149>⚠ '+e.message+'</div>';
+  }
+})()
+</script></body></html>

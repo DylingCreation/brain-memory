@@ -1,7 +1,6 @@
 /**
- * brain-memory — LanceDBStorageAdapter 测试
- * v1.3.0 F-13: POC 测试（4 用例）
- * v1.6.0 A-2: 扩展至 14 用例 — 错误处理/向量持久化/初始化/关闭/边界
+ * brain-memory �?LanceDBStorageAdapter 测试
+ * v1.3.0 F-13: POC 测试�? 用例�? * v1.6.0 A-2: 扩展�?14 用例 �?错误处理/向量持久�?初始�?关闭/边界
  */
 
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
@@ -14,7 +13,7 @@ function safeClean(path: string) {
 
 // ─── Initialization & Lifecycle ─────────────────────────────
 
-describe('LanceDBStorageAdapter — lifecycle', () => {
+describe('LanceDBStorageAdapter �?lifecycle', () => {
   const DB = '/tmp/bm-lance-lifecycle';
   let storage: LanceDBStorageAdapter;
 
@@ -51,7 +50,7 @@ describe('LanceDBStorageAdapter — lifecycle', () => {
 
 // ─── Node CRUD ─────────────────────────────────────────────
 
-describe('LanceDBStorageAdapter — node CRUD', () => {
+describe('LanceDBStorageAdapter �?node CRUD', () => {
   const DB = '/tmp/bm-lance-node';
   let storage: LanceDBStorageAdapter;
 
@@ -104,7 +103,7 @@ describe('LanceDBStorageAdapter — node CRUD', () => {
 
 // ─── Vector Operations ─────────────────────────────────────
 
-describe('LanceDBStorageAdapter — vectors', () => {
+describe('LanceDBStorageAdapter �?vectors', () => {
   const DB = '/tmp/bm-lance-vec';
   let storage: LanceDBStorageAdapter;
 
@@ -167,7 +166,7 @@ describe('LanceDBStorageAdapter — vectors', () => {
 
 // ─── Edge CRUD ──────────────────────────────────────────────
 
-describe('LanceDBStorageAdapter — edges', () => {
+describe('LanceDBStorageAdapter �?edges', () => {
   const DB = '/tmp/bm-lance-edge';
   let storage: LanceDBStorageAdapter;
 
@@ -192,7 +191,7 @@ describe('LanceDBStorageAdapter — edges', () => {
 
 // ─── Dirty Marks ────────────────────────────────────────────
 
-describe('LanceDBStorageAdapter — dirty marks', () => {
+describe('LanceDBStorageAdapter �?dirty marks', () => {
   const DB = '/tmp/bm-lance-dirty';
   let storage: LanceDBStorageAdapter;
 
@@ -211,3 +210,4 @@ describe('LanceDBStorageAdapter — dirty marks', () => {
     expect(storage.getDirtyNodes().size).toBe(0);
   });
 });
+

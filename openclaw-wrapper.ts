@@ -32,6 +32,7 @@ interface SessionEvent {
 
 // Import the full DEFAULT_CONFIG from types (contains all nested BmConfig fields)
 import { DEFAULT_CONFIG as FULL_DEFAULT_CONFIG } from './src/types';
+import { logger } from './src/utils/logger';
 
 // Global plugin instance
 let pluginInstance: BrainMemoryPluginClass | null = null;
@@ -122,6 +123,10 @@ async function ensurePluginInitialized(): Promise<void> {
   console.log('[brain-memory] Plugin initialized successfully');
 }
 
+// Idempotency guard: OpenClaw may call register() twice during Gateway startup.
+// Second call is harmless but wasteful; skip it.
+let registered = false;
+
 /**
  * Register the plugin with OpenClaw
  *
@@ -129,6 +134,11 @@ async function ensurePluginInitialized(): Promise<void> {
  * returned from register(). Async code after the first await will be ignored.
  */
 export function register(api: any) {
+  if (registered) {
+    console.log('[brain-memory] register() already called, skipping duplicate invocation');
+    return;
+  }
+  registered = true;
   console.log('[brain-memory] Registering plugin with OpenClaw');
 
   // Extract configuration from OpenClaw's config structure
@@ -150,8 +160,9 @@ export function register(api: any) {
   // are present and won't cause runtime crashes in ContextEngine.
   storedConfig = { ...FULL_DEFAULT_CONFIG, ...bmConfig };
 
-  // Register hooks using OpenClaw Plugin SDK standard api.on().
-  // v1.8.0: definePluginEntry 已接入，api.on() 始终可用，无需 registerHook fallback。
+  // Register hooks using OpenClaw Plugin SDK api.on()
+  // api.on() is the official Plugin SDK typed hook API
+  // api.registerHook() is kept as backward-compat for older Gateway versions
   const hookNames = [
     'message_received',
     'message_sent',
@@ -167,10 +178,28 @@ export function register(api: any) {
     session_end,
   };
 
-  for (const name of hookNames) {
-    api.on(name, hookHandlers[name]);
+  if (typeof api?.on === 'function') {
+    for (const name of hookNames) {
+      api.on(name, hookHandlers[name]);
+    }
+    console.log('[brain-memory] Hooks registered via api.on()');
+  } else if (typeof api?.registerHook === 'function') {
+    for (const name of hookNames) {
+      api.registerHook(name, hookHandlers[name]);
+    }
+    console.log('[brain-memory] Hooks registered via api.registerHook() (legacy compat)');
+  } else {
+    console.error('[brain-memory] No hook registration method found on api (need on or registerHook)');
   }
-  console.log('[brain-memory] Registered 5 hooks via api.on()');
+
+  return {
+    id: 'brain-memory',
+    name: 'Brain Memory',
+    version: '1.0.0',
+    description: 'Unified knowledge graph + vector memory system for AI agents',
+    author: 'OpenClaw Team',
+    license: 'MIT',
+  };
 }
 
 /**
@@ -262,20 +291,28 @@ function normalizeHookArgs(args: any[]): {
   workspaceId: string;
   content: string;
   channel?: string;
+  // v2.0 六层 scope
+  platform?: string;
+  userId?: string;
+  chatId?: string;
+  threadId?: string;
   rawEvent: any;
 } {
-  // v1.8.0 F-8: 删除 InternalHookEvent 分支（路径歧义，生产环境不走此路径）。
-  // 真实 OpenClaw 2026.5.x 事件结构为两参数 (event, ctx)，
-  // sessionId 在 event.sessionKey（如 "agent:main:main"），
-  // 非 ctx.conversationId（值为 undefined）。
+  // (event, ctx) format — the only format used by OpenClaw 2026.5.x
+  // InternalHookEvent branch removed (deprecated: relied on 'type' field which caused path ambiguity)
   const event = args[0] || {};
   const ctx = args[1] || {};
   return {
     sessionId: event?.sessionKey || ctx?.conversationId || 'default-session',
-    agentId: ctx?.accountId || event.sessionKey?.split(':')[1] || 'default-agent',
-    workspaceId: 'default-workspace',
+    agentId: ctx?.accountId || (typeof event?.sessionKey === 'string' ? event.sessionKey.split(':')[1] : undefined) || 'default-agent',
+    workspaceId: ctx?.workspaceId || 'default-workspace',
     content: event?.content || '',
     channel: ctx?.channelId,
+    // v2.0: 从 OpenClaw context 提取六层 scope
+    platform: ctx?.channelId || event?.channel || null,
+    userId: event?.senderId || ctx?.senderId || null,
+    chatId: ctx?.conversationId || event?.conversationId || null,
+    threadId: event?.threadId || ctx?.threadId || null,
     rawEvent: event,
   };
 }
@@ -288,7 +325,7 @@ function normalizeHookArgs(args: any[]): {
  *   - (event: any, ctx: any) — legacy
  */
 export async function message_received(...args: any[]) {
-  const { sessionId, agentId, workspaceId, content } = normalizeHookArgs(args);
+  const { sessionId, agentId, workspaceId, content, platform, userId, chatId, threadId } = normalizeHookArgs(args);
   // #8 fix: check initPromise first, not pluginInstance.
   // Old code checked pluginInstance which was assigned BEFORE init() completed,
   // creating a race window where concurrent hooks saw a ready-but-not-ready instance.
@@ -324,7 +361,7 @@ export async function message_received(...args: any[]) {
     // This allows memories to persist across sessions for the same agent
     try {
       const memoryContext = await pluginInstance!.getMemoryContext(message);
-      if (memoryContext?.relatedNodes?.length) {
+      if (memoryContext && memoryContext!.relatedNodes && memoryContext!.relatedNodes!.length > 0) {
         // Cache at agent level so new sessions can find memories
         const agentKey = memoryCacheKey(message.agentId || 'default-agent', message.workspaceId || 'default-workspace');
         sessionMemoryCache.set(agentKey, memoryContext);
@@ -332,7 +369,7 @@ export async function message_received(...args: any[]) {
         // Also cache at session level for backward compatibility
         sessionMemoryCache.set(message.sessionId, memoryContext);
         evictCacheIfNeeded();
-        console.log(`[brain-memory] Cached ${memoryContext.relatedNodes.length} memories for agent ${message.agentId}`);
+        console.log(`[brain-memory] Cached ${memoryContext!.relatedNodes!.length} memories for agent ${message.agentId}`);
       } else {
         sessionMemoryCache.delete(message.sessionId);
       }
@@ -364,7 +401,7 @@ export const handleMessage = message_received;
  * recommended, or committed to.
  */
 export async function message_sent(...args: any[]) {
-  const { sessionId, agentId, workspaceId, content } = normalizeHookArgs(args);
+  const { sessionId, agentId, workspaceId, content, platform, userId, chatId, threadId } = normalizeHookArgs(args);
   // #8 fix: check initPromise first (same race condition guard as message_received)
   if (initPromise) {
     await initPromise;
@@ -395,26 +432,31 @@ export async function message_sent(...args: any[]) {
       workspaceId,
       content: trimmed,
       role: 'assistant' as const,
+      platform,
+      userId,
+      chatId,
+      threadId,
     };
 
     // Await extraction directly with a timeout so it's guaranteed to run
     // (process.nextTick could be lost if the event loop exits early)
     const EXTRACTION_TIMEOUT_MS = 5000;
+    const contentPreview = (aiMessage?.content || '').slice(0, 200);
     const extractionPromise = (async () => {
-      const result = await pluginInstance.handleMessage(aiMessage) as any;
-      console.debug(`[brain-memory] AI reply extracted: ${result?.extractedNodes?.length || 0} nodes, ${result?.extractedEdges?.length || 0} edges`);
+      const result = await pluginInstance!.handleMessage(aiMessage) as any;
+      logger.debug('wrapper', `AI reply extracted: ${result?.extractedNodes?.length || 0} nodes, ${result?.extractedEdges?.length || 0} edges`);
     })();
 
     const timeoutPromise = new Promise<void>((resolve) => {
       setTimeout(() => {
-        console.warn(`[brain-memory] AI reply extraction timed out after ${EXTRACTION_TIMEOUT_MS}ms`);
+        logger.warn('wrapper', `AI reply extraction timed out after ${EXTRACTION_TIMEOUT_MS}ms, content: "${contentPreview}..."`);
         resolve();
       }, EXTRACTION_TIMEOUT_MS);
     });
 
     await Promise.race([extractionPromise, timeoutPromise]);
   } catch (error) {
-    console.error('[brain-memory] AI reply extraction failed:', error);
+    logger.error('wrapper', 'AI reply extraction failed:', error);
   }
 }
 
@@ -547,7 +589,9 @@ export const onSessionEnd = session_end;
 /**
  * Prepare message before sending
  *
- * v1.8.0 F-7: 标准名称 message_sending，before_message_write 保留为别名。
+ * Note: This is a synchronous hook in OpenClaw, so we return the original event immediately
+ * and handle any memory injection asynchronously without blocking the message flow.
+ * However, we can attach cached memories if available.
  */
 export function message_sending(...args: any[]) {
   const { sessionId, agentId, rawEvent } = normalizeHookArgs(args);
@@ -588,13 +632,10 @@ export function message_sending(...args: any[]) {
 }
 
 /**
- * @deprecated v1.8.0 — 使用 message_sending 替代
+ * Prepare message before sending (alias for backward compatibility)
  */
+// Backward-compat aliases
 export const before_message_write = message_sending;
-
-/**
- * @deprecated v1.8.0 — 使用 message_sending 替代
- */
 export const beforeMessageSend = message_sending;
 
 /**
@@ -607,7 +648,7 @@ export async function getMemoryContext(message: any) {
   }
 
   try {
-    return await pluginInstance.getMemoryContext(message);
+    return await pluginInstance!.getMemoryContext(message);
   } catch (error) {
     console.error('[brain-memory] Get memory context failed:', error);
     return null;
@@ -670,13 +711,10 @@ export default {
   init,
   activate,
   deactivate,
-  message_sending,
   handleMessage,
   onSessionStart,
   onSessionEnd,
-  // @deprecated v1.8.0 — 使用 message_sending 替代
   beforeMessageSend,
-  before_message_write,
   getMemoryContext,
   getStatus,
   shutdown

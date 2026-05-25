@@ -11,6 +11,7 @@ import { type DatabaseSyncInstance } from '@photostructure/sqlite';
 import type { BmNode, BmEdge, EdgeType, MemoryCategory, GraphNodeType, NodeStatus } from '../types';
 import type { ScopeFilter } from '../scope/isolation';
 import { initDb, getDbPath } from './db';
+import { buildScopeFilterClauseV2 } from '../scope/isolation';
 import { getSchemaVersion } from './migrate';
 
 // ─── SQL Row Type ──────────────────────────────────────────────
@@ -32,18 +33,39 @@ import type {
   MessageRow, EpisodicSnippet, StorageStats,
 } from './adapter';
 
-/** Convert internal ScopeFilter to StorageFilter-compatible format. */
+/** Convert StorageFilter to v1 ScopeFilter or v2 clause+params. */
 function scopeFilterToStorageFilter(filter?: StorageFilter): ScopeFilter | undefined {
   if (!filter) return undefined;
   return {
-    includeScopes: filter.includeScopes ?? [],
-    excludeScopes: filter.excludeScopes ?? [],
+    includeScopes: (filter.includeScopes ?? []).map(s => ({ sessionId: s.sessionId, agentId: s.agentId, workspaceId: s.workspaceId } as any)),
+    excludeScopes: (filter.excludeScopes ?? []).map(s => ({ sessionId: s.sessionId, agentId: s.agentId, workspaceId: s.workspaceId } as any)),
     allowCrossScope: !!filter.sharingMode && filter.sharingMode !== 'isolated',
     sharingMode: filter.sharingMode,
     sharedCategories: filter.sharedCategories,
     currentAgentId: filter.currentAgentId,
     allowedAgents: filter.allowedAgents,
   };
+}
+
+/** Build v2 ScopeFilterV2 from StorageFilter (returns null if no v2 scopes). */
+function extractScopeFilterV2(filter?: StorageFilter): import('../types').ScopeFilterV2 | undefined {
+  if (!filter) return undefined;
+  if (!filter.includeScopesV2?.length && !filter.excludeScopesV2?.length) return undefined;
+  return {
+    includeScopes: filter.includeScopesV2 ?? [],
+    excludeScopes: filter.excludeScopesV2 ?? [],
+    allowCrossScope: !!filter.sharingMode && filter.sharingMode !== 'isolated',
+    sharingMode: filter.sharingMode,
+    sharedCategories: filter.sharedCategories,
+    currentAgentId: filter.currentAgentId,
+    allowedAgents: filter.allowedAgents,
+  };
+}
+
+/** Build v2 scope WHERE clause from StorageFilter (returns null if no v2 scope). */
+function buildV2ScopeClause(filter?: StorageFilter): { clause: string; params: (string | null)[] } | null {
+  const v2 = extractScopeFilterV2(filter);
+  return v2 ? buildScopeFilterClauseV2(v2) : null;
 }
 
 /** Convert raw DB row to BmNode (copied from store.ts to avoid circular import). */
@@ -58,9 +80,16 @@ function toNodeFromRaw(r: SqlRow): BmNode {
     lastAccessedAt: (r.last_accessed as number) ?? 0,
     temporalType: ((r.temporal_type as string) ?? 'static') as 'static' | 'dynamic',
     source: (r.source as string) as 'user' | 'assistant',
-    scopeSession: (r.scope_session as string) ?? null,
-    scopeAgent: (r.scope_agent as string) ?? null,
+    // v2.0 六层 scope 字段
+    scopePlatform: (r.scope_platform as string) ?? null,
     scopeWorkspace: (r.scope_workspace as string) ?? null,
+    scopeAgent: (r.scope_agent as string) ?? null,
+    scopeUser: (r.scope_user as string) ?? null,
+    scopeChat: ((r.scope_chat as string) ?? (r.scope_session as string)) ?? null,
+    scopeThread: (r.scope_thread as string) ?? null,
+    scopeId: (r.scope_id as string) ?? null,
+    // @deprecated v1.x 旧字段（兼容）
+    scopeSession: (r.scope_session as string) ?? null,
     createdAt: r.created_at as number, updatedAt: r.updated_at as number,
   };
 }
@@ -125,7 +154,14 @@ export class SQLiteStorageAdapter implements IStorageAdapter {
   }
 
   upsertNode(input: NodeUpsertInput, sessionId: string): { node: BmNode; isNew: boolean } {
-    return upsertNode(this.assertDb(), input, sessionId);
+    return upsertNode(this.assertDb(), {
+      ...input,
+      scopePlatform: input.scopePlatform,
+      scopeUser: input.scopeUser,
+      scopeChat: input.scopeChat ?? input.scopeSession ?? undefined,
+      scopeThread: input.scopeThread,
+      scopeId: input.scopeId,
+    }, sessionId);
   }
 
   deprecateNode(nodeId: string): void {
@@ -137,7 +173,7 @@ export class SQLiteStorageAdapter implements IStorageAdapter {
   }
 
   findAllActive(filter?: StorageFilter): BmNode[] {
-    return allActiveNodes(this.assertDb(), scopeFilterToStorageFilter(filter));
+    return allActiveNodes(this.assertDb(), scopeFilterToStorageFilter(filter), extractScopeFilterV2(filter));
   }
 
   findAllEdges(): BmEdge[] {
@@ -173,20 +209,20 @@ export class SQLiteStorageAdapter implements IStorageAdapter {
   // ─── Search ──────────────────────────────────────────────
 
   searchNodes(query: string, limit: number, filter?: StorageFilter): BmNode[] {
-    return searchNodes(this.assertDb(), query, limit, scopeFilterToStorageFilter(filter));
+    return searchNodes(this.assertDb(), query, limit, scopeFilterToStorageFilter(filter), extractScopeFilterV2(filter));
   }
 
   findTopNodes(limit: number, filter?: StorageFilter): BmNode[] {
-    return topNodes(this.assertDb(), limit, scopeFilterToStorageFilter(filter));
+    return topNodes(this.assertDb(), limit, scopeFilterToStorageFilter(filter), extractScopeFilterV2(filter));
   }
 
   vectorSearch(queryVec: number[], limit: number, minScore = 0, filter?: StorageFilter): ScoredNode[] {
-    const scored = vectorSearchWithScore(this.assertDb(), queryVec, limit, scopeFilterToStorageFilter(filter));
+    const scored = vectorSearchWithScore(this.assertDb(), queryVec, limit, scopeFilterToStorageFilter(filter), extractScopeFilterV2(filter));
     return scored.filter(s => s.score >= minScore);
   }
 
   vectorSearchWithScore(queryVec: number[], limit: number, filter?: StorageFilter): ScoredNode[] {
-    return vectorSearchWithScore(this.assertDb(), queryVec, limit, scopeFilterToStorageFilter(filter));
+    return vectorSearchWithScore(this.assertDb(), queryVec, limit, scopeFilterToStorageFilter(filter), extractScopeFilterV2(filter));
   }
 
   graphWalk(seedIds: string[], maxDepth: number): { nodes: BmNode[]; edges: BmEdge[] } {
