@@ -136,14 +136,14 @@ interface CompletionParams {
  */
 async function completeByEndpoint(p: CompletionParams): Promise<string> {
   switch (p.endpointType) {
-    case 'ollama':
-      return ollamaNativeComplete(p);
-    case 'dashscope':
-      return dashscopeComplete(p);
-    case 'anthropic':
-      return anthropicComplete(p);
-    default:
-      return openaiComplete(p);
+  case 'ollama':
+    return ollamaNativeComplete(p);
+  case 'dashscope':
+    return dashscopeComplete(p);
+  case 'anthropic':
+    return anthropicComplete(p);
+  default:
+    return openaiComplete(p);
   }
 }
 
