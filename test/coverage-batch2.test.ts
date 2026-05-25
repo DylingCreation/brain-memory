@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createTestStorage, cleanupTestDb, insertNode, insertEdge } from "./helpers";
-import { shouldRunFusion, findFusionCandidates, executeFusion, computeNameSimilarity, parseFusionDecision } from "../src/fusion/analyzer";
+import { shouldRunFusion, executeFusion, computeNameSimilarity, parseFusionDecision } from "../src/fusion/analyzer";
 import { runIncrementalCommunities } from "../src/graph/community";
 import { DEFAULT_CONFIG } from "../src/types";
 

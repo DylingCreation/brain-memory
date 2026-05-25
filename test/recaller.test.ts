@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { createTestStorage, cleanupTestDb, createTestDb, insertNode, insertEdge } from "./helpers.ts";
+import { createTestStorage, cleanupTestDb, createTestDb, insertNode } from "./helpers.ts";
 import { Recaller } from "../src/recaller/recall.ts";
 import { DEFAULT_CONFIG } from "../src/types.ts";
 

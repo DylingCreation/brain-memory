@@ -11,8 +11,6 @@ import { runMaintenance, shouldRunIncremental } from '../src/graph/maintenance';
 import { createTestStorage, cleanupTestDb, insertNode, insertEdge, insertVector } from './helpers';
 import type { BmConfig } from '../src/types';
 import type { CompleteFn } from '../src/engine/llm';
-import type { EmbedFn } from '../src/engine/embed';
-import type { IStorageAdapter } from '../src/store/adapter';
 
 let storage: ReturnType<typeof createTestStorage>;
 

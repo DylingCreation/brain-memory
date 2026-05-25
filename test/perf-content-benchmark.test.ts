@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createTestStorage, cleanupTestDb, insertNode, insertEdge, insertVector } from "./helpers";
+import { createTestStorage, cleanupTestDb, insertNode } from "./helpers";
 
 // ─── Realistic content samples ─────────────────────────────
 

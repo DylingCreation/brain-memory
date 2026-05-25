@@ -8,15 +8,14 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createTestStorage, cleanupTestDb, createTestDb, insertNode } from "./helpers";
+import { createTestStorage, cleanupTestDb, createTestDb } from "./helpers";
 import { AdmissionController, DEFAULT_ADMISSION_CONFIG, type AdmissionConfig } from "../src/retriever/admission-control";
-import { Reranker, type RerankerConfig } from "../src/retriever/reranker";
+import { Reranker } from "../src/retriever/reranker";
 import type { BmConfig } from "../src/types";
 
 let storage: ReturnType<typeof createTestStorage>;
-let db: ReturnType<typeof createTestDb>;
 
-beforeEach(() => { storage = createTestStorage(); db = storage.getDb(); });
+beforeEach(() => { storage = createTestStorage(); });
 afterEach(() => { cleanupTestDb(storage); });
 
 // ─── Test 1: recall + rerank enabled, no API key → cosine fallback ──

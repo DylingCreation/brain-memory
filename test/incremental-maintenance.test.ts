@@ -17,7 +17,6 @@ import {
 import { runIncrementalCommunities } from "../src/graph/community";
 import { shouldRunIncremental } from "../src/graph/maintenance";
 import { DEFAULT_CONFIG } from "../src/types";
-import type { IStorageAdapter } from "../src/store/adapter";
 
 describe("F-3 增量图维护", () => {
   let storage: ReturnType<typeof createTestStorage>;

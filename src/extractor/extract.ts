@@ -190,6 +190,7 @@ export class Extractor {
   }
 
   async finalize(params: { sessionNodes: BmNode[]; graphSummary: string }): Promise<FinalizeResult> {
+    if (!this.llm) { logger.warn('extract', 'finalize skipped — LLM not configured'); return { promotedSkills: [], newEdges: [], invalidations: [] }; }
     try {
       const raw = await this.llm(
         FINALIZE_SYS,

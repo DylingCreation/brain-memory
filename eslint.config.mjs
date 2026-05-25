@@ -37,5 +37,13 @@ export default tseslint.config(
   },
   {
     ignores: ["dist/**", "node_modules/**", "coverage/**", "_bak/**"],
+  },
+  // Test files — relax rules (double-quote style acceptable, any acceptable as warning)
+  {
+    files: ["test/**/*.ts"],
+    rules: {
+      quotes: "off",  // test files use double-quote style, no enforcement needed
+      "@typescript-eslint/no-explicit-any": "warn",  // any in tests acceptable, warn only
+    },
   }
 );

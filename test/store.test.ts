@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb, insertNode, insertEdge } from "./helpers.ts";
 import {
   saveMessage, getUnextracted, markExtracted,
-  upsertNode, upsertEdge, findByName, findById, allActiveNodes,
+  upsertNode, findByName, findById, allActiveNodes,
   updateAccess, searchNodes, topNodes, graphWalk,
   normalizeName,
 } from "../src/store/store.ts";

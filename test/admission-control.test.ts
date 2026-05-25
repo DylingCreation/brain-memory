@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { createTestStorage, cleanupTestDb, createTestDb, insertNode, insertVector } from "./helpers.ts";
+import { createTestStorage, cleanupTestDb, createTestDb, insertNode } from "./helpers.ts";
 import { AdmissionController, DEFAULT_ADMISSION_CONFIG } from "../src/retriever/admission-control.ts";
 
 let db: ReturnType<typeof createTestDb>;

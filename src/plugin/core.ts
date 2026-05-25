@@ -191,12 +191,11 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
         const memoryContext = this.engine.getWorkingMemoryContext();
 
         return {
-          memoryContext,
+          memoryContext: memoryContext ?? '',
           relatedNodes: recalledNodes,
           tokenEstimate: assembled.tokens,
-          // v1.0.0 B-1: Structured formatted content for injection
-          formattedXml: assembled.xml,
-          systemPrompt: assembled.systemPrompt,
+          formattedXml: assembled.xml ?? '',
+          systemPrompt: assembled.systemPrompt ?? '',
           episodicXml: injectionCfg.includeEpisodic ? assembled.episodicXml : '',
         };
       }
@@ -221,7 +220,7 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
       );
       if (recallResult.nodes.length > 0) {
         return {
-          memoryContext: this.engine.getWorkingMemoryContext(),
+          memoryContext: this.engine.getWorkingMemoryContext() ?? '',
           relatedNodes: recallResult.nodes,
           tokenEstimate: recallResult.tokenEstimate,
           formattedXml: '',

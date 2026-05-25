@@ -409,6 +409,7 @@ export class ContextEngine {
 
   getAllActiveNodes(): BmNode[] { return this.storage.findAllActive(); }
 
+  /** @deprecated v1.8.0 — 破坏 IStorageAdapter 抽象。请通过适配器方法替代。 */
   getDb(): DatabaseSyncInstance { return (this.storage as SQLiteStorageAdapter).getDb(); }
 
   close(): void {

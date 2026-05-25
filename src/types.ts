@@ -394,6 +394,8 @@ export interface BmConfig {
     apiKey?: string;
     baseURL?: string;
     model?: string;
+    /** 最大输出 token 数，默认 4096。v1.8.0 F-1 新增 */
+    maxTokens?: number;
   };
   dedupThreshold: number;
   pagerankDamping: number;

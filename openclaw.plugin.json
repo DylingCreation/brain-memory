@@ -1,7 +1,7 @@
 {
   "id": "brain-memory",
   "name": "Brain Memory",
-  "version": "1.0.0",
+  "version": "1.8.0",
   "description": "Unified knowledge graph + vector memory system for AI agents",
   "author": "OpenClaw Team",
   "license": "MIT",

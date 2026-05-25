@@ -351,13 +351,13 @@ export async function message_received(...args: any[]) {
     pushSessionMessage(sessionId, 'user', messageContent);
 
     // Process the message (extract memories, etc.)
-    const result = await pluginInstance.handleMessage(message);
+    const result = await pluginInstance!.handleMessage(message);
 
     // Retrieve relevant memories and cache at agent level (not session level)
     // This allows memories to persist across sessions for the same agent
     try {
-      const memoryContext = await pluginInstance.getMemoryContext(message);
-      if (memoryContext && memoryContext.relatedNodes && memoryContext.relatedNodes.length > 0) {
+      const memoryContext = await pluginInstance!.getMemoryContext(message);
+      if (memoryContext?.relatedNodes?.length) {
         // Cache at agent level so new sessions can find memories
         const agentKey = memoryCacheKey(message.agentId || 'default-agent', message.workspaceId || 'default-workspace');
         sessionMemoryCache.set(agentKey, memoryContext);
@@ -477,7 +477,7 @@ export async function session_start(...args: any[]) {
       messages: []
     };
 
-    await pluginInstance.onSessionStart(sessionEvent);
+    await pluginInstance!.onSessionStart(sessionEvent);
 
     // Preload memories from previous sessions for this agent
     // This ensures new sessions start with relevant memory context
@@ -499,13 +499,13 @@ export async function session_start(...args: any[]) {
             content: 'recent topics conversations',
             role: 'user'
           };
-          const memoryContext = await pluginInstance.getMemoryContext(warmupMsg);
-          if (memoryContext && memoryContext.relatedNodes?.length > 0) {
+          const memoryContext = await pluginInstance!.getMemoryContext(warmupMsg);
+          if (memoryContext?.relatedNodes?.length) {
             sessionMemoryCache.set(agentKey, memoryContext);
             evictCacheIfNeeded();
             sessionMemoryCache.set(sessionEvent.sessionId, memoryContext);
             evictCacheIfNeeded();
-            console.log(`[brain-memory] Warmed up cache with ${memoryContext.relatedNodes.length} memories for new session`);
+            console.log(`[brain-memory] Warmed up cache with ${memoryContext!.relatedNodes!.length} memories for new session`);
           }
         }
       } catch (warmupError) {
@@ -561,7 +561,7 @@ export async function session_end(...args: any[]) {
       content: m.content,
       role: m.role,
     }));
-    await pluginInstance.onSessionEnd({
+    await pluginInstance!.onSessionEnd({
       sessionId,
       agentId,
       workspaceId,
@@ -662,7 +662,7 @@ export async function get_status() {
   }
 
   try {
-    return await pluginInstance.getStatus();
+    return await pluginInstance!.getStatus();
   } catch (error) {
     console.error('[brain-memory] Get status failed:', error);
     return { status: 'error', error: (error as Error).message };

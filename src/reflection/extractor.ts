@@ -91,7 +91,7 @@ export async function reflectOnTurn(
 function parseTurnReflection(raw: string, maxInsights: number): TurnBoost[] {
   try {
     const json = extractJsonTolerant(raw);
-    const p = JSON.parse(json);
+    const p = JSON.parse(json ?? '{}');
     const boosts: TurnBoost[] = (p.boosts ?? []).slice(0, maxInsights);
     return boosts.filter((b: TurnBoost) => b.name && b.reason);
   } catch {
@@ -132,7 +132,7 @@ export async function reflectOnSession(
 function parseSessionReflection(raw: string, cfg: ReflectionConfig): ReflectionInsight[] {
   try {
     const json = extractJsonTolerant(raw);
-    const p = JSON.parse(json);
+    const p = JSON.parse(json ?? '{}');
 
     const insights: ReflectionInsight[] = [];
 

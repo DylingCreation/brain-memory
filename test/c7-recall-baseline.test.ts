@@ -62,10 +62,10 @@ describe("C-7 核心召回响应时间基线", () => {
          temporal_type, source, scope_session, scope_agent, scope_workspace, created_at, updated_at)
         VALUES (?,?,?,?,?,?,'active',1,?,0,0.5,0,0,'static',?,?,?,?,?,?)`)
         .run(id, type, category, `perf-node-${i}`, `Description for node ${i}`,
-             `Node ${i} content: This is a performance test seed entry for benchmarking recall latency. It contains keywords like performance, latency, benchmark, recall, retrieval, and ${type} ${category} specific terms.`,
-             JSON.stringify(["session-1"]),
-             i % 2 === 0 ? "user" : "assistant",
-             "session-1", "test-agent", "test-workspace", now, now);
+          `Node ${i} content: This is a performance test seed entry for benchmarking recall latency. It contains keywords like performance, latency, benchmark, recall, retrieval, and ${type} ${category} specific terms.`,
+          JSON.stringify(["session-1"]),
+          i % 2 === 0 ? "user" : "assistant",
+          "session-1", "test-agent", "test-workspace", now, now);
     }
   }, 15000);
 

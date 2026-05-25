@@ -9,6 +9,27 @@ All notable changes to the brain-memory project.
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-05-25
+
+> **版本主题**：基础夯实 — 多端 LLM 兼容 + 文档对齐 + 工程清理
+
+### Added
+- **多端 LLM 路由 (F-1)** — `detectEndpointType()` 按 baseURL 检测端点类型 (ollama/dashscope/openai/anthropic)，替代旧版 `isThinkingModel()` 模型名判断
+- **Ollama 原生端点支持** — 自动路由 `/api/chat`，发送 `think: false` (布尔值，非 DashScope 的嵌套对象)，响应 tolerant JSON parse
+- **`llm.maxTokens` 可配置** — 新增 `LlmConfig.maxTokens` 字段，默认 4096，Ollama 映射到 `options.num_predict`
+
+### Changed
+- **METHODOLOGY.md v2.5 → v2.6** — 修正 8 处过时声明（技术栈/记忆分类/thinking 规则/基线数据/版本脉络），新增 §5.5 多端 LLM 兼容性规范 + §5.17 外部反馈合入流程
+- **`getDb()` 标记 @deprecated** — 提示通过 IStorageAdapter 方法替代
+- **tsconfig 开启 `strictNullChecks`** — 消除 14 个类型错误，0 处 `!` 非空断言回归
+
+### Fixed
+- **Ollama thinking 静默失效** — DashScope 格式 `{type:'disabled'}` 在 Ollama 上不生效，修复后 Small 模式 4 模块总耗时 153s → 17s (8.9x 加速)
+- **`apiKey: "***"` 被误判为有效** — Ollama localhost 豁免 apiKey 检查，不再触发 5 分钟超时
+
+### Removed
+- **`_bak/` 目录** — 65 个预 v1.0.0 备份文件通过 git tag `archive/pre-v1.0.0` 保存
+
 ## [1.6.2] — 2026-05-21
 
 > **版本主题**：质量维护 — 测试稳定性修复 + Lint 收敛 + 依赖补丁升级

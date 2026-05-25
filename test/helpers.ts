@@ -5,9 +5,7 @@
 import { createHash } from "crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { rmSync } from "node:fs";
 import { DatabaseSync, type DatabaseSyncInstance } from "@photostructure/sqlite";
-import type { BmNode } from "../src/types.ts";
 import { IStorageAdapter } from "../src/store/adapter";
 import { SQLiteStorageAdapter } from "../src/store/sqlite-adapter";
 
