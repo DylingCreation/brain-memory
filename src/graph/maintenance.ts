@@ -18,6 +18,7 @@ import { detectCommunities, summarizeCommunities, runIncrementalCommunities } fr
 import { dedup } from './dedup';
 import { scoreDecay } from '../decay/engine';
 import { logger } from '../utils/logger';
+import { runPipeline } from './pipeline';
 
 // ─── Incremental threshold (configurable) ─────────────────────
 
@@ -260,4 +261,14 @@ async function runLiteMaintenancePath(
     dirtyRatio: ratio,
     durationMs: Date.now() - startTime,
   };
+}
+
+// ─── v2.0.0 S-9: New composable pipeline (共存, tested independently) ──
+
+/** 使用新管线运行维护。与 runMaintenance() 功能等价。v2.1.0 将取代旧函数。 */
+export async function runPipelineMaintenance(
+  storage: IStorageAdapter, cfg: BmConfig,
+  llm?: CompleteFn, embedFn?: EmbedFn,
+): Promise<import('./pipeline').PipelineResult> {
+  return runPipeline(storage, cfg, llm, embedFn);
 }

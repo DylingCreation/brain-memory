@@ -1,15 +1,17 @@
 /**
  * brain-memory — Composable maintenance pipeline (v2.0.0 S-9)
  *
- * 替代旧版 runMaintenance() 大函数。每步独立 try/catch。
- * 通过 createPipeline() 根据脏比例自动选择全量/增量路径。
+ * 替代 maintenance.ts 中的三条独立路径函数。
+ * 从旧函数逐行提取每一步 → 用 wrap() 适配 sync→async → 注入管线。
  */
 
-import type { BmConfig } from '../types';
+import type { BmConfig, RunMode } from '../types';
 import type { IStorageAdapter } from '../store/adapter';
-import { computeGlobalPageRank, runIncrementalPageRank } from './pagerank';
-import { detectCommunities, runIncrementalCommunities } from './community';
-import { dedup } from './dedup';
+import type { CompleteFn } from '../engine/llm';
+import type { EmbedFn } from '../engine/embed';
+import { invalidateGraphCache, computeGlobalPageRank, runIncrementalPageRank } from './pagerank';
+import { detectCommunities, summarizeCommunities, runIncrementalCommunities } from './community';
+import { dedup, type DedupResult } from './dedup';
 import { scoreDecay } from '../decay/engine';
 import { logger } from '../utils/logger';
 import { shouldRunIncremental } from './maintenance';
@@ -26,66 +28,102 @@ export class MaintenancePipeline {
 
   async run(): Promise<void> {
     for (const step of this._steps) {
-      try {
-        await step.fn();
-      } catch (err) {
-        logger.error('maintenance', `"${step.name}" failed: ${(err as Error).message}`);
-      }
+      try { await step.fn(); }
+      catch (e) { logger.error('maintenance', `"${step.name}" failed: ${(e as Error).message}`); }
     }
   }
 }
 
-// ─── Wrappers (sync → async adapter) ────────────────────
+// ─── Wrappers ────────────────────────────────────────────
 
-/** 将同步/非Promise函数包装为 Promise<void> */
-const wrap = <T>(fn: () => T): (() => Promise<void>) =>
-  async () => { fn(); };
+/** sync/任意返回值 → Promise<void> */
+const wrap = <T>(fn: () => T): (() => Promise<void>) => async () => { fn(); };
+
+/** async → Promise<void> */
+const wrapAsync = (fn: () => Promise<unknown>): (() => Promise<void>) => async () => { await fn(); };
+
+// ─── Decay archiving (所有路径共享) ──────────────────────
+
+const DECAY_DEPRECATE_THRESHOLD = 0.25;
+
+function runDecayArchiving(storage: IStorageAdapter, cfg: BmConfig): number {
+  if (!cfg.decay.enabled) return 0;
+  let deprecated = 0;
+  const nodes = storage.findAllActive();
+  for (const node of nodes) {
+    const score = scoreDecay(node, cfg.decay);
+    if (score.composite < DECAY_DEPRECATE_THRESHOLD && node.validatedCount <= 1) {
+      try { storage.deprecateNode(node.id); deprecated++; }
+      catch { /* ignore */ }
+    }
+  }
+  if (deprecated > 0) {
+    logger.info('maintenance', `Decay archiving: ${deprecated} nodes deprecated (composite < ${DECAY_DEPRECATE_THRESHOLD})`);
+  }
+  return deprecated;
+}
 
 // ─── Factory ────────────────────────────────────────────
 
-/**
- * 构建维护管线。根据脏比例自动选择:
- * - 全量: dedup + PageRank + LPA + decay
- * - 增量 (脏比例 < 10%): inc-PageRank + inc-LPA + decay
- * - Lite: 仅 decay
- */
-export function createPipeline(
+export interface PipelineResult {
+  incremental: boolean;
+  lite: boolean;
+  durationMs: number;
+}
+
+export async function runPipeline(
   storage: IStorageAdapter,
   cfg: BmConfig,
-): MaintenancePipeline {
+  llm?: CompleteFn,
+  embedFn?: EmbedFn,
+): Promise<PipelineResult> {
+  const start = Date.now();
+  const mode: RunMode = cfg.mode ?? 'full';
+  const isLite = mode === 'lite';
+  const incremental = !isLite && shouldRunIncremental(storage);
+
   const p = new MaintenancePipeline();
-  const mode = cfg.mode ?? 'full';
 
-  if (mode === 'lite') {
-    // Lite 模式: 仅衰减
-    p.add('decay', wrap(() => {
-      storage.findAllActive().forEach(n => scoreDecay(n, cfg.decay));
-    }));
-    return p;
-  }
-
-  if (shouldRunIncremental(storage)) {
-    // 增量路径
-    p.add('inc-pagerank',
-      wrap(() => runIncrementalPageRank(storage, cfg)));
-    p.add('inc-communities',
-      wrap(() => runIncrementalCommunities(storage)));
-    p.add('inc-dedup',
-      wrap(() => dedup(storage, cfg)));
-  } else {
-    // 全量路径
-    p.add('dedup',
-      wrap(() => dedup(storage, cfg)));
-    p.add('pagerank',
-      wrap(() => computeGlobalPageRank(storage, cfg)));
-    p.add('communities',
-      wrap(() => detectCommunities(storage)));
-  }
-
-  // decay 始终执行
-  p.add('decay', wrap(() => {
-    storage.findAllActive().forEach(n => scoreDecay(n, cfg.decay));
+  // Step 1: dedup (all paths)
+  p.add('dedup', wrap(() => {
+    const result = dedup(storage, cfg);
+    if (result.merged > 0) invalidateGraphCache();
   }));
 
-  return p;
+  if (isLite) {
+    // Lite: dedup + PageRank + decay (no LPA, no LLM)
+    p.add('pagerank', wrap(() => computeGlobalPageRank(storage, cfg)));
+  } else if (incremental) {
+    // Incremental: dedup + inc-PR + inc-LPA + (LLM summaries) + decay
+    p.add('inc-pagerank', wrap(() => runIncrementalPageRank(storage, cfg)));
+    p.add('inc-communities', wrapAsync(async () => {
+      const commResult = await runIncrementalCommunities(storage);
+      if (llm && embedFn && commResult.count > 0) {
+        await summarizeCommunities(storage, commResult.communities, llm, embedFn);
+      }
+    }));
+  } else {
+    // Full: dedup + PR + LPA + (LLM summaries) + decay
+    p.add('pagerank', wrap(() => computeGlobalPageRank(storage, cfg)));
+    p.add('communities', wrapAsync(async () => {
+      const commResult = detectCommunities(storage);
+      if (llm && embedFn && commResult.count > 0) {
+        await summarizeCommunities(storage, commResult.communities, llm, embedFn);
+      }
+    }));
+  }
+
+  // Step final: decay archiving + cleanup (all paths)
+  p.add('decay', wrap(() => {
+    runDecayArchiving(storage, cfg);
+    storage.clearDirty();
+  }));
+
+  await p.run();
+
+  return {
+    incremental: !isLite && incremental,
+    lite: isLite,
+    durationMs: Date.now() - start,
+  };
 }
