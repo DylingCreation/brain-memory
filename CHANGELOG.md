@@ -41,6 +41,18 @@ All notable changes to the brain-memory project.
 - `scopeFilterToStorageFilter` 忽略 v2 scope → 新增 `extractScopeFilterV2` 双路径支持
 - LanceDB `null` 值类型推断失败 → 空字符串占位 + `|| null` 还原
 
+### Added (v2.0.0-dev 2026-05-25)
+- **S-5 God Object 拆分**: store.ts 595行→64行 barrel, 8 子模块
+- **S-6 强制转换消除**: `as SQLiteStorageAdapter` 零残留; `getDb()` 彻底删除
+- **S-7 覆盖率补盲**: +10 测试, preferences/slots.ts 死代码删除
+- **S-8 strict 全区**: `tsconfig.strict: true`, 零报错
+- **S-9 维护管线解耦**: `runMaintenance()` 可组合管线, maintenance.ts 695→45行
+- **S-10 记忆导出/备份**: `engine.export()` / `engine.import()`
+- **ISearchIndex**: LanceDB 伴随语义索引, 7 方法接口, 独立表 bm_search_index
+- **三路召回**: Recaller 扩展 semantic search + externalNodes
+- **MIGRATION-v2.md**: 完整 v1→v2 迁移指南
+- **v1.8.0 修复合并**: 多端 LLM 路由 + strictNullChecks + OpenClaw 插件注册修正
+
 ### Known Issues
 - `test/c7-recall-baseline.test.ts` raw SQL INSERT 与 `@photostructure/sqlite` 参数绑定边界冲突（不影响生产）
 - `test/lancedb-poc.test.ts` 旧 POC 测试与新 MVP adapter 不兼容
