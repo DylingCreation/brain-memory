@@ -5,9 +5,8 @@
  * Authors: adoresever (graph-memory), brain-memory contributors
  */
 
-import { type DatabaseSyncInstance } from '@photostructure/sqlite';
 import type { BmNode, BmEdge } from '../types';
-import { getAllCommunitySummaries, getEpisodicMessages } from '../store/store';
+import type { IStorageAdapter } from '../store/adapter';
 import { escapeXml } from '../utils/xml';
 import { truncate } from '../utils/truncate';
 import { estimateNodeTokens } from '../utils/tokens';
@@ -55,7 +54,7 @@ export function buildSystemPromptAddition(params: {
 
 /** 组装记忆上下文：将召回的记忆格式化为 XML/文本，控制 token 预算。 */
 export function assembleContext(
-  db: DatabaseSyncInstance,
+  storage: IStorageAdapter,
   params: {
     tokenBudget: number;
     recallStrategy: 'full' | 'summary' | 'adaptive' | 'off';
@@ -120,7 +119,7 @@ export function assembleContext(
   }
 
   // #10 fix: Batch fetch all community summaries in one query instead of N separate queries
-  const communitySummaries = getAllCommunitySummaries(db);
+  const communitySummaries = storage.getAllCommunities();
 
   const xmlParts: string[] = [];
   for (const [cid, members] of byCommunity) {
@@ -191,7 +190,7 @@ export function assembleContext(
   for (const node of topNodes) {
     if (!node.sourceSessions?.length) continue;
     const recentSessions = node.sourceSessions.slice(-2);
-    const msgs = getEpisodicMessages(db, recentSessions, node.updatedAt, 500);
+    const msgs = storage.getEpisodicMessages( recentSessions, node.updatedAt, 500);
     if (!msgs.length) continue;
     // #30 fix: use smart truncation instead of hard .slice(0, 200)
     const lines = msgs.map(m =>

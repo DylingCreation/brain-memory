@@ -11,7 +11,6 @@
  * Authors: adoresever (graph-memory), win4r (memory-lancedb-pro), brain-memory contributors
  */
 
-import type { DatabaseSyncInstance } from '@photostructure/sqlite';
 import type {
   BmConfig,
   BmNode,
@@ -425,9 +424,6 @@ export class ContextEngine {
   searchNodes(query: string, limit: number = 10): BmNode[] { return this.storage.searchNodes(query, limit); }
 
   getAllActiveNodes(): BmNode[] { return this.storage.findAllActive(); }
-
-  /** @deprecated v1.8.0 — 破坏 IStorageAdapter 抽象。请通过适配器方法替代。 */
-  getDb(): DatabaseSyncInstance { return (this.storage as SQLiteStorageAdapter).getDb(); }
 
   /** 获取底层存储适配器（供 UI Server 等内部组件使用） */
   getStorage(): IStorageAdapter { return this.storage; }

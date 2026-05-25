@@ -231,12 +231,12 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
         logger.info('plugin', `Retrieved ${recallResult.nodes.length} relevant memories`);
 
         // v1.0.0 B-1: Format memories using assembleContext for structured injection
-        const db = this.engine.getDb();
+        const storage = this.engine.getStorage();
 
         // Apply maxNodes cap before assembly
         const recalledNodes = recallResult.nodes.slice(0, injectionCfg.maxNodes);
 
-        const assembled = assembleContext(db, {
+        const assembled = assembleContext(storage, {
           tokenBudget: injectionCfg.tokenBudget,
           recallStrategy: injectionCfg.strategy,
           activeNodes: [],
