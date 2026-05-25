@@ -150,46 +150,48 @@ export function register(api: any) {
   // are present and won't cause runtime crashes in ContextEngine.
   storedConfig = { ...FULL_DEFAULT_CONFIG, ...bmConfig };
 
-  // Register hooks using the real OpenClaw plugin API
-  // api.registerHook() is the canonical method (documented in plugin-sdk types)
-  // api.on() is kept as a backward-compat alias in some OpenClaw versions
+  // Register hooks using the OpenClaw Plugin SDK standard API.
+  // v1.8.0 F-7: api.on() 优先于 api.registerHook() —
+  // OpenClaw 2026.5.x 中 api.registerHook() 签名已变更，api.on() 是官方标准 API。
+  // before_message_write → message_sending (保留别名兼容)。
   const hookNames = [
     'message_received',
     'message_sent',
-    'before_message_write',
+    'message_sending',  // v1.8.0: 标准名称
     'session_start',
     'session_end',
   ] as const;
   const hookHandlers: Record<string, (...args: any[]) => any> = {
     message_received,
     message_sent,
-    before_message_write,
+    message_sending: message_sending, // primary: 标准名称
+    before_message_write: message_sending, // alias: 向后兼容旧代码
     session_start,
     session_end,
   };
 
-  if (typeof api?.registerHook === 'function') {
-    // Canonical OpenClaw plugin API
-    for (const name of hookNames) {
-      api.registerHook(name, hookHandlers[name]);
-    }
-    console.log('[brain-memory] Hooks registered via api.registerHook()');
-  } else if (typeof api?.on === 'function') {
-    // Backward-compat: some OpenClaw versions expose api.on() as alias
+  if (typeof api?.on === 'function') {
+    // OpenClaw Plugin SDK 标准 API (2026.5.x 上正常工作)
     for (const name of hookNames) {
       api.on(name, hookHandlers[name]);
     }
-    console.log('[brain-memory] Hooks registered via api.on() (legacy compat)');
+    console.log('[brain-memory] Hooks registered via api.on()');
+  } else if (typeof api?.registerHook === 'function') {
+    // Legacy compat: 旧版 OpenClaw 的内部 hook 接口
+    for (const name of hookNames) {
+      api.registerHook(name, hookHandlers[name]);
+    }
+    console.log('[brain-memory] Hooks registered via api.registerHook() (legacy)');
   } else {
-    console.error('[brain-memory] No hook registration method found on api (need registerHook or on)');
+    console.error('[brain-memory] No hook registration method found on api (need on or registerHook)');
   }
 
   return {
     id: 'brain-memory',
     name: 'Brain Memory',
-    version: '1.0.0',
+    version: '1.8.0',
     description: 'Unified knowledge graph + vector memory system for AI agents',
-    author: 'OpenClaw Team',
+    author: 'DylingCreation',
     license: 'MIT',
   };
 }
@@ -580,11 +582,9 @@ export const onSessionEnd = session_end;
 /**
  * Prepare message before sending
  *
- * Note: This is a synchronous hook in OpenClaw, so we return the original event immediately
- * and handle any memory injection asynchronously without blocking the message flow.
- * However, we can attach cached memories if available.
+ * v1.8.0 F-7: 标准名称 message_sending，before_message_write 保留为别名。
  */
-export function before_message_write(...args: any[]) {
+export function message_sending(...args: any[]) {
   const { sessionId, agentId, rawEvent } = normalizeHookArgs(args);
   // Synchronous hook — cannot await initialization.
   // #8 fix: only use cache if plugin is fully initialized (initComplete guard).
@@ -623,9 +623,14 @@ export function before_message_write(...args: any[]) {
 }
 
 /**
- * Prepare message before sending (alias for backward compatibility)
+ * @deprecated v1.8.0 — 使用 message_sending 替代
  */
-export const beforeMessageSend = before_message_write;
+export const before_message_write = message_sending;
+
+/**
+ * @deprecated v1.8.0 — 使用 message_sending 替代
+ */
+export const beforeMessageSend = message_sending;
 
 /**
  * Get memory context
@@ -700,10 +705,13 @@ export default {
   init,
   activate,
   deactivate,
+  message_sending,
   handleMessage,
   onSessionStart,
   onSessionEnd,
+  // @deprecated v1.8.0 — 使用 message_sending 替代
   beforeMessageSend,
+  before_message_write,
   getMemoryContext,
   getStatus,
   shutdown
