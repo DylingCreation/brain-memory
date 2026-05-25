@@ -78,11 +78,19 @@
     "url": "https://github.com/DylingCreation/brain-memory/issues"
   },
   "homepage": "https://github.com/DylingCreation/brain-memory#readme",
+  "openclaw": {
+    "extensions": ["./dist/openclaw-register.js"],
+    "compat": {
+      "pluginApi": ">=2026.3.24-beta.2",
+      "minGatewayVersion": "2026.3.24-beta.2"
+    }
+  },
   "files": [
     "dist/**/*",
     "README.md",
     "LICENSE",
-    "package.json"
+    "package.json",
+    "openclaw.plugin.json"
   ],
   "publishConfig": {
     "access": "public"

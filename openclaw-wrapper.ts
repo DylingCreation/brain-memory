@@ -287,27 +287,15 @@ function normalizeHookArgs(args: any[]): {
   channel?: string;
   rawEvent: any;
 } {
-  // Detect InternalHookEvent format (single arg with `type` + `sessionKey` + `context`)
-  const first = args[0];
-  if (first && typeof first === 'object' && 'sessionKey' in first && 'type' in first) {
-    const hookEvent = first as { sessionKey: string; context?: Record<string, unknown>; messages?: string[] };
-    const ctx = hookEvent.context || {};
-    return {
-      sessionId: (ctx.conversationId as string) || hookEvent.sessionKey || 'default-session',
-      agentId: (ctx.accountId as string) || 'default-agent',
-      workspaceId: (ctx.workspaceId as string) || 'default-workspace',
-      content: (ctx.content as string) || (first as any).content || '',
-      channel: ctx.channel as string | undefined,
-      rawEvent: first,
-    };
-  }
-
-  // Legacy (event, ctx) format
+  // v1.8.0 F-8: 删除 InternalHookEvent 分支（路径歧义，生产环境不走此路径）。
+  // 真实 OpenClaw 2026.5.x 事件结构为两参数 (event, ctx)，
+  // sessionId 在 event.sessionKey（如 "agent:main:main"），
+  // 非 ctx.conversationId（值为 undefined）。
   const event = args[0] || {};
   const ctx = args[1] || {};
   return {
-    sessionId: ctx?.conversationId || 'default-session',
-    agentId: ctx?.accountId || 'default-agent',
+    sessionId: event?.sessionKey || ctx?.conversationId || 'default-session',
+    agentId: ctx?.accountId || event.sessionKey?.split(':')[1] || 'default-agent',
     workspaceId: 'default-workspace',
     content: event?.content || '',
     channel: ctx?.channelId,

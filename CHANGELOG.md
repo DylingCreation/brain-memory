@@ -26,6 +26,7 @@ All notable changes to the brain-memory project.
 ### Fixed
 - **Ollama thinking 静默失效** — DashScope 格式 `{type:'disabled'}` 在 Ollama 上不生效，修复后 Small 模式 4 模块总耗时 153s → 17s (8.9x 加速)
 - **`apiKey: "***"` 被误判为有效** — Ollama localhost 豁免 apiKey 检查，不再触发 5 分钟超时
+- **F-7: 插件注册方式修正** — `definePluginEntry` 标准入口 + `api.on()` 优先 + `before_message_write` → `message_sending`
 
 ### Removed
 - **`_bak/` 目录** — 65 个预 v1.0.0 备份文件通过 git tag `archive/pre-v1.0.0` 保存

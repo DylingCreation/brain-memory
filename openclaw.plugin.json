@@ -3,19 +3,20 @@
   "name": "Brain Memory",
   "version": "1.8.0",
   "description": "Unified knowledge graph + vector memory system for AI agents",
-  "author": "OpenClaw Team",
+  "author": "DylingCreation",
   "license": "MIT",
-  "entry": "./dist/openclaw-register.js",
-  "hooks": [
-    "init",
-    "handleMessage", 
-    "onSessionStart",
-    "onSessionEnd",
-    "beforeMessageSend",
-    "getMemoryContext",
-    "getStatus",
-    "shutdown"
-  ],
+  "contracts": {
+    "hooks": [
+      "session_start",
+      "session_end",
+      "message_received",
+      "message_sent",
+      "message_sending"
+    ]
+  },
+  "activation": {
+    "onStartup": true
+  },
   "configSchema": {
     "type": "object",
     "properties": {
@@ -23,6 +24,12 @@
         "type": "boolean",
         "default": true,
         "description": "Enable the brain-memory plugin"
+      },
+      "mode": {
+        "type": "string",
+        "enum": ["full", "lite", "small"],
+        "default": "full",
+        "description": "Run mode: full=complete LLM pipeline, lite=heuristic-only, small=compact prompts for local models"
       },
       "engine": {
         "type": "string",
@@ -56,6 +63,16 @@
         "default": true,
         "description": "Whether to run maintenance automatically"
       },
+      "recallCacheSize": {
+        "type": "number",
+        "default": 100,
+        "description": "LRU cache capacity for recall queries"
+      },
+      "recallCacheTtlMs": {
+        "type": "number",
+        "default": 300000,
+        "description": "Cache TTL in milliseconds (default 5 minutes)"
+      },
       "llm": {
         "type": "object",
         "properties": {
@@ -72,6 +89,11 @@
             "type": "string",
             "default": "gpt-4o-mini",
             "description": "LLM model to use"
+          },
+          "maxTokens": {
+            "type": "number",
+            "default": 4096,
+            "description": "Max output tokens (v1.8.0)"
           }
         }
       },
@@ -187,12 +209,66 @@
           }
         }
       },
+      "memoryInjection": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "strategy": {
+            "type": "string",
+            "enum": ["full", "summary", "adaptive", "off"],
+            "default": "adaptive"
+          },
+          "tokenBudget": {
+            "type": "number",
+            "default": 6000
+          },
+          "maxNodes": {
+            "type": "number",
+            "default": 12
+          },
+          "includeEpisodic": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "memorySharing": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["isolated", "mixed", "shared"],
+            "default": "mixed"
+          },
+          "sharedCategories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": ["profile", "preferences"]
+          },
+          "allowedAgents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          }
+        }
+      },
       "decay": {
         "type": "object",
         "properties": {
           "enabled": {
             "type": "boolean",
-            "default": false
+            "default": true
           },
           "recencyHalfLifeDays": {
             "type": "number",
