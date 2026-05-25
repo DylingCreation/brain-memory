@@ -218,6 +218,10 @@ brain-memory is designed as an **OpenClaw** plugin. Configure it in your OpenCla
     "entries": {
       "brain-memory": {
         "enabled": true,
+        "hooks": {
+          "allowConversationAccess": true,
+          "allowPromptInjection": true
+        },
         "config": {
           "llm": {
             "apiKey": "your-api-key-here",
@@ -240,13 +244,20 @@ brain-memory is designed as an **OpenClaw** plugin. Configure it in your OpenCla
 }
 ```
 
+> **🔐 Privacy compliance**: brain-memory reads conversation content and injects memories.
+> The `hooks.allowConversationAccess` and `hooks.allowPromptInjection` fields are **required**
+> for the plugin to function. Omitting them may cause silent failures in future OpenClaw versions.
+>
+> **🖥️ Ollama (localhost)**: For local models, omit `apiKey` in both `llm` and `embedding`
+> sections. Ollama on `localhost:11434` does not require authentication.
+
 **Plugin hooks registered automatically:**
 
 | 🔗 Hook | ⏰ Trigger | 🎯 Function |
 |:---|:---|:---|
 | `message_received` | After user sends a message | Extract knowledge from user messages |
 | `message_sent` ✨ | After AI sends a reply | Extract suggestions / code / commitments from AI replies |
-| `before_message_write` | Before AI sends a reply | Inject relevant memories into context |
+| `message_sending` | Before AI sends a reply | Inject relevant memories into context |
 | `session_start` | New session starts | Warm up memory cache |
 | `session_end` | Session ends | Run reflection + graph maintenance |
 

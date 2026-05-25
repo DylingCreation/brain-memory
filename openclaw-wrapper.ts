@@ -150,50 +150,27 @@ export function register(api: any) {
   // are present and won't cause runtime crashes in ContextEngine.
   storedConfig = { ...FULL_DEFAULT_CONFIG, ...bmConfig };
 
-  // Register hooks using the OpenClaw Plugin SDK standard API.
-  // v1.8.0 F-7: api.on() 优先于 api.registerHook() —
-  // OpenClaw 2026.5.x 中 api.registerHook() 签名已变更，api.on() 是官方标准 API。
-  // before_message_write → message_sending (保留别名兼容)。
+  // Register hooks using OpenClaw Plugin SDK standard api.on().
+  // v1.8.0: definePluginEntry 已接入，api.on() 始终可用，无需 registerHook fallback。
   const hookNames = [
     'message_received',
     'message_sent',
-    'message_sending',  // v1.8.0: 标准名称
+    'message_sending',
     'session_start',
     'session_end',
   ] as const;
   const hookHandlers: Record<string, (...args: any[]) => any> = {
     message_received,
     message_sent,
-    message_sending: message_sending, // primary: 标准名称
-    before_message_write: message_sending, // alias: 向后兼容旧代码
+    message_sending,
     session_start,
     session_end,
   };
 
-  if (typeof api?.on === 'function') {
-    // OpenClaw Plugin SDK 标准 API (2026.5.x 上正常工作)
-    for (const name of hookNames) {
-      api.on(name, hookHandlers[name]);
-    }
-    console.log('[brain-memory] Hooks registered via api.on()');
-  } else if (typeof api?.registerHook === 'function') {
-    // Legacy compat: 旧版 OpenClaw 的内部 hook 接口
-    for (const name of hookNames) {
-      api.registerHook(name, hookHandlers[name]);
-    }
-    console.log('[brain-memory] Hooks registered via api.registerHook() (legacy)');
-  } else {
-    console.error('[brain-memory] No hook registration method found on api (need on or registerHook)');
+  for (const name of hookNames) {
+    api.on(name, hookHandlers[name]);
   }
-
-  return {
-    id: 'brain-memory',
-    name: 'Brain Memory',
-    version: '1.8.0',
-    description: 'Unified knowledge graph + vector memory system for AI agents',
-    author: 'DylingCreation',
-    license: 'MIT',
-  };
+  console.log('[brain-memory] Registered 5 hooks via api.on()');
 }
 
 /**
