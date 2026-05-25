@@ -5,6 +5,7 @@
  */
 
 import { ContextEngine } from '../engine/context';
+import { createCompleteFn } from '../engine/llm';
 import type { BmConfig, BmNode } from '../types';
 import { assembleContext } from '../format/assemble';
 import { logger } from '../utils/logger';
@@ -63,6 +64,8 @@ export interface BrainMemoryPluginConfig extends BmConfig {
 export class BrainMemoryPluginCore implements OpenClawPlugin {
   private engine: ContextEngine | null = null;
   private config: BrainMemoryPluginConfig;
+  /** v1.8.0 F-10: AbortController for fire-and-forget LLM health check */
+  private _healthCheckAbort: AbortController | null = null;
 
   constructor(config: BrainMemoryPluginConfig) {
     this.config = { enabled: true, injectMemories: true, extractMemories: true, autoMaintain: true, ...config };
@@ -77,6 +80,11 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
     try {
       this.engine = new ContextEngine(this.config);
       logger.info('plugin', 'Plugin initialized successfully');
+
+      // v1.8.0 F-10: fire-and-forget LLM connectivity check
+      // 不阻塞 init 返回 — 延迟 1s 让 Gateway 启动日志先输出。
+      this._startHealthCheck();
+
     } catch (error) {
       logger.error('plugin', 'Failed to initialize:', error);
       throw error;
@@ -283,11 +291,52 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
   }
 
   async shutdown(): Promise<void> {
+    // v1.8.0 F-10: 取消飞行中的健康检查
+    this._healthCheckAbort?.abort();
+    this._healthCheckAbort = null;
+
     if (this.engine) {
       this.engine.close();
       this.engine = null;
     }
     logger.info('plugin', 'Plugin shut down');
+  }
+
+  // ─── LLM Health Check (fire-and-forget) ─────────────────
+
+  /**
+   * v1.8.0 F-10: fire-and-forget LLM connectivity check.
+   *
+   * 延迟 1s 执行，避免干扰 Gateway 启动日志。
+   * 发送轻量 ping → LLM 连通则静默，失败则 warn 日志。
+   * shutdown() 通过 _healthCheckAbort 可取消飞行中的请求。
+   */
+  private _startHealthCheck(): void {
+    this._healthCheckAbort = new AbortController();
+    const { signal } = this._healthCheckAbort;
+
+    setTimeout(async () => {
+      if (signal.aborted) return;
+
+      const fn = createCompleteFn(this.config.llm);
+      if (!fn) return; // LLM not configured — not an error
+
+      // 3s timeout for ping request
+      const timeoutId = setTimeout(() => this._healthCheckAbort!.abort(), 3000);
+
+      try {
+        await fn('ping', 'ok');
+        clearTimeout(timeoutId);
+        // Connected successfully — silent pass
+      } catch {
+        if (!signal.aborted) {
+          logger.warn('plugin',
+            'LLM connectivity check failed — extraction/reflection/fusion/reasoning will be skipped. ' +
+            'Check your LLM configuration (baseURL/model) and ensure the service is running.'
+          );
+        }
+      }
+    }, 1000);
   }
 }
 
