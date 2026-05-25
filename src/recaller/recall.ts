@@ -15,10 +15,10 @@
  */
 
 import { createHash } from 'crypto';
-import type { BmConfig, RecallResult, BmNode } from '../types';
+import type { BmConfig, RecallResult, BmNode, ScopeFilterV2 } from '../types';
 import type { EmbedFn, BatchEmbedFn } from '../engine/embed';
 import type { ScopeFilter } from '../scope/isolation';
-import type { ScopeFilterV2 } from '../types';
+import type { ISearchIndex, ScoredNodeId } from '../store/search/index';
 import type { IStorageAdapter, StorageFilter } from '../store/adapter';
 import { personalizedPageRank } from '../graph/pagerank';
 import { applyTimeDecay } from '../decay/engine';
@@ -46,16 +46,19 @@ function toStorageFilterV2(filter?: ScopeFilterV2): StorageFilter | undefined {
 export class Recaller {
   private embed: EmbedFn | null = null;
   private batchEmbed: BatchEmbedFn | null = null;
+  private searchIndex: ISearchIndex | null = null;
   private cache: RecallCache;
 
-  constructor(private storage: IStorageAdapter, private cfg: BmConfig) {
+  constructor(private storage: IStorageAdapter, private cfg: BmConfig, searchIndex?: ISearchIndex) {
     this.cache = new RecallCache(cfg.recallCacheSize ?? 100, cfg.recallCacheTtlMs ?? 5 * 60 * 1000);
+    this.searchIndex = searchIndex ?? null;
   }
 
   setEmbedFn(fn: EmbedFn): void { this.embed = fn; }
   setBatchEmbedFn(fn: BatchEmbedFn): void { this.batchEmbed = fn; }
+  setSearchIndex(idx: ISearchIndex): void { this.searchIndex = idx; }
 
-  async recall(query: string, scopeFilter?: ScopeFilterV2, sourceFilter?: 'user' | 'assistant' | 'both'): Promise<RecallResult> {
+  async recall(query: string, scopeFilter?: ScopeFilterV2, sourceFilter?: 'user' | 'assistant' | 'both', externalNodes?: BmNode[]): Promise<RecallResult> {
     const limit = this.cfg.recallMaxNodes;
 
     // A-1: 查询缓存 — 图无变更时复用上一次相同查询的结果
@@ -81,15 +84,21 @@ export class Recaller {
     const preciseSeeds = await this.getPreciseSeeds(expandedQuery, limit, scopeFilter, sourceFilter);
     const generalizedSeeds = await this.getGeneralizedSeeds(query, limit, scopeFilter, sourceFilter);
 
-    if (!preciseSeeds.length && !generalizedSeeds.length) {
+    // v2.0.0 S-2: Semantic search via LanceDB companion index
+    const semanticSeeds = await this._getSemanticSeeds(query, limit, scopeFilter);
+
+    // v2.0.0 S-2: External long-term memory (Agent USER/MEMORY)
+    const externalSeedIds = (externalNodes || []).map(n => n.id);
+
+    if (!preciseSeeds.length && !generalizedSeeds.length && !semanticSeeds.length && !externalSeedIds.length) {
       return { nodes: [], edges: [], tokenEstimate: 0 };
     }
 
-    // Unified seed set — deduplicate across paths
-    const unifiedSeeds = [...preciseSeeds];
-    const preciseSeedSet = new Set(preciseSeeds);
-    for (const id of generalizedSeeds) {
-      if (!preciseSeedSet.has(id)) unifiedSeeds.push(id);
+    // Unified seed set — deduplicate across all four paths
+    const unifiedSeeds = [...preciseSeeds, ...externalSeedIds];
+    const seen = new Set(unifiedSeeds);
+    for (const id of [...generalizedSeeds, ...semanticSeeds]) {
+      if (!seen.has(id)) { unifiedSeeds.push(id); seen.add(id); }
     }
 
     // Single graphWalk from unified seeds
@@ -197,6 +206,21 @@ export class Recaller {
     }
 
     return seeds.map(n => n.id);
+  }
+
+  // ─── Semantic Search (v2.0.0 S-2) ───────────────────────────
+
+  /** ③ LanceDB 语义搜索路径 */
+  private async _getSemanticSeeds(query: string, limit: number, scopeFilter?: ScopeFilterV2): Promise<string[]> {
+    if (!this.searchIndex || !this.embed) return [];
+    try {
+      const vec = await this.embed(query);
+      const scored = await this.searchIndex.semanticSearch(vec, limit, scopeFilter);
+      return scored.map(s => s.nodeId);
+    } catch {
+      logger.debug('recall', 'semantic search unavailable');
+      return [];
+    }
   }
 
   // ─── Helpers ──────────────────────────────────────────────────

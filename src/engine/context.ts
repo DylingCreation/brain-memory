@@ -24,6 +24,7 @@ import type {
 import type { FusionResult } from '../fusion/analyzer';
 import { getEmbedCacheStats, type EmbedCacheStats } from '../engine/embed';
 import { existsSync, statSync } from 'node:fs';
+import type { ISearchIndex } from '../store/search/index';
 import { homedir } from 'node:os';
 import { logger } from '../utils/logger';
 import { IStorageAdapter } from '../store/adapter';
@@ -424,6 +425,9 @@ export class ContextEngine {
   searchNodes(query: string, limit: number = 10): BmNode[] { return this.storage.searchNodes(query, limit); }
 
   getAllActiveNodes(): BmNode[] { return this.storage.findAllActive(); }
+
+  /** v2.0.0 S-2: 设置伴随语义索引（LanceDB） */
+  setSearchIndex(idx: ISearchIndex): void { this.recaller.setSearchIndex(idx); }
 
   /** 获取底层存储适配器（供 UI Server 等内部组件使用） */
   getStorage(): IStorageAdapter { return this.storage; }
