@@ -7,7 +7,7 @@
  * @module brain-memory
  */
 
-export { ContextEngine } from './src/engine/context';
+export { ContextEngine, type EngineStats, type HealthStatus, type HealthStats, type MemoryExport, type ExportOptions } from './src/engine/context';
 export { DEFAULT_CONFIG, type BmConfig } from './src/types';
 export { initDb } from './src/store/db';
 export { 

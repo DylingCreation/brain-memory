@@ -432,6 +432,81 @@ export class ContextEngine {
   /** 获取底层存储适配器（供 UI Server 等内部组件使用） */
   getStorage(): IStorageAdapter { return this.storage; }
 
+  // ─── v2.0.0 S-10: Memory export/backup ────────────────
+
+  /** 导出记忆到 JSON。可指定 scope 按维度过滤。 */
+  export(options?: ExportOptions): MemoryExport {
+    const nodes = this.storage.findAllActive();
+    const edges = this.storage.findAllEdges();
+    const communities = this.storage.getAllCommunities();
+
+    // 按 scope 过滤
+    let filteredNodes = nodes;
+    if (options?.scope) {
+      filteredNodes = nodes.filter(n => matchExportScope(n, options.scope!));
+    }
+
+    const nodeIds = new Set(filteredNodes.map(n => n.id));
+    const filteredEdges = edges.filter(e => nodeIds.has(e.fromId) && nodeIds.has(e.toId));
+
+    return {
+      version: '2.0.0',
+      exportedAt: Date.now(),
+      nodeCount: filteredNodes.length,
+      edgeCount: filteredEdges.length,
+      communityCount: communities.size,
+      nodes: filteredNodes,
+      edges: filteredEdges,
+      communities: Array.from(communities.entries()).map(([id, c]) => ({
+        id, summary: c.summary, nodeCount: c.nodeCount,
+      })),
+    };
+  }
+
+  /** 导入 JSON 备份。已存在的节点按 name 去重跳过。 */
+  import(data: MemoryExport): { imported: number; skipped: number } {
+    let imported = 0;
+    let skipped = 0;
+
+    for (const node of data.nodes) {
+      const existing = this.storage.findNodeByName(node.name);
+      if (existing) { skipped++; continue; }
+      try {
+        this.storage.upsertNode({
+          type: node.type,
+          category: node.category,
+          name: node.name,
+          description: node.description,
+          content: node.content,
+          source: node.source || 'manual',
+          temporalType: node.temporalType,
+          scopePlatform: node.scopePlatform,
+          scopeWorkspace: node.scopeWorkspace,
+          scopeAgent: node.scopeAgent,
+          scopeUser: node.scopeUser,
+          scopeChat: node.scopeChat,
+          scopeThread: node.scopeThread,
+        }, '__import__');
+        imported++;
+      } catch { skipped++; }
+    }
+
+    // Import edges (skip if nodes don't exist)
+    for (const edge of data.edges) {
+      try {
+        this.storage.upsertEdge({
+          fromId: edge.fromId,
+          toId: edge.toId,
+          type: edge.type,
+          instruction: edge.instruction,
+          sessionId: '__import__',
+        });
+      } catch { /* skip */ }
+    }
+
+    return { imported, skipped };
+  }
+
   close(): void {
     try { this.storage.close(); } catch (error) { logger.error('context', 'Failed to close database:', error); }
   }
@@ -540,4 +615,42 @@ export interface HealthStatus {
 /** 工厂函数：创建 ContextEngine 实例。 */
 export async function createContextEngine(config: BmConfig): Promise<ContextEngine> {
   return new ContextEngine(config);
+}
+
+// ─── v2.0.0 S-10: Export/Import types ──────────────────
+
+/** 导出过滤选项 */
+export interface ExportOptions {
+  /** 按 scope 维度过滤导出。未设置则导出全部。 */
+  scope?: {
+    platform?: string;
+    workspace?: string;
+    agent?: string;
+    user?: string;
+    chat?: string;
+    thread?: string;
+  };
+}
+
+/** 记忆导出 JSON 结构 */
+export interface MemoryExport {
+  version: string;
+  exportedAt: number;
+  nodeCount: number;
+  edgeCount: number;
+  communityCount: number;
+  nodes: BmNode[];
+  edges: BmEdge[];
+  communities: Array<{ id: string; summary: string; nodeCount: number }>;
+}
+
+/** 检查节点是否匹配导出 scope */
+function matchExportScope(node: BmNode, scope: NonNullable<ExportOptions['scope']>): boolean {
+  if (scope.platform && node.scopePlatform !== scope.platform) return false;
+  if (scope.workspace && node.scopeWorkspace !== scope.workspace) return false;
+  if (scope.agent && node.scopeAgent !== scope.agent) return false;
+  if (scope.user && node.scopeUser !== scope.user) return false;
+  if (scope.chat && node.scopeChat !== scope.chat) return false;
+  if (scope.thread && node.scopeThread !== scope.thread) return false;
+  return true;
 }
