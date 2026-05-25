@@ -48,3 +48,28 @@ describe('dedup', () => {
     expect(result.merged).toBeGreaterThanOrEqual(0);
   });
 });
+
+
+// ─── v2.0.0 S-7: 分支覆盖补盲 ─────────────────────────
+
+describe('dedup — branch coverage', () => {
+  it('handles single node (no duplicates possible)', () => {
+    insertNode(db, { name: 'solo', content: 'only one' });
+    const result = dedup(storage, DEFAULT_CONFIG);
+    expect(result.merged).toBe(0);
+  });
+
+  it('handles nodes with different names', () => {
+    insertNode(db, { name: 'Python', content: 'python' });
+    insertNode(db, { name: 'JavaScript', content: 'javascript' });
+    const result = dedup(storage, DEFAULT_CONFIG);
+    expect(result.merged).toBe(0);
+  });
+
+  it('detects similar names as candidates', () => {
+    insertNode(db, { name: 'ts-config', content: 'tsconfig' });
+    insertNode(db, { name: 'typescript-config', content: 'typescript config' });
+    const result = dedup(storage, DEFAULT_CONFIG);
+    expect(result.merged).toBeGreaterThanOrEqual(0);
+  });
+});

@@ -9,7 +9,10 @@ import {
   tokenize,
   jaccardSimilarity,
   cosineSimilarity,
+  shouldRunFusion,
+  findFusionCandidates,
 } from "../src/fusion/analyzer.ts";
+import { DEFAULT_CONFIG } from "../src/types";
 
 describe("tokenize", () => {
   it("tokenizes Chinese text", () => {
@@ -123,5 +126,33 @@ describe("parseFusionDecision", () => {
   it("handles case insensitivity", () => {
     const result = parseFusionDecision('{"decision":"MERGE","reason":"same"}');
     expect(result.decision).toBe("merge");
+  });
+});
+
+
+// ─── v2.0.0 S-7: 解析边缘 + name pre-filter ─────────
+
+describe("parseFusionDecision — extended", () => {
+  it("handles LINK", () => {
+    const r = parseFusionDecision('{"decision":"LINK","reason":"related","linkType":"RELATED_TO"}');
+    expect(r.decision).toBe("link");
+  });
+  it("handles NONE", () => {
+    expect(parseFusionDecision('{"decision":"NONE"}').decision).toBe("none");
+  });
+  it("handles garbage", () => {
+    expect(parseFusionDecision('garbage').decision).toBe("none");
+  });
+});
+
+describe("computeNameSimilarity — edge cases", () => {
+  it("low similarity for unrelated names", () => {
+    expect(computeNameSimilarity("TypeScript", "Rust")).toBeLessThan(0.3);
+  });
+  it("high similarity for similar names", () => {
+    expect(computeNameSimilarity("ts-config", "typescript-config")).toBeGreaterThan(0.2);
+  });
+  it("1.0 for identical names", () => {
+    expect(computeNameSimilarity("same", "same")).toBeCloseTo(1.0);
   });
 });
