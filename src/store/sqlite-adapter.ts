@@ -358,6 +358,20 @@ export class SQLiteStorageAdapter implements IStorageAdapter {
       nodesByCategory, edgeTypes,
       vectorCount, communityCount,
       schemaVersion: getSchemaVersion(db),
+      byType: {
+        task: db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE type='TASK'").get()['c'] as number,
+        skill: db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE type='SKILL'").get()['c'] as number,
+        event: db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE type='EVENT'").get()['c'] as number,
+      },
+      byTemporalType: {
+        static: db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE temporal_type='static'").get()['c'] as number,
+        dynamic: db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE temporal_type='dynamic'").get()['c'] as number,
+      },
+      bySource: {
+        user: db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE source='user'").get()['c'] as number,
+        assistant: db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE source='assistant'").get()['c'] as number,
+        manual: db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE source='manual'").get()['c'] as number,
+      },
     };
   }
 

@@ -283,7 +283,11 @@ export class LanceDBStorageAdapter implements IStorageAdapter {
     return { totalNodes: all.length, activeNodes: all.filter(n => n.status === 'active').length,
       deprecatedNodes: all.filter(n => n.status === 'deprecated').length, totalEdges: this._edgeCache.size,
       nodesByCategory: byCat as Record<MemoryCategory, number>, edgeTypes: byEdge as Record<EdgeType, number>,
-      vectorCount: this.findAllActive().filter(n => (n as BmNodeWithVector)._vector).length, communityCount: 0, schemaVersion: 2 };
+      vectorCount: this.findAllActive().filter(n => (n as BmNodeWithVector)._vector).length, communityCount: 0, schemaVersion: 2,
+      byType: { task: 0, skill: 0, event: 0 },
+      byTemporalType: { static: 0, dynamic: 0 },
+      bySource: { user: 0, assistant: 0, manual: 0 },
+    };
   }
 
   getSchemaVersion() { return 2; }

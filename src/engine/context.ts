@@ -445,23 +445,14 @@ export class ContextEngine {
     try { if (existsSync(dbPath)) dbSizeBytes = statSync(dbPath).size; } catch { /* stat may fail */ }
     const uptimeMs = Date.now() - this.createdAt;
     const cacheStats = getEmbedCacheStats();
-    const db = (this.storage as SQLiteStorageAdapter).getDb();
-    const taskCount = db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE type=\'TASK\'').get()['c'] as number;
-    const skillCount = db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE type=\'SKILL\'').get()['c'] as number;
-    const eventCount = db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE type=\'EVENT\'').get()['c'] as number;
-    const staticCount = db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE temporal_type=\'static\'').get()['c'] as number;
-    const dynamicCount = db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE temporal_type=\'dynamic\'').get()['c'] as number;
-    const userCount = db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE source=\'user\'').get()['c'] as number;
-    const assistantCount = db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE source=\'assistant\'').get()['c'] as number;
-    const sessionCount = db.prepare('SELECT COUNT(DISTINCT session_id) as c FROM bm_messages').get()['c'] as number;
     return {
-      nodeCount: stats.totalNodes, edgeCount: stats.totalEdges, sessionCount,
+      nodeCount: stats.totalNodes, edgeCount: stats.totalEdges, sessionCount: 0,
       nodes: {
         total: stats.totalNodes, active: stats.activeNodes, deprecated: stats.deprecatedNodes,
-        byType: { task: taskCount, skill: skillCount, event: eventCount },
+        byType: stats.byType,
         byCategory: stats.nodesByCategory,
-        byTemporalType: { static: staticCount, dynamic: dynamicCount },
-        bySource: { user: userCount, assistant: assistantCount },
+        byTemporalType: stats.byTemporalType,
+        bySource: stats.bySource,
       },
       edges: { total: stats.totalEdges },
       communities: stats.communityCount, vectors: stats.vectorCount,

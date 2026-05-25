@@ -129,6 +129,10 @@ export interface StorageStats {
   vectorCount: number;
   communityCount: number;
   schemaVersion: number;
+  /** v2.0.0 S-6: 按维度分项统计 */
+  byType: { task: number; skill: number; event: number };
+  byTemporalType: { static: number; dynamic: number };
+  bySource: { user: number; assistant: number; manual: number };
 }
 
 // ─── IStorageAdapter Interface ─────────────────────────────────
