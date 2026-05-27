@@ -150,7 +150,7 @@ function migrateToV2_ScopeUpgrade(db: DatabaseSyncInstance): void {
         updateStmt.run(scopeId, row.id);
       }
     };
-    db.transaction(txFn)();
+    (db as unknown as { transaction: (fn: () => void) => () => void }).transaction(txFn)();
   }
 
   // 4. 建索引（幂等）

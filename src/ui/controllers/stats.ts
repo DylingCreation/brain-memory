@@ -6,6 +6,7 @@
  */
 
 import type { UiServerContext } from '../server';
+import type { BmNode } from '../../types';
 import { existsSync, statSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
@@ -32,7 +33,7 @@ export function createStatsController(ctx: UiServerContext) {
     // 数据库文件大小
     let dbSizeBytes = 0;
     try {
-      const dbPath = (storage as Record<string, unknown>).dbPath as string || join(homedir(), '.openclaw', 'brain-memory.db');
+      const dbPath = (storage as unknown as Record<string, unknown>)['dbPath'] as string || join(homedir(), '.openclaw', 'brain-memory.db');
       if (existsSync(dbPath)) dbSizeBytes = statSync(dbPath).size;
     } catch { /* dbPath resolution is best-effort */ }
 

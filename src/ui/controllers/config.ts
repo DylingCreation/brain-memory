@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync, existsSync, statSync, renameSync, copyFile
 import { join, dirname } from 'path';
 import { homedir } from 'os';
 import type { Context } from 'hono';
+import type { UiServerContext } from '../server';
 
 type HonoHandler = (c: Context) => Response | Promise<Response>;
 
@@ -47,7 +48,9 @@ export function createConfigController(ctx: UiServerContext) {
       }
       const raw = readFileSync(configPath, 'utf-8');
       const config = parseOpenClawConfig(raw);
-      const bmConfig = config?.plugins?.entries?.['brain-memory']?.config || {};
+      const plugins = (config['plugins'] || {}) as Record<string, unknown>;
+      const entries = (plugins['entries'] || {}) as Record<string, unknown>;
+      const bmConfig = (entries['brain-memory'] || {}) as Record<string, unknown>;
 
       // 读取 configSchema 从 openclaw.plugin.json
       let schema: Record<string, unknown> = {};
@@ -92,13 +95,11 @@ export function createConfigController(ctx: UiServerContext) {
       try { copyFileSync(configPath, bak); } catch { /* backup may fail if disk full — non-fatal */ }
 
       // 深度合并 brain-memory 配置
-      if (!config.plugins) config.plugins = {};
-      if (!config.plugins.entries) config.plugins.entries = {};
-      if (!config.plugins.entries['brain-memory']) config.plugins.entries['brain-memory'] = {};
-      config.plugins.entries['brain-memory'].config = {
-        ...config.plugins.entries['brain-memory'].config,
-        ...body,
-      };
+      const plugins = (config['plugins'] || {}) as Record<string, unknown>;
+      const entries = (plugins['entries'] || {}) as Record<string, unknown>;
+      const brainMemory = (entries['brain-memory'] || {}) as Record<string, unknown>;
+      const existingConfig = (brainMemory['config'] || {}) as Record<string, unknown>;
+      (brainMemory as Record<string, unknown>)['config'] = { ...existingConfig, ...body };
 
       // 写回（原子操作：先写临时文件，再 rename）
       const tmp = `${configPath}.tmp`;

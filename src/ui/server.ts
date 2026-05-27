@@ -51,22 +51,22 @@ export function createUiServer(storage: IStorageAdapter, config: UiServerConfig 
   const __dirname = dirname(fileURLToPath(import.meta.url));
   const uiDistPath = join(__dirname, '..', '..', '..', 'ui', 'dist');
   const uiPublicPath = join(__dirname, '..', '..', '..', 'ui', 'public');
-  const serveStatic = async (c: Context, filePath: string) => {
+  const serveStatic = async (c: Context, filePath: string): Promise<Response> => {
     try {
       const fullPath = join(uiDistPath, filePath);
-      if (!existsSync(fullPath)) return null;
+      if (!existsSync(fullPath)) return c.notFound();
       const content = readFileSync(fullPath, 'utf-8');
       const ext = filePath.split('.').pop() || '';
       const mime = { html: 'text/html', js: 'application/javascript', css: 'text/css', svg: 'image/svg+xml', json: 'application/json' }[ext] || 'text/plain';
       c.header('Content-Type', mime);
       return c.body(content);
     } catch {
-      return null;
+      return c.notFound();
     }
   };
 
-  app.get('/', async (c) => serveStatic(c, 'index.html') || c.text('brain-memory UI — run `npm run build:ui` to build frontend'));
-  app.get('/assets/*', async (c) => serveStatic(c, c.req.path.slice(1)) || c.text('Not found', 404));
+  app.get('/', (c) => serveStatic(c, 'index.html'));
+  app.get('/assets/*', (c) => serveStatic(c, c.req.path.slice(1)));
 
   // Canvas 嵌入视图
   app.get('/embed/dashboard', async (c) => {

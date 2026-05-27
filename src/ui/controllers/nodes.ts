@@ -75,7 +75,7 @@ export function createNodesController(ctx: UiServerContext) {
   };
 
   const detail: HonoHandler = (c) => {
-    const id = c.req.param('id');
+    const id = c.req.param('id')!;
     const node = storage.findNodeById(id);
     if (!node) return c.json({ error: 'Node not found' }, 404);
 
@@ -138,7 +138,7 @@ export function createNodesEditController(ctx: UiServerContext) {
   };
 
   const update: HonoHandler = async (c) => {
-    const id = c.req.param('id');
+    const id = c.req.param('id')!;
     const existing = storage.findNodeById(id);
     if (!existing) return c.json({ error: 'Node not found' }, 404);
 
@@ -157,7 +157,7 @@ export function createNodesEditController(ctx: UiServerContext) {
   };
 
   const remove: HonoHandler = (c) => {
-    const id = c.req.param('id');
+    const id = c.req.param('id')!;
     const existing = storage.findNodeById(id);
     if (!existing) return c.json({ error: 'Node not found' }, 404);
     storage.deprecateNode(id);
