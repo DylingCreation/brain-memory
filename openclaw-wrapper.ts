@@ -12,7 +12,32 @@
  */
 
 // Import the plugin implementation
-import createBrainMemoryPlugin, { BrainMemoryPluginCore as BrainMemoryPluginClass } from './src/plugin/core';
+import { createBrainMemoryPluginCore as createBrainMemoryPlugin, BrainMemoryPluginCore as BrainMemoryPluginClass, type Message } from './src/plugin/core';
+
+// Minimal OpenClaw Plugin SDK types (strict-mode safe)
+interface OpenClawHookEvent {
+  sessionKey?: string;
+  content?: string;
+  channel?: string;
+  senderId?: string;
+  conversationId?: string;
+  threadId?: string;
+  [key: string]: unknown;
+}
+interface OpenClawContext {
+  accountId?: string;
+  workspaceId?: string;
+  conversationId?: string;
+  channelId?: string;
+  senderId?: string;
+  threadId?: string;
+  [key: string]: unknown;
+}
+interface OpenClawPluginApi {
+  config?: Record<string, unknown>;
+  on?: (event: string, handler: (...args: unknown[]) => unknown) => void;
+  registerHook?: (event: string, handler: (...args: unknown[]) => unknown) => void;
+}
 
 // Define simple message type for OpenClaw compatibility
 // Import the full DEFAULT_CONFIG from types (contains all nested BmConfig fields)
@@ -23,7 +48,8 @@ import { logger } from './src/utils/logger';
 let pluginInstance: BrainMemoryPluginClass | null = null;
 
 // Store configuration globally for access in hooks
-let storedConfig: Record<string, unknown> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let storedConfig: any = null;
 
 // Initialization guard (#8 fix):
 // - initPromise: tracks the active initialization promise
@@ -38,7 +64,7 @@ let initComplete = false;
 // Also keyed by sessionId for backward compatibility with existing cached data.
 // #8 fix: bounded cache to prevent memory leak from unbounded sessionId accumulation.
 const MEMORY_CACHE_MAX_SIZE = 200;
-const sessionMemoryCache = (new Map() as Map<string, unknown>);
+const sessionMemoryCache = new Map<string, Record<string, unknown>>();
 
 // Session message buffer for session_end reflection.
 // OpenClaw's session_end hook does not provide message history,
@@ -118,7 +144,7 @@ let registered = false;
  * NOTE: This must be a synchronous function because OpenClaw does not await promises
  * returned from register(). Async code after the first await will be ignored.
  */
-export function register(api: Record<string, unknown>) {
+export function register(api: OpenClawPluginApi) {
   if (registered) {
     console.log('[brain-memory] register() already called, skipping duplicate invocation');
     return;
@@ -127,16 +153,19 @@ export function register(api: Record<string, unknown>) {
   console.log('[brain-memory] Registering plugin with OpenClaw');
 
   // Extract configuration from OpenClaw's config structure
-  const fullConfig = (api && api.config) || {};
-  const bmConfig = fullConfig?.plugins?.entries?.['brain-memory']?.config || {};
+  const fullConfig = (api?.config || {}) as Record<string, unknown>;
+  const plugins = (fullConfig['plugins'] || {}) as Record<string, unknown>;
+  const entries = (plugins['entries'] || {}) as Record<string, unknown>;
+  const bmConfig = (entries['brain-memory'] || {}) as Record<string, unknown>;
 
   // Expand ~ path if present
   // Fix: On Windows, process.env.HOME may be undefined; use USERPROFILE as fallback
   const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-  if (!bmConfig.dbPath) {
-    bmConfig.dbPath = homeDir ? `${homeDir}/.openclaw/brain-memory.db` : './brain-memory.db';
-  } else if (bmConfig.dbPath?.startsWith('~')) {
-    bmConfig.dbPath = homeDir ? bmConfig.dbPath.replace('~', homeDir) : bmConfig.dbPath.replace('~', '.');
+  const dbPath = (bmConfig['dbPath'] || '') as string;
+  if (!dbPath) {
+    bmConfig['dbPath'] = homeDir ? `${homeDir}/.openclaw/brain-memory.db` : './brain-memory.db';
+  } else if (dbPath.startsWith('~')) {
+    bmConfig['dbPath'] = homeDir ? dbPath.replace('~', homeDir) : dbPath.replace('~', '.');
   }
 
   // Store config globally for access in hook functions.
@@ -223,7 +252,7 @@ export async function init(config: Record<string, unknown>) {
 /**
  * Activate the plugin
  */
-export async function activate(_api: Record<string, unknown>) {
+export async function activate(_api: OpenClawPluginApi) {
   try {
     console.log('[brain-memory] Activating plugin...');
 
@@ -281,23 +310,23 @@ function normalizeHookArgs(args: unknown[]): {
   userId?: string;
   chatId?: string;
   threadId?: string;
-  rawEvent: Record<string, unknown>;
+  rawEvent: OpenClawHookEvent;
 } {
   // (event, ctx) format — the only format used by OpenClaw 2026.5.x
   // InternalHookEvent branch removed (deprecated: relied on 'type' field which caused path ambiguity)
-  const event = args[0] || {};
-  const ctx = args[1] || {};
+  const event = (args[0] || {}) as OpenClawHookEvent;
+  const ctx = (args[1] || {}) as OpenClawContext;
   return {
-    sessionId: event?.sessionKey || ctx?.conversationId || 'default-session',
-    agentId: ctx?.accountId || (typeof event?.sessionKey === 'string' ? event.sessionKey.split(':')[1] : undefined) || 'default-agent',
-    workspaceId: ctx?.workspaceId || 'default-workspace',
-    content: event?.content || '',
-    channel: ctx?.channelId,
+    sessionId: event.sessionKey || ctx.conversationId || 'default-session',
+    agentId: ctx.accountId || (typeof event.sessionKey === 'string' ? event.sessionKey.split(':')[1] : undefined) || 'default-agent',
+    workspaceId: ctx.workspaceId || 'default-workspace',
+    content: event.content || '',
+    channel: ctx.channelId,
     // v2.0: 从 OpenClaw context 提取六层 scope
-    platform: ctx?.channelId || event?.channel || null,
-    userId: event?.senderId || ctx?.senderId || null,
-    chatId: ctx?.conversationId || event?.conversationId || null,
-    threadId: event?.threadId || ctx?.threadId || null,
+    platform: (ctx.channelId || event.channel || undefined) as string | undefined,
+    userId: (event.senderId || ctx.senderId || undefined) as string | undefined,
+    chatId: (ctx.conversationId || event.conversationId || undefined) as string | undefined,
+    threadId: (event.threadId || ctx.threadId || undefined) as string | undefined,
     rawEvent: event,
   };
 }
@@ -428,8 +457,9 @@ export async function message_sent(...args: unknown[]) {
     const EXTRACTION_TIMEOUT_MS = 5000;
     const contentPreview = (aiMessage?.content || '').slice(0, 200);
     const extractionPromise = (async () => {
-      const result = await pluginInstance!.handleMessage(aiMessage) as Record<string, unknown>;
-      logger.debug('wrapper', `AI reply extracted: ${result?.extractedNodes?.length || 0} nodes, ${result?.extractedEdges?.length || 0} edges`);
+      const result = await pluginInstance!.handleMessage(aiMessage as unknown as Message);
+      const r = result as unknown as Record<string, unknown>;
+      logger.debug('wrapper', `AI reply extracted: ${(r['extractedNodes'] as unknown[])?.length || 0} nodes, ${(r['extractedEdges'] as unknown[])?.length || 0} edges`);
     })();
 
     const timeoutPromise = new Promise<void>((resolve) => {
@@ -601,7 +631,7 @@ export function message_sending(...args: unknown[]) {
       ...rawEvent,
       memoryContext: cachedMemoryContext,
       // Optionally modify the content to include memory hints
-      content: (rawEvent as Record<string, unknown>)?.content || ''
+      content: (rawEvent as OpenClawHookEvent)?.content || ''
     };
   }
 
@@ -626,7 +656,7 @@ export async function getMemoryContext(message: Record<string, unknown>) {
   }
 
   try {
-    return await pluginInstance!.getMemoryContext(message);
+    return await pluginInstance!.getMemoryContext(message as unknown as Message);
   } catch (error) {
     console.error('[brain-memory] Get memory context failed:', error);
     return null;

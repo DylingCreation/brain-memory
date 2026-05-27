@@ -39,7 +39,7 @@ export default definePluginEntry({
   register(api: unknown) {
     // Delegate to wrapper's register for hook setup
     const { register } = pluginWrapper;
-    register(api);
+    register(api as Record<string, unknown>);
   },
 });
 

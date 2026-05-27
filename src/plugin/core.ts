@@ -98,7 +98,7 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
         if (storage) {
           this.uiServer = createUiServer(storage, {
             port: this.config.uiPort || 0,
-            authToken: (this.config as Record<string, unknown>)._gatewayToken as string,
+            authToken: (this.config as unknown as Record<string, unknown>)._gatewayToken as string,
           });
           const port = this.uiServer.start();
           logger.info('plugin', `Web UI started on port ${port}`);

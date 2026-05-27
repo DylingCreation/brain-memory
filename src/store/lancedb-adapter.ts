@@ -251,24 +251,24 @@ export class LanceDBStorageAdapter implements IStorageAdapter {
 
   // ─── Communities (stub) ─────────────────────────────────
 
-  upsertCommunity() { logger.warn('[LanceDB] upsertCommunity not implemented — community detection disabled'); }
-  getCommunity() { logger.warn('[LanceDB] getCommunity not implemented'); return null; }
-  getAllCommunities() { logger.warn('[LanceDB] getAllCommunities not implemented'); return new Map(); }
-  pruneCommunities() { logger.warn('[LanceDB] pruneCommunities not implemented'); return 0; }
-  communityVectorSearch() { logger.warn('[LanceDB] communityVectorSearch not implemented'); return []; }
-  findNodesByCommunities() { logger.warn('[LanceDB] findNodesByCommunities not implemented'); return []; }
-  findCommunityPeers() { logger.warn('[LanceDB] findCommunityPeers not implemented'); return []; }
-  findCommunityRepresentatives() { logger.warn('[LanceDB] findCommunityRepresentatives not implemented — using findTopNodes fallback'); return this.findTopNodes(5); }
+  upsertCommunity(_id: string, _summary: string, _nodeCount: number, _embedding?: number[]) { logger.warn('lancedb', 'upsertCommunity not implemented — community detection disabled'); }
+  getCommunity(_id: string) { logger.warn('lancedb', 'getCommunity not implemented'); return null; }
+  getAllCommunities() { logger.warn('lancedb', 'getAllCommunities not implemented'); return new Map(); }
+  pruneCommunities() { logger.warn('lancedb', 'pruneCommunities not implemented'); return 0; }
+  communityVectorSearch(_queryVec: number[], _minScore: number) { logger.warn('lancedb', 'communityVectorSearch not implemented'); return []; }
+  findNodesByCommunities(_communityIds: string[], _perCommunity: number) { logger.warn('lancedb', 'findNodesByCommunities not implemented'); return []; }
+  findCommunityPeers(_nodeId: string, _limit: number) { logger.warn('lancedb', 'findCommunityPeers not implemented'); return []; }
+  findCommunityRepresentatives(_perCommunity: number) { logger.warn('lancedb', 'findCommunityRepresentatives not implemented — using findTopNodes fallback'); return this.findTopNodes(5); }
 
   // ─── Messages (stub) ────────────────────────────────────
 
-  saveMessage() { logger.warn('[LanceDB] saveMessage not implemented — message history disabled'); }
-  getUnextractedMessages() { logger.warn('[LanceDB] getUnextractedMessages not implemented'); return []; }
-  markMessagesExtracted() { logger.warn('[LanceDB] markMessagesExtracted not implemented'); }
-  getEpisodicMessages() { logger.warn('[LanceDB] getEpisodicMessages not implemented'); return []; }
+  saveMessage(_sessionId: string, _turn: number, _role: string, _content: unknown) { logger.warn('lancedb', 'saveMessage not implemented — message history disabled'); }
+  getUnextractedMessages(_sessionId: string, _limit: number) { logger.warn('lancedb', 'getUnextractedMessages not implemented'); return []; }
+  markMessagesExtracted(_sessionId: string, _upToTurn: number) { logger.warn('lancedb', 'markMessagesExtracted not implemented'); }
+  getEpisodicMessages(_sessionIds: string[], _nearTime: number, _maxChars: number) { logger.warn('lancedb', 'getEpisodicMessages not implemented'); return []; }
 
-  getMessagesBySession() { logger.warn('[LanceDB] getMessagesBySession not implemented — messages disabled'); return []; }
-  markMessagesArchived() { logger.warn('[LanceDB] markMessagesArchived not implemented — messages disabled'); }
+  getMessagesBySession(_sessionId: string) { logger.warn('lancedb', 'getMessagesBySession not implemented — messages disabled'); return []; }
+  markMessagesArchived(_sessionId: string) { logger.warn('lancedb', 'markMessagesArchived not implemented — messages disabled'); }
 
   updateNodeImportance(_nodeId: string, _importance: number) { /* no-op: LanceDB cache does not persist importance */ }
 
