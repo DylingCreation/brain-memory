@@ -17,13 +17,13 @@
 import { createHash } from 'crypto';
 import type { BmConfig, RecallResult, BmNode, ScopeFilterV2 } from '../types';
 import type { EmbedFn, BatchEmbedFn } from '../engine/embed';
-import type { ScopeFilter } from '../scope/isolation';
-import type { ISearchIndex, ScoredNodeId } from '../store/search/index';
+import type { ISearchIndex } from '../store/search/index';
 import type { IStorageAdapter, StorageFilter } from '../store/adapter';
 import { personalizedPageRank } from '../graph/pagerank';
 import { applyTimeDecay } from '../decay/engine';
 import { estimateNodeTokens } from '../utils/tokens';
 import { logger } from '../utils/logger';
+import { scopeMatchV2 } from '../scope/isolation';
 // B-4: retriever module integration
 import { analyzeIntent } from '../retriever/intent-analyzer';
 import { expandQuery } from '../retriever/query-expander';
@@ -373,26 +373,19 @@ export class Recaller {
 }
 
 function matchesScope(node: BmNode, filter: ScopeFilterV2): boolean {
+  const memScope = {
+    platform: node.scopePlatform,
+    workspace: node.scopeWorkspace,
+    agent: node.scopeAgent,
+    user: node.scopeUser,
+    chat: node.scopeChat,
+    thread: node.scopeThread,
+  };
   for (const ex of filter.excludeScopes) {
-    if (
-      (!ex.platform || node.scopePlatform === ex.platform) &&
-      (!ex.workspace || node.scopeWorkspace === ex.workspace) &&
-      (!ex.agent || node.scopeAgent === ex.agent) &&
-      (!ex.user || node.scopeUser === ex.user) &&
-      (!ex.chat || node.scopeChat === ex.chat) &&
-      (!ex.thread || node.scopeThread === ex.thread)
-    ) return false;
+    if (scopeMatchV2(memScope, ex)) return false;
   }
   if (filter.includeScopes.length > 0) {
-    return filter.includeScopes.some(
-      inc =>
-        (!inc.platform || node.scopePlatform === inc.platform) &&
-        (!inc.workspace || node.scopeWorkspace === inc.workspace) &&
-        (!inc.agent || node.scopeAgent === inc.agent) &&
-        (!inc.user || node.scopeUser === inc.user) &&
-        (!inc.chat || node.scopeChat === inc.chat) &&
-        (!inc.thread || node.scopeThread === inc.thread),
-    );
+    return filter.includeScopes.some(inc => scopeMatchV2(memScope, inc));
   }
   return true;
 }

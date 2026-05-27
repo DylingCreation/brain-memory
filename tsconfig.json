@@ -19,14 +19,13 @@
     "composite": true,
     "paths": {
       "@src/*": ["./src/*"],
-      "@tests/*": ["./tests/*"],
+      "@test/*": ["./test/*"],
       "@utils/*": ["./src/utils/*"],
       "@types/*": ["./src/types/*"]
     }
   },
   "include": [
     "index.ts",
-    "openclaw-plugin.ts",
     "openclaw-register.ts",
     "openclaw-wrapper.ts",
     "src/**/*"

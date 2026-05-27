@@ -13,6 +13,7 @@ import type { IStorageAdapter, StorageFilter } from '../store/adapter';
 import { applyTimeDecay } from '../decay/engine';
 import { expandQuery } from './query-expander';
 import { analyzeIntent } from './intent-analyzer';
+import { estimateNodeTokens } from '../utils/tokens';
 
 function toStorageFilter(filter?: ScopeFilterV2): StorageFilter | undefined {
   if (!filter) return undefined;
@@ -168,9 +169,6 @@ export class VectorRecaller {
   }
 
   private estimateTokens(nodes: BmNode[]): number {
-    const chineseRatio = nodes.reduce((s, n) => s + (n.content.match(/[\u4e00-\u9fff]/g) || []).length, 0) /
-      nodes.reduce((s, n) => s + n.content.length, 1);
-    const charsPerToken = chineseRatio > 0.5 ? 1.8 : chineseRatio > 0.2 ? 2.5 : 3.5;
-    return Math.ceil(nodes.reduce((s, n) => s + n.content.length + n.description.length + n.name.length, 0) / charsPerToken) + nodes.length * 20;
+    return nodes.reduce((s, n) => s + estimateNodeTokens(n), 0);
   }
 }

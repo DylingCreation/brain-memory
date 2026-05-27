@@ -6,8 +6,9 @@
  */
 
 import type { UiServerContext } from '../server';
+import type { Context } from 'hono';
 
-type HonoHandler = (c: any) => any;
+type HonoHandler = (c: Context) => Response | Promise<Response>;
 
 export function createNodesController(ctx: UiServerContext) {
   const { storage } = ctx;
@@ -51,7 +52,7 @@ export function createNodesController(ctx: UiServerContext) {
     const nodes = all.slice(offset, offset + limit);
 
     // 简化返回（过滤掉大 content 字段，可单独通过 detail 拉取）
-    const rows = nodes.map((n: any) => ({
+    const rows = nodes.map((n) => ({
       id: n.id,
       type: n.type,
       category: n.category,
@@ -123,7 +124,7 @@ export function createNodesEditController(ctx: UiServerContext) {
       name: body.name,
       description: body.description || '',
       content: body.content || '',
-      source: 'manual' as any,
+      source: 'manual',
       scopePlatform: body.scopePlatform || null,
       scopeAgent: body.scopeAgent || null,
       scopeUser: body.scopeUser || null,

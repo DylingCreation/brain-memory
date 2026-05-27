@@ -1,6 +1,5 @@
 import { type DatabaseSyncInstance } from '@photostructure/sqlite';
-import { createHash } from 'crypto';
-import type { BmNode, BmEdge, EdgeType, GraphNodeType, MemoryCategory, NodeStatus, ScopeFilterV2 } from '../../types';
+import type { BmNode, BmEdge, GraphNodeType, MemoryCategory, ScopeFilterV2 } from '../../types';
 import type { ScopeFilter } from '../../scope/isolation';
 import { buildScopeFilterClause, buildScopeFilterClauseV2 } from '../../scope/isolation';
 import { uid, toNode, toEdge, normalizeName, type SqlRow } from './_helpers';

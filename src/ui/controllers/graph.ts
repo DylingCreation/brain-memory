@@ -6,8 +6,9 @@
  */
 
 import type { UiServerContext } from '../server';
+import type { Context } from 'hono';
 
-type HonoHandler = (c: any) => any;
+type HonoHandler = (c: Context) => Response | Promise<Response>;
 
 export function createGraphController(ctx: UiServerContext) {
   const { storage } = ctx;

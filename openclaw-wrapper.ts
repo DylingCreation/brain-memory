@@ -12,24 +12,9 @@
  */
 
 // Import the plugin implementation
-import createBrainMemoryPlugin, { BrainMemoryPluginCore as BrainMemoryPluginClass, createBrainMemoryPluginCore } from './openclaw-plugin';
+import createBrainMemoryPlugin, { BrainMemoryPluginCore as BrainMemoryPluginClass } from './src/plugin/core';
 
 // Define simple message type for OpenClaw compatibility
-interface Message {
-  sessionId: string;
-  agentId?: string;
-  workspaceId?: string;
-  content: any;
-  role?: string;
-}
-
-interface SessionEvent {
-  sessionId: string;
-  agentId?: string;
-  workspaceId?: string;
-  messages?: Message[];
-}
-
 // Import the full DEFAULT_CONFIG from types (contains all nested BmConfig fields)
 import { DEFAULT_CONFIG as FULL_DEFAULT_CONFIG } from './src/types';
 import { logger } from './src/utils/logger';
@@ -38,7 +23,7 @@ import { logger } from './src/utils/logger';
 let pluginInstance: BrainMemoryPluginClass | null = null;
 
 // Store configuration globally for access in hooks
-let storedConfig: any = null;
+let storedConfig: Record<string, unknown> | null = null;
 
 // Initialization guard (#8 fix):
 // - initPromise: tracks the active initialization promise
@@ -53,7 +38,7 @@ let initComplete = false;
 // Also keyed by sessionId for backward compatibility with existing cached data.
 // #8 fix: bounded cache to prevent memory leak from unbounded sessionId accumulation.
 const MEMORY_CACHE_MAX_SIZE = 200;
-const sessionMemoryCache = new Map<string, any>();
+const sessionMemoryCache = (new Map() as Map<string, unknown>);
 
 // Session message buffer for session_end reflection.
 // OpenClaw's session_end hook does not provide message history,
@@ -133,7 +118,7 @@ let registered = false;
  * NOTE: This must be a synchronous function because OpenClaw does not await promises
  * returned from register(). Async code after the first await will be ignored.
  */
-export function register(api: any) {
+export function register(api: Record<string, unknown>) {
   if (registered) {
     console.log('[brain-memory] register() already called, skipping duplicate invocation');
     return;
@@ -170,7 +155,7 @@ export function register(api: any) {
     'session_start',
     'session_end',
   ] as const;
-  const hookHandlers: Record<string, (...args: any[]) => any> = {
+  const hookHandlers: Record<string, (...args: unknown[]) => unknown> = {
     message_received,
     message_sent,
     message_sending,
@@ -195,7 +180,7 @@ export function register(api: any) {
   return {
     id: 'brain-memory',
     name: 'Brain Memory',
-    version: '1.0.0',
+    version: '2.0.0',
     description: 'Unified knowledge graph + vector memory system for AI agents',
     author: 'OpenClaw Team',
     license: 'MIT',
@@ -208,7 +193,7 @@ export function register(api: any) {
  * The `config` parameter comes from OpenClaw (merged from configSchema defaults + user overrides).
  * Merge it with FULL_DEFAULT_CONFIG to ensure all nested fields are present.
  */
-export async function init(config: any) {
+export async function init(config: Record<string, unknown>) {
   try {
     console.log('[brain-memory] Initializing plugin...');
 
@@ -238,7 +223,7 @@ export async function init(config: any) {
 /**
  * Activate the plugin
  */
-export async function activate(api: any) {
+export async function activate(_api: Record<string, unknown>) {
   try {
     console.log('[brain-memory] Activating plugin...');
 
@@ -285,7 +270,7 @@ export async function deactivate() {
  * This function detects which format is used and extracts
  * consistent fields: sessionId, agentId, content, channel, etc.
  */
-function normalizeHookArgs(args: any[]): {
+function normalizeHookArgs(args: unknown[]): {
   sessionId: string;
   agentId: string;
   workspaceId: string;
@@ -296,7 +281,7 @@ function normalizeHookArgs(args: any[]): {
   userId?: string;
   chatId?: string;
   threadId?: string;
-  rawEvent: any;
+  rawEvent: Record<string, unknown>;
 } {
   // (event, ctx) format — the only format used by OpenClaw 2026.5.x
   // InternalHookEvent branch removed (deprecated: relied on 'type' field which caused path ambiguity)
@@ -324,8 +309,8 @@ function normalizeHookArgs(args: any[]): {
  *   - (event: InternalHookEvent) — canonical
  *   - (event: any, ctx: any) — legacy
  */
-export async function message_received(...args: any[]) {
-  const { sessionId, agentId, workspaceId, content, platform, userId, chatId, threadId } = normalizeHookArgs(args);
+export async function message_received(...args: unknown[]) {
+  const { sessionId, agentId, workspaceId, content } = normalizeHookArgs(args);
   // #8 fix: check initPromise first, not pluginInstance.
   // Old code checked pluginInstance which was assigned BEFORE init() completed,
   // creating a race window where concurrent hooks saw a ready-but-not-ready instance.
@@ -400,7 +385,7 @@ export const handleMessage = message_received;
  * not just what the user asked, but also what the AI answered,
  * recommended, or committed to.
  */
-export async function message_sent(...args: any[]) {
+export async function message_sent(...args: unknown[]) {
   const { sessionId, agentId, workspaceId, content, platform, userId, chatId, threadId } = normalizeHookArgs(args);
   // #8 fix: check initPromise first (same race condition guard as message_received)
   if (initPromise) {
@@ -443,7 +428,7 @@ export async function message_sent(...args: any[]) {
     const EXTRACTION_TIMEOUT_MS = 5000;
     const contentPreview = (aiMessage?.content || '').slice(0, 200);
     const extractionPromise = (async () => {
-      const result = await pluginInstance!.handleMessage(aiMessage) as any;
+      const result = await pluginInstance!.handleMessage(aiMessage) as Record<string, unknown>;
       logger.debug('wrapper', `AI reply extracted: ${result?.extractedNodes?.length || 0} nodes, ${result?.extractedEdges?.length || 0} edges`);
     })();
 
@@ -463,7 +448,7 @@ export async function message_sent(...args: any[]) {
 /**
  * Handle session start
  */
-export async function session_start(...args: any[]) {
+export async function session_start(...args: unknown[]) {
   const { sessionId, agentId, workspaceId } = normalizeHookArgs(args);
   // #8 fix: check initPromise first
   if (initPromise) {
@@ -534,7 +519,7 @@ export const onSessionStart = session_start;
 /**
  * Handle session end
  */
-export async function session_end(...args: any[]) {
+export async function session_end(...args: unknown[]) {
   const { sessionId, agentId, workspaceId } = normalizeHookArgs(args);
   // #8 fix: check initPromise first
   if (initPromise) {
@@ -552,13 +537,6 @@ export async function session_end(...args: any[]) {
     // Use buffered session messages for reflection (OpenClaw's session_end hook
     // does not provide message history, so we collect them during the session)
     const messages = drainSessionMessages(sessionId);
-
-    const sessionEvent = {
-      sessionId,
-      agentId,
-      workspaceId,
-      messages
-    };
 
     console.log(`[brain-memory] Session ${sessionId} ended with ${messages.length} messages for reflection`);
 
@@ -593,7 +571,7 @@ export const onSessionEnd = session_end;
  * and handle any memory injection asynchronously without blocking the message flow.
  * However, we can attach cached memories if available.
  */
-export function message_sending(...args: any[]) {
+export function message_sending(...args: unknown[]) {
   const { sessionId, agentId, rawEvent } = normalizeHookArgs(args);
   // Synchronous hook — cannot await initialization.
   // #8 fix: only use cache if plugin is fully initialized (initComplete guard).
@@ -623,7 +601,7 @@ export function message_sending(...args: any[]) {
       ...rawEvent,
       memoryContext: cachedMemoryContext,
       // Optionally modify the content to include memory hints
-      content: (rawEvent as any)?.content || ''
+      content: (rawEvent as Record<string, unknown>)?.content || ''
     };
   }
 
@@ -641,7 +619,7 @@ export const beforeMessageSend = message_sending;
 /**
  * Get memory context
  */
-export async function getMemoryContext(message: any) {
+export async function getMemoryContext(message: Record<string, unknown>) {
   if (!pluginInstance) {
     console.warn('[brain-memory] Plugin not initialized');
     return null;

@@ -9,7 +9,7 @@ import type { BmConfig, BmNode, MemoryScopeV2 } from '../types';
 import { assembleContext } from '../format/assemble';
 import { logger } from '../utils/logger';
 import { createCompleteFn } from '../engine/llm';
-import { createUiServer, type UiServerConfig } from '../ui/server';
+import { createUiServer } from '../ui/server';
 
 // Define minimal OpenClaw plugin interfaces
 export interface Message {
@@ -98,7 +98,7 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
         if (storage) {
           this.uiServer = createUiServer(storage, {
             port: this.config.uiPort || 0,
-            authToken: (this.config as any)._gatewayToken,
+            authToken: (this.config as Record<string, unknown>)._gatewayToken as string,
           });
           const port = this.uiServer.start();
           logger.info('plugin', `Web UI started on port ${port}`);
@@ -116,8 +116,8 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
               const start = Date.now();
               await llm('ping', 'ok');
               logger.info('plugin', `LLM connectivity check passed (${Date.now() - start}ms)`);
-            } catch (err: any) {
-              logger.warn('plugin', `LLM connectivity check failed — extraction/injection will fall back to heuristic: ${err.message}`);
+            } catch (err: unknown) {
+              logger.warn('plugin', `LLM connectivity check failed — extraction/injection will fall back to heuristic: ${(err as Error).message}`);
             }
           })();
         }
@@ -213,12 +213,12 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
 
       // v2.0: 构建六层 scope
       const scope: MemoryScopeV2 = {
-        platform: (message as any).platform ?? null,
+        platform: message.platform ?? null,
         workspace: message.workspaceId ?? null,
         agent: message.agentId ?? null,
-        user: (message as any).userId ?? null,
-        chat: (message as any).chatId ?? message.sessionId ?? null,
-        thread: (message as any).threadId ?? null,
+        user: message.userId ?? null,
+        chat: message.chatId ?? message.sessionId ?? null,
+        thread: message.threadId ?? null,
       };
 
       // Query relevant memories for this conversation
@@ -270,12 +270,12 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
     if (!this.engine) return null;
     try {
       const scope: MemoryScopeV2 = {
-        platform: (message as any).platform ?? null,
+        platform: message.platform ?? null,
         workspace: message.workspaceId ?? null,
         agent: message.agentId ?? null,
-        user: (message as any).userId ?? null,
-        chat: (message as any).chatId ?? message.sessionId ?? null,
-        thread: (message as any).threadId ?? null,
+        user: message.userId ?? null,
+        chat: message.chatId ?? message.sessionId ?? null,
+        thread: message.threadId ?? null,
       };
       const recallResult = await this.engine.recall(
         message.content.toString(),
@@ -351,7 +351,7 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
     this._healthCheckAbort = null;
 
     if (this.uiServer) {
-      try { await this.uiServer.stop(); } catch {}
+      try { await this.uiServer.stop(); } catch { /* shutdown: ignore stop errors */ }
       this.uiServer = null;
     }
     if (this.engine) {

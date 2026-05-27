@@ -3,9 +3,11 @@
  *
  * Evaluates long session value and compresses low-value parts,
  * keeping key decisions and conclusions.
+ *
+ * v2.1.0: Migrated from DatabaseSyncInstance to IStorageAdapter.
  */
 
-import type { DatabaseSyncInstance } from '@photostructure/sqlite';
+import type { IStorageAdapter } from '../store/adapter';
 import type { CompleteFn } from '../engine/llm';
 
 export interface SessionValue {
@@ -25,24 +27,12 @@ export interface SessionValue {
  * - Message count (longer ≠ more valuable)
  */
 export function evaluateSessionValue(
-  db: DatabaseSyncInstance,
+  storage: IStorageAdapter,
   sessionId: string,
 ): SessionValue {
-  const msgCount = db.prepare(
-    'SELECT COUNT(*) as c FROM bm_messages WHERE session_id=?'
-  ).get(sessionId) as Record<string, unknown>;
-
-  const nodeCount = db.prepare(
-    'SELECT COUNT(*) as c FROM bm_nodes WHERE source_sessions LIKE ?'
-  ).get(`%${sessionId}%`) as Record<string, unknown>;
-
-  const edgeCount = db.prepare(
-    'SELECT COUNT(*) as c FROM bm_edges WHERE session_id=?'
-  ).get(sessionId) as Record<string, unknown>;
-
-  const messages = (msgCount?.c as number) ?? 0;
-  const nodes = (nodeCount?.c as number) ?? 0;
-  const edges = (edgeCount?.c as number) ?? 0;
+  const messages = storage.countMessagesBySession(sessionId);
+  const nodes = storage.countNodesBySession(sessionId);
+  const edges = storage.countEdgesBySession(sessionId);
 
   // Value score: knowledge density > message count
   // High value: many nodes/edges per message
@@ -51,10 +41,11 @@ export function evaluateSessionValue(
   const valueScore = Math.min(1, knowledgeDensity / 0.5); // Normalize: 0.5 density = max score
 
   let compressRecommendation: 'keep' | 'compress' | 'archive';
-  if (valueScore < 0.2 && messages > 20) {
-    compressRecommendation = 'compress';
-  } else if (valueScore < 0.1 && messages > 50) {
+  // Check stricter conditions first: archive requires both lower score AND more messages
+  if (valueScore < 0.1 && messages > 50) {
     compressRecommendation = 'archive';
+  } else if (valueScore < 0.2 && messages > 20) {
+    compressRecommendation = 'compress';
   } else {
     compressRecommendation = 'keep';
   }
@@ -62,7 +53,7 @@ export function evaluateSessionValue(
   return {
     sessionId,
     messageCount: messages,
-    estimatedTokens: messages * 50, // Rough estimate — kept for backward compat (no message content available here)
+    estimatedTokens: messages * 50,
     knowledgeNodes: nodes,
     knowledgeEdges: edges,
     valueScore,
@@ -73,17 +64,13 @@ export function evaluateSessionValue(
 /**
  * Compress a session's messages by extracting key decisions and conclusions.
  * Uses LLM to summarize the session while preserving critical information.
- * All database queries use parameterized binding (no SQL injection risk).
  */
 export async function compressSession(
-  db: DatabaseSyncInstance,
+  storage: IStorageAdapter,
   sessionId: string,
   llm: CompleteFn,
 ): Promise<{ compressed: boolean; summary: string }> {
-  // Get all messages for the session
-  const messages = db.prepare(
-    'SELECT role, content FROM bm_messages WHERE session_id=? ORDER BY turn_index'
-  ).all(sessionId) as Record<string, unknown>[];
+  const messages = storage.getMessagesBySession(sessionId);
 
   if (messages.length < 10) {
     return { compressed: false, summary: 'Session too short to compress' };
@@ -104,7 +91,6 @@ export async function compressSession(
 返回简洁的结构化摘要，不超过 500 字。`;
 
   try {
-    // #16 fix: keep head + tail instead of just head (decisions are often at the end)
     const MAX_CHARS = 12000;
     let sessionText: string;
     if (text.length > MAX_CHARS) {
@@ -119,24 +105,19 @@ export async function compressSession(
     const summary = await llm(sysPrompt, sessionText);
 
     // Store the compressed summary as a special node
-    // All values are bound via parameterized query (? placeholders) — safe from SQL injection
-    const now = Date.now();
     const nodeId = `session-summary-${sessionId}`;
-    db.prepare(`
-      INSERT INTO bm_nodes (id, type, category, name, description, content, status, validated_count, source_sessions, created_at, updated_at, temporal_type)
-      VALUES (?, 'TASK', 'tasks', ?, ?, ?, 'active', 1, ?, ?, ?, 'static')
-    `).run(
-      nodeId,
-      nodeId,
-      'Compressed session summary',
-      summary,
-      JSON.stringify([sessionId]),
-      now,
-      now,
-    );
+    storage.upsertNode({
+      type: 'TASK',
+      category: 'tasks',
+      name: nodeId,
+      description: 'Compressed session summary',
+      content: summary,
+      source: 'assistant',
+      temporalType: 'static',
+    }, sessionId);
 
-    // Mark messages as compressed
-    db.prepare('UPDATE bm_messages SET extracted=2 WHERE session_id=? AND extracted=1').run(sessionId);
+    // Mark messages as compressed (archived)
+    storage.markMessagesArchived(sessionId);
 
     return { compressed: true, summary };
   } catch (err) {

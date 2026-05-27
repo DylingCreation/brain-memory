@@ -138,6 +138,20 @@ export interface StorageStats {
 // ─── IStorageAdapter Interface ─────────────────────────────────
 
 /**
+ * Capability flags for storage backends.
+ * Allows upper layers (ContextEngine, etc.) to gracefully degrade
+ * when a backend lacks certain features (e.g. LanceDB without communities).
+ */
+export interface StorageCapabilities {
+  communities: boolean;
+  messages: boolean;
+  vector: boolean;
+  ftsSearch: boolean;
+  graphTraversal: boolean;
+  reflections: boolean;
+}
+
+/**
  * Storage abstraction for brain-memory.
  *
  * All database operations (CRUD, graph queries, vector search, messages)
@@ -145,6 +159,8 @@ export interface StorageStats {
  * depend on the interface, not on SQLite.
  */
 export interface IStorageAdapter {
+  /** Capability flags — callers check these before invoking unsupported features. */
+  readonly capabilities: StorageCapabilities;
   // ─── Lifecycle ───────────────────────────────────────────
 
   /** Initialize storage: create tables, indexes, run migrations. Maps to initDb(). */
@@ -297,6 +313,28 @@ export interface IStorageAdapter {
 
   /** Get episodic message snippets near a timestamp, within a character budget. */
   getEpisodicMessages(sessionIds: string[], nearTime: number, maxChars: number): EpisodicSnippet[];
+
+  /** Get all messages for a session (not just unextracted), ordered by turn_index. */
+  getMessagesBySession(sessionId: string): MessageRow[];
+
+  /** Mark all extracted messages in a session as archived (extracted=2). */
+  markMessagesArchived(sessionId: string): void;
+
+  // ─── Node Metadata Updates ──────────────────────────────
+
+  /** Update a node's importance score directly. */
+  updateNodeImportance(nodeId: string, importance: number): void;
+
+  // ─── Session-Level Statistics ───────────────────────────
+
+  /** Count messages in a session. */
+  countMessagesBySession(sessionId: string): number;
+
+  /** Count nodes created from a session (via source_sessions LIKE). */
+  countNodesBySession(sessionId: string): number;
+
+  /** Count edges created in a session. */
+  countEdgesBySession(sessionId: string): number;
 
   // ─── Statistics & Metadata ───────────────────────────────
 

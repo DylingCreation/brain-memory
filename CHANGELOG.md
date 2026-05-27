@@ -9,6 +9,42 @@ All notable changes to the brain-memory project.
 
 ## [Unreleased]
 
+## [2.0.1] — 2026-05-27
+
+> **版本主题**: 代码审查修复 — 103 个问题（3 P0 + 32 P1 + 37 P2 + 31 P3）全部解决
+
+### Fixed — Phase 1 止血 (9 项)
+- **安全**: GitHub Token 吊销 (M1-P0-1)
+- **数据完整性**: scope_id 迁移算法修复 — 从 hex(CONCAT) 改为 sha256 (M3-P0-1)
+- **质量门**: Lint 从 64 errors → 0 (M9-P0-1)
+- **清理**: 删除死文件 openclaw-plugin.js (M2-P0-1)
+- **一致性**: 版本号统一为 2.0.0 + check:versions 脚本 (M2-P1-2)
+- **测试工程**: 测试目录重组为 unit/integration/performance/e2e (M1-P1-3)
+- **配置**: core-only.tsconfig 不存在文件引用修复 (M1-P1-2)
+- **配置**: tsconfig 路径别名 @test 修正 (M1-P1-4)
+- **逻辑**: evaluateSessionValue archive 分支永不可达修复 (M5-P1-1)
+
+### Refactored — Phase 2 治本 (8 项)
+- **Scope 统一**: 4 处独立 scope 匹配实现 → 统一为 scopeMatchV2 (M1/M3/M6/M7)
+- **ContextEngine 拆分**: 656 行上帝对象 → 4 个领域服务 (Extraction/Recall/Maintenance/Health)
+- **IStorageAdapter 完善**: +6 方法 + 能力标志位 + LanceDB stub 警告 (M3/M5/M7)
+- **测试补盲**: 4 个零覆盖关键模块 → 全部覆盖 (SQLiteAdapter/Pipeline/Community/Scope)
+- **cosine 统一**: 3 处独立实现 → utils/similarity.ts (M4/M5/M8)
+- **token 估算统一**: 3 种 → estimateNodeTokens (M6)
+- **source 类型修复**: 'manual' 类型补齐 (M3-P1-2)
+- **冗余清理**: toNode 重复定义删除 (-42行) + 桥接层合并 + tsconfig 5→3
+
+### Changed — Phase 3 加固
+- **CI**: 新增 lint/check:versions/coverage 步骤
+- **安全**: .env.example 安全提示
+- **架构**: reflection/store.ts + compressor.ts 迁移到 IStorageAdapter
+- **文档**: 非确定性模式调查报告 + Reflection/Compressor 迁移规划
+
+### Known Issues (预存)
+- integration.test.ts: mock 缺少 getAllCommunities
+- embedding-integration.test.ts: 需本地 Ollama 运行
+- 性能基准测试: perf-1k/perf-tiered/c7-baseline 偶发 flaky
+
 ## [2.0.0] — 2026-05-24
 
 > **版本主题**：六层 Scope 隔离 — 解决记忆"串台"问题

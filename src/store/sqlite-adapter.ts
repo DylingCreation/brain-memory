@@ -8,10 +8,10 @@
  */
 
 import { type DatabaseSyncInstance } from '@photostructure/sqlite';
-import type { BmNode, BmEdge, EdgeType, MemoryCategory, GraphNodeType, NodeStatus } from '../types';
-import type { ScopeFilter } from '../scope/isolation';
+import type { BmNode, BmEdge, EdgeType, MemoryCategory } from '../types';
+import type { ScopeFilter, MemoryScope } from '../scope/isolation';
 import { initDb, getDbPath } from './db';
-import { buildScopeFilterClauseV2 } from '../scope/isolation';
+import { toNode } from './storage/_helpers';
 import { getSchemaVersion } from './migrate';
 
 // ─── SQL Row Type ──────────────────────────────────────────────
@@ -37,8 +37,8 @@ import type {
 function scopeFilterToStorageFilter(filter?: StorageFilter): ScopeFilter | undefined {
   if (!filter) return undefined;
   return {
-    includeScopes: (filter.includeScopes ?? []).map(s => ({ sessionId: s.sessionId, agentId: s.agentId, workspaceId: s.workspaceId } as any)),
-    excludeScopes: (filter.excludeScopes ?? []).map(s => ({ sessionId: s.sessionId, agentId: s.agentId, workspaceId: s.workspaceId } as any)),
+    includeScopes: (filter.includeScopes ?? []).map(s => ({ sessionId: s.sessionId, agentId: s.agentId, workspaceId: s.workspaceId } as MemoryScope)),
+    excludeScopes: (filter.excludeScopes ?? []).map(s => ({ sessionId: s.sessionId, agentId: s.agentId, workspaceId: s.workspaceId } as MemoryScope)),
     allowCrossScope: !!filter.sharingMode && filter.sharingMode !== 'isolated',
     sharingMode: filter.sharingMode,
     sharedCategories: filter.sharedCategories,
@@ -62,48 +62,21 @@ function extractScopeFilterV2(filter?: StorageFilter): import('../types').ScopeF
   };
 }
 
-/** Build v2 scope WHERE clause from StorageFilter (returns null if no v2 scope). */
-function buildV2ScopeClause(filter?: StorageFilter): { clause: string; params: (string | null)[] } | null {
-  const v2 = extractScopeFilterV2(filter);
-  return v2 ? buildScopeFilterClauseV2(v2) : null;
-}
 
-/** Convert raw DB row to BmNode (copied from store.ts to avoid circular import). */
-function toNodeFromRaw(r: SqlRow): BmNode {
-  return {
-    id: r.id as string, type: r.type as GraphNodeType, category: ((r.category || typeToCategory(r.type as string)) as MemoryCategory),
-    name: r.name as string, description: (r.description as string) ?? '', content: r.content as string,
-    status: r.status as NodeStatus, validatedCount: r.validated_count as number,
-    sourceSessions: JSON.parse((r.source_sessions as string) ?? '[]'),
-    communityId: (r.community_id as string) ?? null, pagerank: (r.pagerank as number) ?? 0,
-    importance: (r.importance as number) ?? 0.5, accessCount: (r.access_count as number) ?? 0,
-    lastAccessedAt: (r.last_accessed as number) ?? 0,
-    temporalType: ((r.temporal_type as string) ?? 'static') as 'static' | 'dynamic',
-    source: (r.source as string) as 'user' | 'assistant',
-    // v2.0 六层 scope 字段
-    scopePlatform: (r.scope_platform as string) ?? null,
-    scopeWorkspace: (r.scope_workspace as string) ?? null,
-    scopeAgent: (r.scope_agent as string) ?? null,
-    scopeUser: (r.scope_user as string) ?? null,
-    scopeChat: ((r.scope_chat as string) ?? (r.scope_session as string)) ?? null,
-    scopeThread: (r.scope_thread as string) ?? null,
-    scopeId: (r.scope_id as string) ?? null,
-    // @deprecated v1.x 旧字段（兼容）
-    scopeSession: (r.scope_session as string) ?? null,
-    createdAt: r.created_at as number, updatedAt: r.updated_at as number,
-  };
-}
-
-function typeToCategory(type: string): MemoryCategory {
-  if (type === 'TASK') return 'tasks';
-  if (type === 'SKILL') return 'skills';
-  return 'events';
-}
 
 /**
  * SQLite-backed implementation of IStorageAdapter.
  */
 export class SQLiteStorageAdapter implements IStorageAdapter {
+  readonly capabilities = {
+    communities: true,
+    messages: true,
+    vector: true,
+    ftsSearch: true,
+    graphTraversal: true,
+    reflections: true,
+  } as const;
+
   private db: DatabaseSyncInstance | null = null;
   private dbPath: string;
   private initialized = false;
@@ -309,7 +282,7 @@ export class SQLiteStorageAdapter implements IStorageAdapter {
       if (!byCommunity.has(cid)) byCommunity.set(cid, []);
       if (byCommunity.get(cid)!.length < perCommunity) byCommunity.get(cid)!.push(r);
     }
-    return Array.from(byCommunity.values()).flat().map(toNodeFromRaw);
+    return Array.from(byCommunity.values()).flat().map(toNode);
   }
 
   // ─── Messages ────────────────────────────────────────────
@@ -328,6 +301,44 @@ export class SQLiteStorageAdapter implements IStorageAdapter {
 
   getEpisodicMessages(sessionIds: string[], nearTime: number, maxChars: number): EpisodicSnippet[] {
     return getEpisodicMessagesStore(this.assertDb(), sessionIds, nearTime, maxChars);
+  }
+
+  getMessagesBySession(sessionId: string): MessageRow[] {
+    const db = this.assertDb();
+    return db.prepare('SELECT * FROM bm_messages WHERE session_id=? ORDER BY turn_index')
+      .all(sessionId) as unknown as MessageRow[];
+  }
+
+  markMessagesArchived(sessionId: string): void {
+    this.assertDb().prepare('UPDATE bm_messages SET extracted=2 WHERE session_id=? AND extracted=1')
+      .run(sessionId);
+  }
+
+  // ─── Node Metadata Updates ──────────────────────────────
+
+  updateNodeImportance(nodeId: string, importance: number): void {
+    this.assertDb().prepare('UPDATE bm_nodes SET importance=?, updated_at=? WHERE id=?')
+      .run(Math.min(1.0, Math.max(0, importance)), Date.now(), nodeId);
+  }
+
+  // ─── Session-Level Statistics ───────────────────────────
+
+  countMessagesBySession(sessionId: string): number {
+    const row = this.assertDb().prepare('SELECT COUNT(*) as c FROM bm_messages WHERE session_id=?')
+      .get(sessionId) as Record<string, unknown>;
+    return (row?.c as number) ?? 0;
+  }
+
+  countNodesBySession(sessionId: string): number {
+    const row = this.assertDb().prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE source_sessions LIKE ?')
+      .get(`%${sessionId}%`) as Record<string, unknown>;
+    return (row?.c as number) ?? 0;
+  }
+
+  countEdgesBySession(sessionId: string): number {
+    const row = this.assertDb().prepare('SELECT COUNT(*) as c FROM bm_edges WHERE session_id=?')
+      .get(sessionId) as Record<string, unknown>;
+    return (row?.c as number) ?? 0;
   }
 
   // ─── Statistics & Metadata ───────────────────────────────
@@ -359,18 +370,18 @@ export class SQLiteStorageAdapter implements IStorageAdapter {
       vectorCount, communityCount,
       schemaVersion: getSchemaVersion(db),
       byType: {
-        task: db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE type='TASK'").get()['c'] as number,
-        skill: db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE type='SKILL'").get()['c'] as number,
-        event: db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE type='EVENT'").get()['c'] as number,
+        task: db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE type=\'TASK\'').get()['c'] as number,
+        skill: db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE type=\'SKILL\'').get()['c'] as number,
+        event: db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE type=\'EVENT\'').get()['c'] as number,
       },
       byTemporalType: {
-        static: db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE temporal_type='static'").get()['c'] as number,
-        dynamic: db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE temporal_type='dynamic'").get()['c'] as number,
+        static: db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE temporal_type=\'static\'').get()['c'] as number,
+        dynamic: db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE temporal_type=\'dynamic\'').get()['c'] as number,
       },
       bySource: {
-        user: db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE source='user'").get()['c'] as number,
-        assistant: db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE source='assistant'").get()['c'] as number,
-        manual: db.prepare("SELECT COUNT(*) as c FROM bm_nodes WHERE source='manual'").get()['c'] as number,
+        user: db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE source=\'user\'').get()['c'] as number,
+        assistant: db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE source=\'assistant\'').get()['c'] as number,
+        manual: db.prepare('SELECT COUNT(*) as c FROM bm_nodes WHERE source=\'manual\'').get()['c'] as number,
       },
     };
   }

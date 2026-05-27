@@ -5,12 +5,12 @@
  * PUT /api/config   → 保存配置到 openclaw.json
  */
 
-import { readFileSync, writeFileSync, existsSync, renameSync, copyFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, statSync, renameSync, copyFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { homedir } from 'os';
-import type { UiServerContext } from '../server';
+import type { Context } from 'hono';
 
-type HonoHandler = (c: any) => any;
+type HonoHandler = (c: Context) => Response | Promise<Response>;
 
 // ─── Config path resolution ───────────────────────────────
 
@@ -28,7 +28,7 @@ function resolveConfigPath(): string {
 
 // ─── Safe JSON5-ish parse (handles comments + trailing commas) ──
 
-function parseOpenClawConfig(raw: string): any {
+function parseOpenClawConfig(raw: string): Record<string, unknown> {
   // 去除单行注释
   let cleaned = raw.replace(/\/\/.*$/gm, '');
   // 去除尾逗号
@@ -50,7 +50,7 @@ export function createConfigController(ctx: UiServerContext) {
       const bmConfig = config?.plugins?.entries?.['brain-memory']?.config || {};
 
       // 读取 configSchema 从 openclaw.plugin.json
-      let schema: any = {};
+      let schema: Record<string, unknown> = {};
       try {
         const pluginJsonPath = join(dirname(configPath), '..', 'plugins', 'brain-memory', 'openclaw.plugin.json');
         const altPath = join(process.cwd(), 'openclaw.plugin.json');
@@ -60,18 +60,18 @@ export function createConfigController(ctx: UiServerContext) {
             break;
           }
         }
-      } catch {}
+      } catch { /* config schema read may fail if plugin.json not installed */ }
 
       return c.json({
         config: bmConfig,
         schema,
         source: configPath,
         lastModified: existsSync(configPath)
-          ? new Date((require('fs').statSync(configPath)).mtimeMs).toISOString()
+          ? new Date(statSync(configPath).mtimeMs).toISOString()
           : '',
       });
-    } catch (e: any) {
-      return c.json({ error: e.message }, 500);
+    } catch (e) {
+      return c.json({ error: String(e instanceof Error ? e.message : e) }, 500);
     }
   };
 
@@ -89,7 +89,7 @@ export function createConfigController(ctx: UiServerContext) {
 
       // 备份
       const bak = `${configPath}.bak`;
-      try { copyFileSync(configPath, bak); } catch {}
+      try { copyFileSync(configPath, bak); } catch { /* backup may fail if disk full — non-fatal */ }
 
       // 深度合并 brain-memory 配置
       if (!config.plugins) config.plugins = {};
@@ -115,8 +115,8 @@ export function createConfigController(ctx: UiServerContext) {
         requiresRestart: true,
         diff: { changed, unchanged: 'other' },
       });
-    } catch (e: any) {
-      return c.json({ error: e.message }, 500);
+    } catch (e) {
+      return c.json({ error: String(e instanceof Error ? e.message : e) }, 500);
     }
   };
 

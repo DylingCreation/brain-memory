@@ -10,24 +10,12 @@
 
 import type { BmConfig } from '../types';
 import type { IStorageAdapter } from '../store/adapter';
+import { cosineSimilarityF32 } from '../utils/similarity';
 
 /** 去重结果：包含重复节点对和合并数量。 */
 export interface DedupResult {
   pairs: Array<{ nodeA: string; nodeB: string; nameA: string; nameB: string; similarity: number }>;
   merged: number;
-}
-
-function cosineSim(a: Float32Array, b: Float32Array): number {
-  const len = Math.min(a.length, b.length);
-  let dot = 0, normA = 0, normB = 0;
-  for (let i = 0; i < len; i++) {
-    if (a[i] !== undefined && b[i] !== undefined) {
-      dot += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-  }
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB) + 1e-9);
 }
 
 /**
@@ -75,7 +63,7 @@ export function detectDuplicates(storage: IStorageAdapter, cfg: BmConfig): Dedup
         const vecA = vectors[aIdx]?.embedding;
         const vecB = vectors[bIdx]?.embedding;
         if (!vecA || !vecB) continue;
-        const sim = cosineSim(vecA, vecB);
+        const sim = cosineSimilarityF32(vecA, vecB);
         if (sim >= threshold) {
           const nodeIdA = vectors[aIdx]?.nodeId;
           const nodeIdB = vectors[bIdx]?.nodeId;

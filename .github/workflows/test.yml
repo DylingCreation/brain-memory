@@ -23,7 +23,20 @@ jobs:
           node-version: ${{ matrix.node-version }}
 
       - run: npm ci
+
+      - name: Check version consistency
+        run: npm run check:versions
+
+      - name: Lint (0 errors gate)
+        run: npm run lint
+
       - run: npm run build
+
       - run: npm test
+        env:
+          BM_LLM_TEST: "0"
+
+      - name: Coverage (text summary only)
+        run: npm run test:coverage
         env:
           BM_LLM_TEST: "0"

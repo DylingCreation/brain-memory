@@ -31,7 +31,6 @@ export default defineConfig({
         '*.template.ts',
         'index.ts',
         'vitest.config.ts',
-        'openclaw-plugin.ts',
         'openclaw-register.ts',
       ]
     },

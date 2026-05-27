@@ -48,11 +48,6 @@ export class MaintenancePipeline {
   }
 }
 
-// ─── Wrappers ────────────────────────────────────────────
-
-const wrap = <T>(fn: () => T): (() => Promise<void>) => async () => { fn(); };
-const wrapAsync = (fn: () => Promise<unknown>): (() => Promise<void>) => async () => { await fn(); };
-
 // ─── Decay archiving ─────────────────────────────────────
 
 const DECAY_THRESHOLD = 0.25;
@@ -105,9 +100,9 @@ export async function runMaintenance(
     pagerankResult = pr.skipped
       ? { scores: new Map(), topK: [] }
       : {
-          scores: pr.scores,
-          topK: Array.from(pr.scores.entries()).sort((a, b) => b[1] - a[1]).slice(0, 20).map(([id, score]) => ({ id, name: id, score })),
-        };
+        scores: pr.scores,
+        topK: Array.from(pr.scores.entries()).sort((a, b) => b[1] - a[1]).slice(0, 20).map(([id, score]) => ({ id, name: id, score })),
+      };
   }
 
   // Step 3: communities
@@ -119,13 +114,13 @@ export async function runMaintenance(
       const cr = runIncrementalCommunities(storage);
       communityResult = { count: cr.count, labels: cr.labels, communities: cr.communities };
       if (llm && embedFn && cr.count > 0) {
-        try { communitySummaries = await summarizeCommunities(storage as any, cr.communities, llm, embedFn); } catch { /* ignore */ }
+        try { communitySummaries = await summarizeCommunities(storage, cr.communities, llm, embedFn); } catch { /* ignore */ }
       }
     } else {
       const cr = detectCommunities(storage);
       communityResult = { count: cr.count, labels: cr.labels, communities: cr.communities };
       if (llm && embedFn && cr.count > 0) {
-        try { communitySummaries = await summarizeCommunities(storage as any, cr.communities, llm, embedFn); } catch { /* ignore */ }
+        try { communitySummaries = await summarizeCommunities(storage, cr.communities, llm, embedFn); } catch { /* ignore */ }
       }
     }
   } else {

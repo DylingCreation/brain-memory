@@ -9,11 +9,12 @@ import type { UiServerContext } from '../server';
 import { existsSync, statSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
+import type { Context } from 'hono';
 
-type HonoHandler = (c: any) => any;
+type HonoHandler = (c: Context) => Response | Promise<Response>;
 
 export function createStatsController(ctx: UiServerContext) {
-  const { storage, eventBus } = ctx;
+  const { storage } = ctx;
 
   const getStats: HonoHandler = async (c) => {
     const stats = storage.getStats();
@@ -22,7 +23,7 @@ export function createStatsController(ctx: UiServerContext) {
     const allActive = storage.findAllActive();
     let healthy = 0, fading = 0, forgotten = 0;
     for (const n of allActive) {
-      const imp = (n as any).importance ?? 0.5;
+      const imp = (n as BmNode).importance ?? 0.5;
       if (imp > 0.7) healthy++;
       else if (imp > 0.3) fading++;
       else forgotten++;
@@ -31,9 +32,9 @@ export function createStatsController(ctx: UiServerContext) {
     // 数据库文件大小
     let dbSizeBytes = 0;
     try {
-      const dbPath = (storage as any).dbPath || join(homedir(), '.openclaw', 'brain-memory.db');
+      const dbPath = (storage as Record<string, unknown>).dbPath as string || join(homedir(), '.openclaw', 'brain-memory.db');
       if (existsSync(dbPath)) dbSizeBytes = statSync(dbPath).size;
-    } catch {}
+    } catch { /* dbPath resolution is best-effort */ }
 
     return c.json({
       ...stats,
@@ -52,7 +53,7 @@ export function createStatsController(ctx: UiServerContext) {
     const decayCurve: Array<{ days: number; retention: number }> = [];
 
     for (const n of allActive) {
-      const imp = (n as any).importance ?? 0.5;
+      const imp = (n as import('../../types').BmNode).importance ?? 0.5;
       if (imp > 0.7) healthy++;
       else if (imp > 0.3) fading++;
       else forgotten++;

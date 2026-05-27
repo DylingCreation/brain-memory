@@ -9,11 +9,13 @@
  *
  * Design: reflection results are graph nodes (not flat text),
  * so they participate in PPR ranking, community detection, and decay.
+ *
+ * v2.1.0: Migrated from DatabaseSyncInstance to IStorageAdapter.
  */
 
-import { type DatabaseSyncInstance } from '@photostructure/sqlite';
 import type { BmConfig, ReflectionInsight, MemoryCategory } from '../types';
-import { upsertNode, findByName, allActiveNodes, normalizeName } from '../store/store';
+import type { IStorageAdapter } from '../store/adapter';
+import { normalizeName } from '../store/store';
 import { tokenize, jaccardSimilarity } from '../utils/text';
 import { logger } from '../utils/logger';
 
@@ -27,7 +29,6 @@ export function mapInsightToNode(insight: ReflectionInsight): {
 } {
   switch (insight.kind) {
   case 'user-model':
-    // User preferences/profile → TASK node, preferences/profile category
     return {
       type: 'TASK',
       category: insight.text.toLowerCase().includes('prefer') || insight.text.toLowerCase().includes('喜欢') || insight.text.toLowerCase().includes('习惯')
@@ -36,13 +37,10 @@ export function mapInsightToNode(insight: ReflectionInsight): {
       prefix: '用户画像',
     };
   case 'agent-model':
-    // Agent behavior lessons → EVENT node, cases category
     return { type: 'EVENT', category: 'cases', prefix: 'Agent教训' };
   case 'lesson':
-    // General lessons → EVENT node, cases/patterns category
     return { type: 'EVENT', category: 'cases', prefix: '经验教训' };
   case 'decision':
-    // Decisions → TASK node, events category
     return { type: 'TASK', category: 'events', prefix: '重要决策' };
   }
 }
@@ -50,7 +48,7 @@ export function mapInsightToNode(insight: ReflectionInsight): {
 // ─── Store Reflection Insights ────────────────────────────────
 
 export function storeReflectionInsights(
-  db: DatabaseSyncInstance,
+  storage: IStorageAdapter,
   insights: ReflectionInsight[],
   sessionId: string,
   cfg: BmConfig,
@@ -59,7 +57,7 @@ export function storeReflectionInsights(
 
   let stored = 0;
   let boosted = 0;
-  const allNodes = allActiveNodes(db);
+  const allNodes = storage.findAllActive();
 
   for (const insight of insights) {
     const mapping = mapInsightToNode(insight);
@@ -69,8 +67,7 @@ export function storeReflectionInsights(
     if (relatedNode) {
       // Boost importance of existing node instead of creating new one
       const newImportance = Math.min(1.0, relatedNode.importance + cfg.reflection.importanceBoost);
-      db.prepare('UPDATE bm_nodes SET importance=?, validated_count=validated_count+1, updated_at=? WHERE id=?')
-        .run(newImportance, Date.now(), relatedNode.id);
+      storage.updateNodeImportance(relatedNode.id, newImportance);
       boosted++;
       logger.debug('reflect', `boosted "${relatedNode.name}" importance: ${relatedNode.importance.toFixed(2)} → ${newImportance.toFixed(2)}`);
       continue;
@@ -81,27 +78,24 @@ export function storeReflectionInsights(
     const description = `${insight.kind} (confidence: ${insight.confidence.toFixed(2)})`;
     const content = insight.text;
 
-    // Initial importance is moderate (0.3-0.5 based on confidence)
-    // Needs multiple validations to reach Core tier (>0.7)
     const initialImportance = 0.3 + insight.confidence * 0.2;
 
     try {
-      upsertNode(db, {
+      storage.upsertNode({
         type: mapping.type,
         category: mapping.category,
         name,
         description,
         content,
-        source: 'assistant', // Reflections are AI-generated insights
-        temporalType: 'static', // Reflection insights are stable
+        source: 'assistant',
+        temporalType: 'static',
       }, sessionId);
 
       // Set custom importance (upsertNode sets default 0.5)
       const normalized = normalizeName(name);
-      const node = findByName(db, normalized);
+      const node = storage.findNodeByName(normalized);
       if (node) {
-        db.prepare('UPDATE bm_nodes SET importance=? WHERE id=?')
-          .run(initialImportance, node.id);
+        storage.updateNodeImportance(node.id, initialImportance);
       }
 
       stored++;
@@ -115,7 +109,6 @@ export function storeReflectionInsights(
 }
 
 // ─── Find Related Node ────────────────────────────────────────
-// Simple token overlap to find if insight is about an existing node
 
 function findRelatedNode(
   nodes: Array<{ id: string; name: string; content: string; importance: number }>,
@@ -139,24 +132,21 @@ function findRelatedNode(
   return bestMatch;
 }
 
-// tokenize, jaccardSimilarity imported from ../utils/text.ts
-
 // ─── Turn Reflection: Apply Importance Boosts ─────────────────
 
 export function applyTurnBoosts(
-  db: DatabaseSyncInstance,
+  storage: IStorageAdapter,
   boosts: Array<{ name: string; reason: string; importanceDelta: number }>,
   maxBoost: number = 0.3,
 ): number {
   let applied = 0;
 
   for (const boost of boosts) {
-    const node = findByName(db, boost.name);
+    const node = storage.findNodeByName(boost.name);
     if (!node) continue;
 
     const newImportance = Math.min(1.0, node.importance + Math.min(boost.importanceDelta, maxBoost));
-    db.prepare('UPDATE bm_nodes SET importance=?, updated_at=? WHERE id=?')
-      .run(newImportance, Date.now(), node.id);
+    storage.updateNodeImportance(node.id, newImportance);
 
     applied++;
     logger.debug('reflect', `turn boost "${node.name}": ${node.importance.toFixed(2)} → ${newImportance.toFixed(2)} (${boost.reason})`);

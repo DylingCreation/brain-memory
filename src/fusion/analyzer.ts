@@ -21,21 +21,7 @@ import { FUSION_DECIDE_SYS_SMALL } from '../prompts/small';
 import { tokenize, jaccardSimilarity } from '../utils/text';
 import { extractJsonTolerant } from '../utils/json';
 import { normalizeName } from '../store/store';
-
-function cosineSimilarityF32(a: Float32Array, b: Float32Array): number {
-  if (!a || !b || a.length === 0 || b.length === 0) return 0;
-  const len = Math.min(a.length, b.length);
-  if (len === 0) return 0;
-  let dot = 0, normA = 0, normB = 0;
-  for (let i = 0; i < len; i++) {
-    if (a[i] !== undefined && b[i] !== undefined) {
-      dot += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-  }
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB) + 1e-9);
-}
+import { cosineSimilarityF32 } from '../utils/similarity';
 
 /** A pair of nodes flagged as potentially duplicate or related */
 export interface FusionCandidate {

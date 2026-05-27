@@ -117,10 +117,10 @@ export class LanceDBSearchIndex implements ISearchIndex {
 
   // ─── Read ─────────────────────────────────────────────
 
-  async semanticSearch(queryVec: number[], limit: number, filter?: ScopeFilterV2): Promise<ScoredNodeId[]> {
+  async semanticSearch(queryVec: number[], limit: number, _filter?: ScopeFilterV2): Promise<ScoredNodeId[]> {
     if (!this.initialized || !this.table) return [];
 
-    let q = this.table.search(queryVec).limit(limit);
+    const q = this.table.search(queryVec).limit(limit);
 
     // LanceDB pre-filtering: scope 过滤
     // 当前实现: post-filter (返回后 JS 过滤)

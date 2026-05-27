@@ -19,7 +19,7 @@ export function toNode(r: SqlRow): BmNode {
     importance: (r.importance as number) ?? 0.5, accessCount: (r.access_count as number) ?? 0,
     lastAccessedAt: (r.last_accessed as number) ?? 0,
     temporalType: ((r.temporal_type as string) ?? 'static') as 'static' | 'dynamic',
-    source: (r.source as string) as 'user' | 'assistant',
+    source: (r.source as string) as 'user' | 'assistant' | 'manual',
     scopePlatform: (r.scope_platform as string) ?? null,
     scopeWorkspace: (r.scope_workspace as string) ?? null,
     scopeAgent: (r.scope_agent as string) ?? null,

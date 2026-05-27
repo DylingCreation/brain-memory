@@ -34,7 +34,7 @@ function definePluginEntry(entry: PluginEntry): PluginEntry {
 export default definePluginEntry({
   id: 'brain-memory',
   name: 'Brain Memory',
-  version: '1.8.0',
+  version: '2.0.0',
   description: 'Unified knowledge graph + vector memory system for AI agents',
   register(api: unknown) {
     // Delegate to wrapper's register for hook setup

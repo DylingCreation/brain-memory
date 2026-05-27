@@ -10,6 +10,7 @@
  */
 
 import { type DatabaseSyncInstance } from '@photostructure/sqlite';
+import { createHash } from 'crypto';
 
 // ─── Constants ─────────────────────────────────────────────────
 
@@ -86,10 +87,10 @@ export function migrate(db: DatabaseSyncInstance): number {
  */
 function migrateToV2_ScopeUpgrade(db: DatabaseSyncInstance): void {
   // 检查 bm_nodes 表是否存在（空数据库可能无此表）
-  const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='bm_nodes'").get() as { name: string } | undefined;
+  const tableCheck = db.prepare('SELECT name FROM sqlite_master WHERE type=\'table\' AND name=\'bm_nodes\'').get() as { name: string } | undefined;
   if (!tableCheck) {
     // 无 bm_nodes 表：只更新版本号，跳过列迁移
-    db.prepare("UPDATE bm_meta SET value = '2' WHERE key = 'schema_version'").run();
+    db.prepare('UPDATE bm_meta SET value = \'2\' WHERE key = \'schema_version\'').run();
     return;
   }
   // 1. 新增六层 scope 列（幂等：列已存在则跳过）
@@ -105,22 +106,52 @@ function migrateToV2_ScopeUpgrade(db: DatabaseSyncInstance): void {
   }
 
   // 2. 旧数据映射：scope_session → scope_chat
-  db.exec(`UPDATE bm_nodes SET scope_chat = scope_session WHERE scope_chat IS NULL AND scope_session IS NOT NULL`);
+  db.exec('UPDATE bm_nodes SET scope_chat = scope_session WHERE scope_chat IS NULL AND scope_session IS NOT NULL');
 
-  // 3. 为已有数据生成 scope_id（拼接六层 → 取低 8 字节 hex）
-  // SQLite 没有内置 sha256，使用简化版：substr(hex(zeroblob(...)) 不可行。
-  // 改用 hex 编码拼接字符串作为简易 hash（确定性 + 可索引）。
-  db.exec(`
-    UPDATE bm_nodes SET scope_id = lower(hex(
-      COALESCE(scope_platform,'*') || '|' ||
-      COALESCE(scope_workspace,'*') || '|' ||
-      COALESCE(scope_agent,'*') || '|' ||
-      COALESCE(scope_user,'*') || '|' ||
-      COALESCE(scope_chat,'*') || '|' ||
-      COALESCE(scope_thread,'*')
-    ))
-    WHERE scope_id IS NULL
-  `);
+  // 3. 为已有数据生成 scope_id
+  // ⚠️ 必须与 src/scope/isolation.ts 的 computeScopeId() 使用相同算法 (sha256 → hex slice 0,16)
+  // v2.0.1 fix: 原 SQL 使用 lower(hex(...)) 产生 ASCII hex 编码，与 JS sha256 结果完全不同，
+  // 导致 scope 隔离失效。改用 JS 逐行计算，确保迁移数据与新数据 scope_id 一致。
+  const computeScopeIdV2 = (platform: string | null, workspace: string | null, agent: string | null, user: string | null, chat: string | null, thread: string | null): string => {
+    const parts = [
+      platform ?? '*',
+      workspace ?? '*',
+      agent ?? '*',
+      user ?? '*',
+      chat ?? '*',
+      thread ?? '*',
+    ];
+    return createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 16);
+  };
+
+  const rows = db.prepare(`
+    SELECT id, scope_platform, scope_workspace, scope_agent,
+           scope_user, scope_chat, scope_thread
+    FROM bm_nodes
+    WHERE scope_id IS NULL OR scope_id = ''
+  `).all() as Array<{
+    id: string;
+    scope_platform: string | null;
+    scope_workspace: string | null;
+    scope_agent: string | null;
+    scope_user: string | null;
+    scope_chat: string | null;
+    scope_thread: string | null;
+  }>;
+
+  if (rows.length > 0) {
+    const updateStmt = db.prepare('UPDATE bm_nodes SET scope_id = ? WHERE id = ?');
+    const txFn = () => {
+      for (const row of rows) {
+        const scopeId = computeScopeIdV2(
+          row.scope_platform, row.scope_workspace, row.scope_agent,
+          row.scope_user, row.scope_chat, row.scope_thread
+        );
+        updateStmt.run(scopeId, row.id);
+      }
+    };
+    db.transaction(txFn)();
+  }
 
   // 4. 建索引（幂等）
   const indexes = [
@@ -133,5 +164,5 @@ function migrateToV2_ScopeUpgrade(db: DatabaseSyncInstance): void {
   for (const sql of indexes) { db.exec(sql); }
 
   // 5. 更新版本号
-  db.prepare("UPDATE bm_meta SET value = '2' WHERE key = 'schema_version'").run();
+  db.prepare('UPDATE bm_meta SET value = \'2\' WHERE key = \'schema_version\'').run();
 }

@@ -12,6 +12,14 @@ import type { IStorageAdapter } from '../store/adapter';
 
 type AnyFilter = ScopeFilter | ScopeFilterV2;
 
+/** Subset of fields needed for cache key generation, shared by both ScopeFilter and ScopeFilterV2. */
+interface CacheKeyFields {
+  includeScopes?: unknown[];
+  excludeScopes?: unknown[];
+  sharingMode?: string;
+  currentAgentId?: string;
+}
+
 interface CacheEntry {
   result: RecallResult;
   timestamp: number;
@@ -28,10 +36,11 @@ export class RecallCache {
   }
 
   key(query: string, scopeFilter?: AnyFilter, sourceFilter?: 'user' | 'assistant' | 'both'): string {
-    const inc = 'includeScopes' in (scopeFilter || {}) ? (scopeFilter as any).includeScopes : [];
-    const exc = 'excludeScopes' in (scopeFilter || {}) ? (scopeFilter as any).excludeScopes : [];
+    const f = (scopeFilter as unknown as CacheKeyFields) ?? ({} as CacheKeyFields);
+    const inc = f.includeScopes ?? [];
+    const exc = f.excludeScopes ?? [];
     const scopeKey = scopeFilter
-      ? `${JSON.stringify(inc)}|${JSON.stringify(exc)}|${(scopeFilter as any).sharingMode || ''}|${(scopeFilter as any).currentAgentId || ''}`
+      ? `${JSON.stringify(inc)}|${JSON.stringify(exc)}|${f.sharingMode || ''}|${f.currentAgentId || ''}`
       : '';
     return `${query}::${scopeKey}::${sourceFilter || ''}`;
   }

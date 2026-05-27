@@ -1,7 +1,7 @@
 {
   "name": "memory-likehuman-pro",
   "version": "2.0.0",
-  "description": "Unified knowledge graph + vector memory system for AI agents — v2.0.0 Scope 六层 + LanceDB",
+  "description": "Unified knowledge graph + vector memory system for AI agents \u2014 v2.0.0 Scope \u516d\u5c42 + LanceDB",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
@@ -18,10 +18,10 @@
     "test:performance": "vitest run test/performance",
     "test:e2e": "vitest run test/e2e",
     "test:ci": "vitest run --reporter=junit --reporter=verbose",
-    "lint": "eslint src/**/*.ts",
+    "lint": "npx eslint src/ openclaw-wrapper.ts openclaw-register.ts index.ts",
+    "check:versions": "node -e \"const pkg = require('./package.json'); const fs = require('fs'); let ok = true; const check = (file, expected) => { const content = fs.readFileSync(file, 'utf8'); const m = content.match(/version:\\s*'([^']+)'/g); if (m) { m.forEach(v => { const ver = v.match(/'([^']+)'/)[1]; if (ver !== expected) { console.error('\\n\u274c ' + file + ': version \\'' + ver + '\\' does not match package.json version \\'' + expected + '\\''); ok = false; } }); } }; check('openclaw-register.ts', pkg.version); check('openclaw-wrapper.ts', pkg.version); check('src/engine/context.ts', pkg.version); if (!ok) process.exit(1); console.log('\u2705 All version references match package.json (' + pkg.version + ')');\"",
     "build": "tsc",
-    "build:plugin": "tsc -p tsconfig.plugin.json",
-    "build:all": "npm run clean && npm run build && npm run build:plugin",
+    "build:all": "npm run clean && npm run build",
     "docs": "typedoc",
     "clean": "npx rimraf dist coverage",
     "prebuild": "npm run clean",
@@ -30,7 +30,9 @@
     "setup-openclaw": "node scripts/setup.js",
     "doctor": "node scripts/doctor.js",
     "release": "bash scripts/release.sh",
-    "publish": "bash scripts/publish-npm.sh"
+    "publish": "bash scripts/publish-npm.sh",
+    "lint:src": "eslint src/**/*.ts",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "ai",

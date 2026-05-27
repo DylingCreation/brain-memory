@@ -33,7 +33,7 @@ async function testEngine() {
     console.log('✓ Stats retrieval works:', stats);
     
     // Test memory context
-    const context = engine.getWorkingMemoryContext();
+    engine.getWorkingMemoryContext();
     console.log('✓ Working memory context retrieval works');
     
     // Close the engine

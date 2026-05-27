@@ -1,12 +1,15 @@
 /**
  * brain-memory — Unified Context Engine
  *
- * Main orchestrator that integrates all components: extraction, recall, fusion,
- * reflection, reasoning, and working memory. Provides the primary API for the
- * brain-memory system.
+ * Main orchestrator that wires together domain services:
+ *   ExtractionService, RecallService, MaintenanceService, HealthService.
+ *
+ * Owns: hook lifecycle, working memory, fusion, reflection, reasoning,
+ * export/import, and lifecycle management.
  *
  * v1.1.0 F-2: Replaced direct DatabaseSyncInstance with IStorageAdapter.
  * v1.1.0 F-3: Added dirty node marking for incremental graph maintenance.
+ * v2.1.0: Extracted domain services from monolith ContextEngine.
  *
  * Authors: adoresever (graph-memory), win4r (memory-lancedb-pro), brain-memory contributors
  */
@@ -18,33 +21,36 @@ import type {
   RecallResult,
   ReflectionInsight,
   WorkingMemoryState,
-  MemoryCategory,
   MemoryScopeV2,
 } from '../types';
 import type { FusionResult } from '../fusion/analyzer';
-import { getEmbedCacheStats, type EmbedCacheStats } from '../engine/embed';
-import { existsSync, statSync } from 'node:fs';
 import type { ISearchIndex } from '../store/search/index';
-import { homedir } from 'node:os';
 import { logger } from '../utils/logger';
 import { IStorageAdapter } from '../store/adapter';
+import { scopeMatchV2 } from '../scope/isolation';
 import { SQLiteStorageAdapter } from '../store/sqlite-adapter';
+import { LanceDBStorageAdapter } from '../store/lancedb-adapter';
 import { Extractor } from '../extractor/extract';
 import { Recaller } from '../recaller/recall';
 import { createCompleteFn } from './llm';
 import { createEmbedFn, createBatchEmbedFn, type EmbedFn, type BatchEmbedFn } from './embed';
 import { runFusion } from '../fusion/analyzer';
-import { reflectOnTurn, reflectOnSession } from '../reflection/extractor';
-import { createWorkingMemory, updateWorkingMemory, buildWorkingMemoryContext } from '../working-memory/manager';
+import { reflectOnSession } from '../reflection/extractor';
+import { createWorkingMemory, buildWorkingMemoryContext } from '../working-memory/manager';
 import { runReasoning, type ReasoningConclusion } from '../reasoning/engine';
-import { runMaintenance } from '../graph/maintenance';
 import { createHookRegistry, type HookRegistry } from '../plugin/hooks';
+
+import { ExtractionService, type ProcessTurnParams, type ProcessTurnResult } from './extraction-service';
+import { RecallService } from './recall-service';
+import { MaintenanceService } from './maintenance-service';
+import { HealthService } from './health-service';
+export type { EngineStats, HealthComponentStatus, HealthLlmStatus, HealthEmbedStatus, HealthOverallStatus, HealthStats, HealthStatus } from './health-service';
 
 /**
  * 统一上下文引擎 — brain-memory 主入口。
  *
- * 整合提取、召回、融合、反思、推理和工作记忆。
- * 通过 IStorageAdapter 实现存储抽象，Recaller 处理双路径召回。
+ * 编排提取、召回、融合、反思、推理和工作记忆。
+ * 通过 IStorageAdapter 实现存储抽象。
  *
  * @example
  * const engine = new ContextEngine({ dbPath: ":memory:" });
@@ -54,19 +60,26 @@ import { createHookRegistry, type HookRegistry } from '../plugin/hooks';
 export class ContextEngine {
   private storage: IStorageAdapter;
   private config: BmConfig;
-  private extractor: Extractor;
+  private extraction: ExtractionService;
+  private recallService: RecallService;
+  private maintenanceService: MaintenanceService;
+  private healthService: HealthService;
   private recaller: Recaller;
   private workingMemory: WorkingMemoryState;
   private llmEnabled: boolean;
   private embedEnabled: boolean;
-  private readonly createdAt: number;
   /** v1.2.0 F-7: Developer hook registry */
   readonly hooks: HookRegistry = createHookRegistry();
 
   constructor(config: BmConfig) {
     this.config = config;
     try {
-      this.storage = new SQLiteStorageAdapter(config.dbPath);
+      if (config.storage === 'lancedb') {
+        logger.warn('context', 'LanceDB backend selected — limited functionality: community detection, message history, and reflections are disabled. See docs for details.');
+        this.storage = new LanceDBStorageAdapter(config.dbPath);
+      } else {
+        this.storage = new SQLiteStorageAdapter(config.dbPath);
+      }
       this.storage.initialize();
     } catch (error) {
       logger.error('context', `Failed to initialize database at ${config.dbPath}:`, error);
@@ -90,12 +103,14 @@ export class ContextEngine {
       batchEmbed = null;
     }
 
+    let extractor: Extractor;
+    let recaller: Recaller;
     try {
-      this.extractor = new Extractor(config, llm);
-      this.recaller = new Recaller(this.storage, config);
+      extractor = new Extractor(config, llm);
+      recaller = new Recaller(this.storage, config);
       if (embed) {
-        this.recaller.setEmbedFn(embed);
-        if (batchEmbed) this.recaller.setBatchEmbedFn(batchEmbed);
+        recaller.setEmbedFn(embed);
+        if (batchEmbed) recaller.setBatchEmbedFn(batchEmbed);
       }
     } catch (error) {
       logger.error('context', 'Failed to initialize components:', error);
@@ -103,7 +118,7 @@ export class ContextEngine {
     }
 
     this.embedEnabled = embed !== null;
-    this.createdAt = Date.now();
+    this.recaller = recaller;
 
     try {
       this.workingMemory = createWorkingMemory();
@@ -112,262 +127,77 @@ export class ContextEngine {
       throw new Error(`Working memory initialization failed: ${(error as Error).message}`);
     }
 
+    // Initialize domain services
+    this.extraction = new ExtractionService(
+      this.storage, config, extractor, recaller,
+      this.hooks, this.llmEnabled, this.workingMemory,
+    );
+    this.recallService = new RecallService(config, recaller, this.hooks);
+    this.maintenanceService = new MaintenanceService(this.storage, config);
+    this.healthService = new HealthService(
+      this.storage, config, this.llmEnabled, this.embedEnabled, Date.now(),
+    );
+
     logger.info('context', `Initialized with ${this.storage.findAllActive().length} existing nodes`);
   }
 
-  /**
-   * Process a conversation turn and extract knowledge.
-   * v1.1.0 F-3: Marks affected nodes as dirty for incremental maintenance.
-   */
-  async processTurn(params: {
-    sessionId: string;
-    agentId: string;
-    workspaceId: string;
-    platform?: string;
-    userId?: string;
-    chatId?: string;
-    threadId?: string;
-    messages: Array<{ role?: string; content: string; turn_index?: number }>;
-  }): Promise<{
-    extractedNodes: BmNode[];
-    extractedEdges: BmEdge[];
-    reflections: ReflectionInsight[];
-    workingMemory: WorkingMemoryState;
-  }> {
+  // ─── Public API (delegates to services) ────────────────────
+
+  /** Process a conversation turn: extract → upsert → embed → reflect → working memory. */
+  async processTurn(params: ProcessTurnParams): Promise<ProcessTurnResult> {
     try {
-      const existingNodes = this.storage.findAllActive();
-      const existingNames = existingNodes.map(n => n.name);
-
-      const normalizedMessages = params.messages.map(msg => ({
-        role: msg.role || 'user',
-        content: msg.content,
-        ...(msg.turn_index !== undefined ? { turn_index: msg.turn_index } : {})
-      }));
-
-      // v1.2.0 F-7: Before-extract hook
-      let hookMessages = normalizedMessages;
-      let hookNames = existingNames;
-      for (const hook of this.hooks.beforeExtract) {
-        try {
-          const result = await hook({ messages: hookMessages, existingNames: hookNames });
-          if (result) { hookMessages = result.messages; hookNames = result.existingNames; }
-        } catch (err) { logger.warn('context', `beforeExtract hook failed: ${err}`); }
-      }
-
-      const extractionResult = await this.extractor.extract({
-        messages: hookMessages,
-        existingNames: hookNames,
-      });
-
-      // v1.2.0 F-7: After-extract hook
-      for (const hook of this.hooks.afterExtract) {
-        try { await hook(extractionResult); } catch (err) { logger.warn('context', `afterExtract hook failed: ${err}`); }
-      }
-
-      const userMessages = normalizedMessages.filter(m => m.role === 'user');
-      const assistantMessages = normalizedMessages.filter(m => m.role === 'assistant');
-
-      const upsertedNodes: BmNode[] = [];
-      for (const nodeData of extractionResult.nodes) {
-        try {
-          let source: 'user' | 'assistant' = 'user';
-          if (assistantMessages.length > 0 && userMessages.length === 0) {
-            source = 'assistant';
-          } else if (userMessages.length > 0 && assistantMessages.length === 0) {
-            source = 'user';
-          }
-
-          const { node } = this.storage.upsertNode({
-            type: nodeData.type,
-            category: nodeData.category,
-            name: nodeData.name,
-            description: nodeData.description,
-            content: nodeData.content,
-            source,
-            temporalType: nodeData.temporalType || 'static',
-            // v1.x 旧字段
-            scopeSession: params.sessionId,
-            scopeAgent: params.agentId,
-            scopeWorkspace: params.workspaceId,
-            // v2.0 六层 scope
-            scopePlatform: params.platform ?? null,
-            scopeUser: params.userId ?? null,
-            scopeChat: params.chatId ?? params.sessionId ?? null,
-            scopeThread: params.threadId ?? null,
-          }, params.sessionId);
-          upsertedNodes.push(node);
-
-          // v1.1.0 F-3: Mark node as dirty for incremental maintenance
-          this.storage.markDirty([node.id]);
-        } catch (error) {
-          logger.error('context', `Failed to upsert node ${nodeData.name}:`, error);
-        }
-      }
-
-      if (upsertedNodes.length > 0) {
-        try {
-          await this.recaller.batchSyncEmbed(upsertedNodes);
-        } catch (embedError) {
-          logger.warn('context', 'Batch embedding failed:', embedError);
-        }
-      }
-
-      const upsertedEdges: BmEdge[] = [];
-      for (const edgeData of extractionResult.edges) {
-        try {
-          const fromNode = existingNodes.find(n => n.name === edgeData.from) ||
-                          upsertedNodes.find(n => n.name === edgeData.from);
-          const toNode = existingNodes.find(n => n.name === edgeData.to) ||
-                        upsertedNodes.find(n => n.name === edgeData.to);
-
-          if (fromNode && toNode) {
-            const insertedEdge = this.storage.upsertEdge({
-              fromId: fromNode.id,
-              toId: toNode.id,
-              type: edgeData.type,
-              instruction: edgeData.instruction,
-              sessionId: params.sessionId,
-            });
-            if (insertedEdge) {
-              upsertedEdges.push(insertedEdge);
-              // v1.1.0 F-3: Mark edge endpoints as dirty
-              this.storage.markDirty([fromNode.id, toNode.id]);
-            }
-          }
-        } catch (error) {
-          logger.error('context', `Failed to upsert edge from ${edgeData.from} to ${edgeData.to}:`, error);
-        }
-      }
-
-      // Turn reflection (LLM-dependent)
-      let reflections: ReflectionInsight[] = [];
-      if (this.llmEnabled && this.config.reflection.enabled && this.config.reflection.turnReflection) {
-        try {
-          const turnReflections = await reflectOnTurn(
-            this.config.reflection,
-            createCompleteFn(this.config.llm)!,
-            {
-              extractedNodes: upsertedNodes.map(n => ({
-                name: n.name, category: n.category, type: n.type, validatedCount: n.validatedCount,
-              })),
-              existingNodes: existingNodes
-                .filter(n => n.validatedCount >= 2)
-                .map(n => ({ name: n.name, category: n.category, validatedCount: n.validatedCount })),
-            }
-          );
-          reflections = turnReflections.map(boost => ({
-            text: boost.reason, kind: 'decision' as const, reflectionKind: 'derived' as const, confidence: 0.8,
-          }));
-        } catch (error) {
-          logger.error('context', 'Failed to perform turn reflection:', error);
-        }
-      }
-
-      // Update working memory
-      try {
-        const userMsg = params.messages.filter(m => m.role === 'user');
-        const assistantMsg = params.messages.filter(m => m.role === 'assistant');
-        this.workingMemory = updateWorkingMemory(
-          this.workingMemory, this.config.workingMemory,
-          {
-            extractedNodes: upsertedNodes.map(n => ({
-              name: n.name, category: n.category, type: n.type, content: n.content,
-            })),
-            userMessage: userMsg.pop()?.content || '',
-            assistantMessage: assistantMsg.pop()?.content || '',
-          }
-        );
-      } catch (error) {
-        logger.error('context', 'Failed to update working memory:', error);
-      }
-
-      // v1.1.0 F-3: Expand dirty marks to 1-hop neighbors
-      this._expandDirtyMarks();
-
-      return {
-        extractedNodes: upsertedNodes,
-        extractedEdges: upsertedEdges,
-        reflections,
-        workingMemory: this.workingMemory,
-      };
+      const result = await this.extraction.processTurn(params);
+      this.workingMemory = result.workingMemory;
+      return result;
     } catch (error) {
       logger.error('context', 'Failed to process turn:', error);
       throw new Error(`Turn processing failed: ${(error as Error).message}`);
     }
   }
 
-  /** v1.1.0 F-3: Expand dirty marks to 1-hop neighbors for subgraph context */
-  private _expandDirtyMarks(): void {
-    const dirty = this.storage.getDirtyNodes();
-    if (dirty.size === 0) return;
-    const subgraph = this.storage.getAffectedSubgraph(1);
-    const expanded = subgraph.nodes.map(n => n.id);
-    this.storage.markDirty(expanded);
-  }
-
-  /** 召回与查询相关的记忆节点和边。 */
+  /** Recall relevant memories for a query with scope filtering. */
   async recall(query: string, scope?: MemoryScopeV2): Promise<RecallResult> {
     try {
-      // v1.2.0 F-7: Before-recall hook
-      let hookQuery = query;
-      for (const hook of this.hooks.beforeRecall) {
-        try {
-          const result = await hook({ query: hookQuery, scopeFilter: undefined });
-          if (result) hookQuery = result.query;
-        } catch (err) { logger.warn('context', `beforeRecall hook failed: ${err}`); }
-      }
-
-      const excludeScopes: MemoryScopeV2[] = [];
-      const includeScopes: MemoryScopeV2[] = [];
-      if (scope && (scope.agent || scope.workspace || scope.platform || scope.chat)) {
-        includeScopes.push({
-          platform: scope.platform ?? null,
-          workspace: scope.workspace ?? null,
-          agent: scope.agent ?? null,
-          user: scope.user ?? null,
-          chat: scope.chat ?? null,
-          thread: scope.thread ?? null,
-        });
-      }
-      const sharingCfg = this.config.memorySharing || { enabled: true, mode: 'mixed' as const, sharedCategories: [] as MemoryCategory[], allowedAgents: [] as string[] };
-      const scopeFilter = {
-        excludeScopes,
-        includeScopes,
-        allowCrossScope: includeScopes.length === 0,
-        sharingMode: sharingCfg.enabled ? sharingCfg.mode : 'isolated',
-        sharedCategories: sharingCfg.sharedCategories,
-        currentAgentId: scope?.agent ?? undefined,
-        allowedAgents: sharingCfg.allowedAgents,
-      };
-      let result = await this.recaller.recall(hookQuery, scopeFilter);
-      if (result.nodes.length === 0 && includeScopes.length === 0) {
-        result = await this.recaller.recall(hookQuery, { excludeScopes: [], includeScopes: [], allowCrossScope: true });
-      }
-
-      // v1.2.0 F-7: After-recall hook
-      for (const hook of this.hooks.afterRecall) {
-        try { await hook(result); } catch (err) { logger.warn('context', `afterRecall hook failed: ${err}`); }
-      }
-
-      return result;
+      return await this.recallService.recall(query, scope);
     } catch (error) {
       logger.error('context', 'Failed to recall information:', error);
       throw new Error(`Recall failed: ${(error as Error).message}`);
     }
   }
 
-  /** 执行知识融合，合并重复节点或链接相关节点。 */
+  /** Run graph maintenance: PageRank, community detection, decay, archiving. */
+  async runMaintenance(): Promise<void> { await this.maintenanceService.run(); }
+
+  /** Get engine statistics. */
+  getStats() { return this.healthService.getStats(); }
+
+  /** Health check: database, LLM, embedding status. */
+  healthCheck() { return this.healthService.healthCheck(); }
+
+  /** Get all active nodes. */
+  getAllActiveNodes(): BmNode[] { return this.healthService.getAllActiveNodes(); }
+
+  /** Search nodes by text query. */
+  searchNodes(query: string, limit: number = 10): BmNode[] { return this.healthService.searchNodes(query, limit); }
+
+  /** Get the underlying storage adapter (for UI Server, etc.). */
+  getStorage(): IStorageAdapter { return this.healthService.getStorage(); }
+
+  /** v2.0.0 S-2: Set companion semantic search index (LanceDB). */
+  setSearchIndex(idx: ISearchIndex): void { this.recaller.setSearchIndex(idx); }
+
+  // ─── Direct methods (cross-cutting, keep in orchestrator) ──
+
+  /** Perform knowledge fusion: deduplicate nodes or link related ones. */
   async performFusion(sessionId: string = 'fusion'): Promise<FusionResult> {
     if ((this.config.mode ?? 'full') === 'lite' || !this.config.fusion.enabled) return { candidates: [], merged: 0, linked: 0, durationMs: 0 };
     try {
-      // v1.2.0 F-7: Before-fusion hook
       for (const hook of this.hooks.beforeFusion) {
         try { await hook([]); } catch (err) { logger.warn('context', `beforeFusion hook failed: ${err}`); }
       }
 
       const result = await runFusion(this.storage, this.config, this.llmEnabled ? createCompleteFn(this.config.llm) : null, createEmbedFn(this.config.embedding), sessionId);
 
-      // v1.2.0 F-7: After-fusion hook
       for (const hook of this.hooks.afterFusion) {
         try { await hook({ merged: result.merged, linked: result.linked }); } catch (err) { logger.warn('context', `afterFusion hook failed: ${err}`); }
       }
@@ -379,9 +209,11 @@ export class ContextEngine {
     }
   }
 
+  /** Reflect on an entire session to derive high-level insights. */
   async reflectOnSession(sessionId: string, messages: Array<{ role?: string; content: string }>): Promise<ReflectionInsight[]> {
     if ((this.config.mode ?? 'full') === 'lite' || !this.config.reflection.enabled || !this.config.reflection.sessionReflection) return [];
     if (!this.llmEnabled) { logger.warn('context', 'Session reflection skipped — LLM not configured'); return []; }
+    if (!this.storage.capabilities.reflections) { logger.warn('context', 'Session reflection skipped — storage backend does not support reflections'); return []; }
     try {
       const sessionNodes = this.storage.findAllActive().filter(n => n.sourceSessions.includes(sessionId));
       return await reflectOnSession(this.config.reflection, createCompleteFn(this.config.llm)!, {
@@ -394,6 +226,7 @@ export class ContextEngine {
     }
   }
 
+  /** Perform graph-level reasoning across all active nodes. */
   async performReasoning(query?: string): Promise<ReasoningConclusion[]> {
     if ((this.config.mode ?? 'full') === 'lite' || !this.config.reasoning.enabled) return [];
     if (!this.llmEnabled) { logger.warn('context', 'Reasoning skipped — LLM not configured'); return []; }
@@ -408,39 +241,17 @@ export class ContextEngine {
     }
   }
 
-  /** v1.1.0 F-4: Clears dirty marks after full maintenance */
-  /** 运行图维护任务（去重 → PageRank → 社区检测 → 衰减归档）。v1.1.0 F-4：智能触发增量/全量路径。 */
-  async runMaintenance(): Promise<void> {
-    try {
-      await runMaintenance(this.storage, this.config);
-      this.storage.clearDirty();
-    } catch (error) {
-      logger.error('context', 'Failed to run maintenance:', error);
-      throw new Error(`Maintenance failed: ${(error as Error).message}`);
-    }
-  }
-
+  /** Get working memory context as formatted string. */
   getWorkingMemoryContext(): string | null { return buildWorkingMemoryContext(this.workingMemory); }
 
-  searchNodes(query: string, limit: number = 10): BmNode[] { return this.storage.searchNodes(query, limit); }
+  // ─── Export / Import ──────────────────────────────────────
 
-  getAllActiveNodes(): BmNode[] { return this.storage.findAllActive(); }
-
-  /** v2.0.0 S-2: 设置伴随语义索引（LanceDB） */
-  setSearchIndex(idx: ISearchIndex): void { this.recaller.setSearchIndex(idx); }
-
-  /** 获取底层存储适配器（供 UI Server 等内部组件使用） */
-  getStorage(): IStorageAdapter { return this.storage; }
-
-  // ─── v2.0.0 S-10: Memory export/backup ────────────────
-
-  /** 导出记忆到 JSON。可指定 scope 按维度过滤。 */
+  /** Export memories to JSON, optionally filtered by scope. */
   export(options?: ExportOptions): MemoryExport {
     const nodes = this.storage.findAllActive();
     const edges = this.storage.findAllEdges();
     const communities = this.storage.getAllCommunities();
 
-    // 按 scope 过滤
     let filteredNodes = nodes;
     if (options?.scope) {
       filteredNodes = nodes.filter(n => matchExportScope(n, options.scope!));
@@ -463,7 +274,7 @@ export class ContextEngine {
     };
   }
 
-  /** 导入 JSON 备份。已存在的节点按 name 去重跳过。 */
+  /** Import a JSON backup. Existing nodes (by name) are skipped. */
   import(data: MemoryExport): { imported: number; skipped: number } {
     let imported = 0;
     let skipped = 0;
@@ -491,7 +302,6 @@ export class ContextEngine {
       } catch { skipped++; }
     }
 
-    // Import edges (skip if nodes don't exist)
     for (const edge of data.edges) {
       try {
         this.storage.upsertEdge({
@@ -507,121 +317,21 @@ export class ContextEngine {
     return { imported, skipped };
   }
 
+  /** Close the engine and release resources. */
   close(): void {
     try { this.storage.close(); } catch (error) { logger.error('context', 'Failed to close database:', error); }
   }
-
-  /** 获取引擎统计信息（节点数、边数、社区数、各类分布）。 */
-  getStats(): EngineStats {
-    const startMs = Date.now();
-    const stats = this.storage.getStats();
-    const dbPath = this.config.dbPath.replace(/^~/, homedir());
-    let dbSizeBytes = 0;
-    try { if (existsSync(dbPath)) dbSizeBytes = statSync(dbPath).size; } catch { /* stat may fail */ }
-    const uptimeMs = Date.now() - this.createdAt;
-    const cacheStats = getEmbedCacheStats();
-    return {
-      nodeCount: stats.totalNodes, edgeCount: stats.totalEdges, sessionCount: 0,
-      nodes: {
-        total: stats.totalNodes, active: stats.activeNodes, deprecated: stats.deprecatedNodes,
-        byType: stats.byType,
-        byCategory: stats.nodesByCategory,
-        byTemporalType: stats.byTemporalType,
-        bySource: stats.bySource,
-      },
-      edges: { total: stats.totalEdges },
-      communities: stats.communityCount, vectors: stats.vectorCount,
-      dbSizeBytes, schemaVersion: stats.schemaVersion, uptimeMs, embedCache: cacheStats,
-      queryTimeMs: Date.now() - startMs,
-    };
-  }
-
-  /** 健康检查：数据库、LLM、Embedding 组件状态。 */
-  healthCheck(): HealthStatus {
-    let dbStatus: HealthComponentStatus = 'ok';
-    let dbDetail: string | undefined;
-    try {
-      if (!this.storage.isConnected()) { dbStatus = 'error'; dbDetail = 'Storage not connected'; }
-    } catch (error) { dbStatus = 'error'; dbDetail = (error as Error).message; }
-    const llmStatus: HealthLlmStatus = this.llmEnabled ? 'ok' : 'not_configured';
-    let llmDetail: string | undefined;
-    if (!this.llmEnabled) llmDetail = 'No LLM API key configured';
-    const embedStatus: HealthEmbedStatus = this.embedEnabled ? 'ok' : 'not_configured';
-    let embedDetail: string | undefined;
-    if (!this.embedEnabled) embedDetail = 'No Embedding API key configured';
-    const stats = this.storage.getStats();
-    const uptimeMs = Date.now() - this.createdAt;
-    let healthStats: HealthStats | undefined;
-    if (dbStatus === 'ok') {
-      const dbPath = this.config.dbPath.replace(/^~/, homedir());
-      let dbSizeBytes = 0;
-      try { if (existsSync(dbPath)) dbSizeBytes = statSync(dbPath).size; } catch { /* stat may fail */ }
-      healthStats = { nodeCount: stats.totalNodes, edgeCount: stats.totalEdges, vectorCount: stats.vectorCount, communityCount: stats.communityCount, dbSizeBytes };
-    }
-    let status: HealthOverallStatus = 'healthy';
-    if (dbStatus === 'error') status = 'unhealthy';
-    else if (!this.llmEnabled || !this.embedEnabled) status = 'degraded';
-    const result: HealthStatus = {
-      status, uptimeMs, schemaVersion: stats.schemaVersion,
-      components: {
-        database: { status: dbStatus, ...(dbDetail ? { detail: dbDetail } : {}) },
-        llm: { status: llmStatus, ...(llmDetail ? { detail: llmDetail } : {}) },
-        embedding: { status: embedStatus, ...(embedDetail ? { detail: embedDetail } : {}) },
-      },
-    };
-    if (healthStats) result.stats = healthStats;
-    return result;
-  }
 }
 
-/** 引擎统计信息接口。包含节点、边、社区、向量、会话等完整统计。 */
-export interface EngineStats {
-  nodeCount: number; edgeCount: number; sessionCount: number;
-  nodes: {
-    total: number; active: number; deprecated: number;
-    byType: { task: number; skill: number; event: number };
-    byCategory: { profile: number; preferences: number; entities: number; events: number; tasks: number; skills: number; cases: number; patterns: number };
-    byTemporalType: { static: number; dynamic: number };
-    bySource: { user: number; assistant: number };
-  };
-  edges: { total: number };
-  communities: number; vectors: number; dbSizeBytes: number; schemaVersion: number; uptimeMs: number;
-  embedCache: EmbedCacheStats; queryTimeMs: number;
-}
-
-/** 组件健康状态：ok=正常, error=异常。 */
-export type HealthComponentStatus = 'ok' | 'error';
-/** LLM 健康状态：ok=正常, not_configured=未配置, error=异常。 */
-export type HealthLlmStatus = 'ok' | 'not_configured' | 'error';
-/** Embedding 健康状态：ok=正常, not_configured=未配置, error=异常。 */
-export type HealthEmbedStatus = 'ok' | 'not_configured' | 'error';
-/** 引擎整体健康状态：healthy=健康, degraded=降级, unhealthy=不健康。 */
-export type HealthOverallStatus = 'healthy' | 'degraded' | 'unhealthy';
-
-/** 健康检查统计信息。 */
-export interface HealthStats { nodeCount: number; edgeCount: number; vectorCount: number; communityCount: number; dbSizeBytes: number; }
-
-/** 健康检查完整响应。包含引擎状态、各组件状态和统计信息。 */
-export interface HealthStatus {
-  status: HealthOverallStatus; uptimeMs: number; schemaVersion: number;
-  components: {
-    database: { status: HealthComponentStatus; detail?: string };
-    llm: { status: HealthLlmStatus; detail?: string };
-    embedding: { status: HealthEmbedStatus; detail?: string };
-  };
-  stats?: HealthStats;
-}
-
-/** 工厂函数：创建 ContextEngine 实例。 */
+/** Factory: create a ContextEngine instance. */
 export async function createContextEngine(config: BmConfig): Promise<ContextEngine> {
   return new ContextEngine(config);
 }
 
-// ─── v2.0.0 S-10: Export/Import types ──────────────────
+// ─── Export / Import types ──────────────────────────────────
 
-/** 导出过滤选项 */
+/** Export filter options */
 export interface ExportOptions {
-  /** 按 scope 维度过滤导出。未设置则导出全部。 */
   scope?: {
     platform?: string;
     workspace?: string;
@@ -632,7 +342,7 @@ export interface ExportOptions {
   };
 }
 
-/** 记忆导出 JSON 结构 */
+/** Memory export JSON structure */
 export interface MemoryExport {
   version: string;
   exportedAt: number;
@@ -644,13 +354,15 @@ export interface MemoryExport {
   communities: Array<{ id: string; summary: string; nodeCount: number }>;
 }
 
-/** 检查节点是否匹配导出 scope */
+/** Check if a node matches the export scope filter. Delegates to scopeMatchV2. */
 function matchExportScope(node: BmNode, scope: NonNullable<ExportOptions['scope']>): boolean {
-  if (scope.platform && node.scopePlatform !== scope.platform) return false;
-  if (scope.workspace && node.scopeWorkspace !== scope.workspace) return false;
-  if (scope.agent && node.scopeAgent !== scope.agent) return false;
-  if (scope.user && node.scopeUser !== scope.user) return false;
-  if (scope.chat && node.scopeChat !== scope.chat) return false;
-  if (scope.thread && node.scopeThread !== scope.thread) return false;
-  return true;
+  const memScope = {
+    platform: node.scopePlatform,
+    workspace: node.scopeWorkspace,
+    agent: node.scopeAgent,
+    user: node.scopeUser,
+    chat: node.scopeChat,
+    thread: node.scopeThread,
+  };
+  return scopeMatchV2(memScope, scope);
 }

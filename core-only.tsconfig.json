@@ -28,7 +28,6 @@
     "src/utils/xml.ts",
     "src/utils/text.ts",
     "src/scope/isolation.ts",
-    "src/plugin/handler.ts",
     "index.ts"
   ],
   "exclude": [
@@ -41,8 +40,7 @@
     "src/retriever/**/*",
     "src/session/**/*",
     "src/graph/dedup.ts",
-    "src/preferences/slots.ts",
     "src/utils/similarity.ts",
-    "src/fusion/analyzer.ts"  // This references similarity.ts which has errors
+    "src/fusion/analyzer.ts"
   ]
 }

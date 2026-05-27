@@ -13,6 +13,7 @@ import type { ScopeFilterV2 } from '../types';
 import type { IStorageAdapter } from '../store/adapter';
 import { Recaller } from '../recaller/recall';
 import { VectorRecaller } from './vector-recall';
+import { estimateNodeTokens } from '../utils/tokens';
 
 /** 混合召回结果：包含图召回和向量召回的融合结果及诊断信息。 */
 export interface HybridRecallResult {
@@ -98,7 +99,7 @@ export class HybridRecaller {
     return {
       nodes: fused.map(f => f.node),
       edges: graph.edges.filter(e => fusedIds.has(e.fromId) && fusedIds.has(e.toId)),
-      tokenEstimate: fused.reduce((s, f) => s + (f.node.content?.length || 0), 0),
+      tokenEstimate: fused.reduce((s, f) => s + estimateNodeTokens(f.node), 0),
       diagnostics: {
         graphCount: graph.nodes.length,
         vectorCount: vector.nodes.length,

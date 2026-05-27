@@ -6,6 +6,7 @@
  */
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { EventEmitter } from 'events';
@@ -50,7 +51,7 @@ export function createUiServer(storage: IStorageAdapter, config: UiServerConfig 
   const __dirname = dirname(fileURLToPath(import.meta.url));
   const uiDistPath = join(__dirname, '..', '..', '..', 'ui', 'dist');
   const uiPublicPath = join(__dirname, '..', '..', '..', 'ui', 'public');
-  const serveStatic = async (c: any, filePath: string) => {
+  const serveStatic = async (c: Context, filePath: string) => {
     try {
       const fullPath = join(uiDistPath, filePath);
       if (!existsSync(fullPath)) return null;
@@ -165,7 +166,9 @@ export function createUiServer(storage: IStorageAdapter, config: UiServerConfig 
       logger.info('ui', `UI available at http://${hostname === '0.0.0.0' ? 'localhost' : hostname}:${p}`);
     });
 
-    return (httpServer.address() as any)?.port || actualPort;
+    const addr = httpServer.address();
+    const p = typeof addr === 'object' && addr !== null ? (addr as import('net').AddressInfo).port : actualPort;
+    return p;
   }
 
   async function stop(): Promise<void> {
@@ -182,7 +185,7 @@ export function createUiServer(storage: IStorageAdapter, config: UiServerConfig 
 
 // ─── Helpers ───────────────────────────────────────────────
 
-async function readRequestBody(req: any): Promise<string> {
+async function readRequestBody(req: import('node:http').IncomingMessage): Promise<string> {
   return new Promise((resolve) => {
     let body = '';
     req.on('data', (chunk: Buffer) => body += chunk.toString());

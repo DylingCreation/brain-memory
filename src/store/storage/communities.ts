@@ -1,6 +1,5 @@
 import { type DatabaseSyncInstance } from '@photostructure/sqlite';
-import { createHash } from 'crypto';
-import { uid, type SqlRow } from './_helpers';
+import { type SqlRow } from './_helpers';
 
 // ─── Community summaries ───────────────────────────────────────
 

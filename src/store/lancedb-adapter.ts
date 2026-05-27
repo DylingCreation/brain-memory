@@ -6,13 +6,13 @@
  *         支持 v2 六层 scope 过滤。
  */
 
-import type { BmNode, BmEdge, EdgeType, MemoryCategory, GraphNodeType, NodeStatus, ScopeFilterV2 } from '../types';
+import type { BmNode, BmEdge, EdgeType, MemoryCategory, NodeStatus } from '../types';
 import type {
   IStorageAdapter, NodeUpsertInput, EdgeUpsertInput,
-  ScoredNode, ScoredCommunityResult, CommunitySummaryRecord,
-  MessageRow, EpisodicSnippet, StorageStats,
+  ScoredNode, StorageStats,
 } from './adapter';
 import { scopeMatchV2 } from '../scope/isolation';
+import { logger } from '../utils/logger';
 
 interface LanceTable {
   add(data: Array<Record<string, unknown>>): Promise<void>;
@@ -46,21 +46,6 @@ function nodeToRow(n: BmNode): Record<string, unknown> {
     scope_thread: n.scopeThread ?? '', scope_id: n.scopeId ?? '',
     created_at: n.createdAt, updated_at: n.updatedAt };
 }
-function rowToNode(r: Record<string, unknown>): BmNode {
-  return { id: r.id as string, type: r.type as GraphNodeType, category: r.category as MemoryCategory,
-    name: r.name as string, description: (r.description as string) ?? '', content: r.content as string,
-    status: r.status as NodeStatus, validatedCount: (r.validated_count as number) ?? 1,
-    sourceSessions: typeof r.source_sessions === 'string' ? JSON.parse(r.source_sessions) : (r.source_sessions as string[]) ?? [],
-    communityId: (r.community_id as string) || null, pagerank: (r.pagerank as number) ?? 0, importance: (r.importance as number) ?? 0.5,
-    accessCount: (r.access_count as number) ?? 0, lastAccessedAt: (r.last_accessed as number) ?? 0,
-    temporalType: ((r.temporal_type as string) ?? 'static') as 'static' | 'dynamic',
-    source: (r.source as string) as 'user' | 'assistant' | 'manual',
-    scopePlatform: (r.scope_platform as string) || null, scopeWorkspace: (r.scope_workspace as string) || null,
-    scopeAgent: (r.scope_agent as string) || null, scopeUser: (r.scope_user as string) || null,
-    scopeChat: (r.scope_chat as string) || null, scopeThread: (r.scope_thread as string) || null,
-    scopeId: (r.scope_id as string) || null, scopeSession: (r.scope_session as string) || null,
-    createdAt: (r.created_at as number) ?? 0, updatedAt: (r.updated_at as number) ?? 0 };
-}
 
 // ─── v2 Scope 过滤 ────────────────────────────────────────
 
@@ -86,6 +71,15 @@ function filterByScopeV2<T extends { scopePlatform: string|null; scopeWorkspace:
 // ─── Adapter ──────────────────────────────────────────────
 
 export class LanceDBStorageAdapter implements IStorageAdapter {
+  readonly capabilities = {
+    communities: false,
+    messages: false,
+    vector: true,
+    ftsSearch: false,
+    graphTraversal: true,
+    reflections: false,
+  } as const;
+
   private db: LanceDBConnection | null = null;
   private vectorTable: LanceTable | null = null;
   private nodesTable: LanceTable | null = null;
@@ -257,21 +251,30 @@ export class LanceDBStorageAdapter implements IStorageAdapter {
 
   // ─── Communities (stub) ─────────────────────────────────
 
-  upsertCommunity() {}
-  getCommunity() { return null; }
-  getAllCommunities() { return new Map(); }
-  pruneCommunities() { return 0; }
-  communityVectorSearch() { return []; }
-  findNodesByCommunities() { return []; }
-  findCommunityPeers() { return []; }
-  findCommunityRepresentatives() { return this.findTopNodes(5); }
+  upsertCommunity() { logger.warn('[LanceDB] upsertCommunity not implemented — community detection disabled'); }
+  getCommunity() { logger.warn('[LanceDB] getCommunity not implemented'); return null; }
+  getAllCommunities() { logger.warn('[LanceDB] getAllCommunities not implemented'); return new Map(); }
+  pruneCommunities() { logger.warn('[LanceDB] pruneCommunities not implemented'); return 0; }
+  communityVectorSearch() { logger.warn('[LanceDB] communityVectorSearch not implemented'); return []; }
+  findNodesByCommunities() { logger.warn('[LanceDB] findNodesByCommunities not implemented'); return []; }
+  findCommunityPeers() { logger.warn('[LanceDB] findCommunityPeers not implemented'); return []; }
+  findCommunityRepresentatives() { logger.warn('[LanceDB] findCommunityRepresentatives not implemented — using findTopNodes fallback'); return this.findTopNodes(5); }
 
   // ─── Messages (stub) ────────────────────────────────────
 
-  saveMessage() {}
-  getUnextractedMessages() { return []; }
-  markMessagesExtracted() {}
-  getEpisodicMessages() { return []; }
+  saveMessage() { logger.warn('[LanceDB] saveMessage not implemented — message history disabled'); }
+  getUnextractedMessages() { logger.warn('[LanceDB] getUnextractedMessages not implemented'); return []; }
+  markMessagesExtracted() { logger.warn('[LanceDB] markMessagesExtracted not implemented'); }
+  getEpisodicMessages() { logger.warn('[LanceDB] getEpisodicMessages not implemented'); return []; }
+
+  getMessagesBySession() { logger.warn('[LanceDB] getMessagesBySession not implemented — messages disabled'); return []; }
+  markMessagesArchived() { logger.warn('[LanceDB] markMessagesArchived not implemented — messages disabled'); }
+
+  updateNodeImportance(_nodeId: string, _importance: number) { /* no-op: LanceDB cache does not persist importance */ }
+
+  countMessagesBySession() { return 0; }
+  countNodesBySession() { return 0; }
+  countEdgesBySession() { return 0; }
 
   // ─── Stats ──────────────────────────────────────────────
 

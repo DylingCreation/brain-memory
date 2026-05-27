@@ -36,7 +36,4 @@ temp/
 
 # Test & docs
 test-results/
-METHODOLOGY.md
-.devdocs/
 llm-cost-analysis.md
-_backup/
