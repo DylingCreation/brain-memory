@@ -378,10 +378,10 @@ export async function message_received(...args: unknown[]) {
       if (memoryContext && memoryContext!.relatedNodes && memoryContext!.relatedNodes!.length > 0) {
         // Cache at agent level so new sessions can find memories
         const agentKey = memoryCacheKey(message.agentId || 'default-agent', message.workspaceId || 'default-workspace');
-        sessionMemoryCache.set(agentKey, memoryContext);
+        sessionMemoryCache.set(agentKey, memoryContext as unknown as Record<string, unknown>);
         evictCacheIfNeeded();
         // Also cache at session level for backward compatibility
-        sessionMemoryCache.set(message.sessionId, memoryContext);
+        sessionMemoryCache.set(message.sessionId, memoryContext as unknown as Record<string, unknown>);
         evictCacheIfNeeded();
         console.log(`[brain-memory] Cached ${memoryContext!.relatedNodes!.length} memories for agent ${message.agentId}`);
       } else {
@@ -511,9 +511,9 @@ export async function session_start(...args: unknown[]) {
         const existingCache = sessionMemoryCache.get(agentKey);
         if (existingCache) {
           // Reuse existing agent-level cache
-          sessionMemoryCache.set(sessionEvent.sessionId, existingCache);
+          sessionMemoryCache.set(sessionEvent.sessionId, existingCache as unknown as Record<string, unknown>);
           evictCacheIfNeeded();
-          console.log(`[brain-memory] Preloaded ${existingCache.relatedNodes?.length || 0} memories for new session ${sessionEvent.sessionId}`);
+          console.log(`[brain-memory] Preloaded ${((existingCache as unknown as Record<string, unknown>)['relatedNodes'] as { length?: number })?.length || 0} memories for new session ${sessionEvent.sessionId}`);
         } else {
           // Query for any existing memories to warm up the cache
           const warmupMsg = {
@@ -525,9 +525,9 @@ export async function session_start(...args: unknown[]) {
           };
           const memoryContext = await pluginInstance!.getMemoryContext(warmupMsg);
           if (memoryContext?.relatedNodes?.length) {
-            sessionMemoryCache.set(agentKey, memoryContext);
+            sessionMemoryCache.set(agentKey, memoryContext as unknown as Record<string, unknown>);
             evictCacheIfNeeded();
-            sessionMemoryCache.set(sessionEvent.sessionId, memoryContext);
+            sessionMemoryCache.set(sessionEvent.sessionId, memoryContext as unknown as Record<string, unknown>);
             evictCacheIfNeeded();
             console.log(`[brain-memory] Warmed up cache with ${memoryContext!.relatedNodes!.length} memories for new session`);
           }
