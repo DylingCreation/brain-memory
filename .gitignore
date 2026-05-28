@@ -37,3 +37,4 @@ temp/
 # Test & docs
 test-results/
 llm-cost-analysis.md
+_backup/

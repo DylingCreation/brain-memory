@@ -69,6 +69,33 @@ export interface BrainMemoryPluginConfig extends BmConfig {
   uiPort?: number;
 }
 
+/**
+ * Known nested config keys for deep merge in plugin core.
+ * Same list as openclaw-wrapper.ts — must be kept in sync.
+ */
+const PLUGIN_DEEP_MERGE_KEYS = [
+  'decay', 'reflection', 'workingMemory', 'fusion', 'reasoning',
+  'memoryInjection', 'memorySharing', 'noiseFilter', 'rerank', 'embedding', 'llm',
+];
+
+function deepMergePluginConfig(
+  defaults: Record<string, unknown>,
+  overrides: Record<string, unknown>,
+): Record<string, unknown> {
+  const result = { ...defaults };
+  for (const key of Object.keys(overrides)) {
+    const overrideVal = overrides[key];
+    if (PLUGIN_DEEP_MERGE_KEYS.includes(key) &&
+        typeof defaults[key] === 'object' && defaults[key] !== null && !Array.isArray(defaults[key]) &&
+        typeof overrideVal === 'object' && overrideVal !== null && !Array.isArray(overrideVal)) {
+      result[key] = { ...defaults[key] as Record<string, unknown>, ...overrideVal as Record<string, unknown> };
+    } else {
+      result[key] = overrideVal;
+    }
+  }
+  return result;
+}
+
 export class BrainMemoryPluginCore implements OpenClawPlugin {
   private engine: ContextEngine | null = null;
   private config: BrainMemoryPluginConfig;
@@ -77,7 +104,8 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
   private _healthCheckAbort: AbortController | null = null;
 
   constructor(config: BrainMemoryPluginConfig) {
-    this.config = { enabled: true, injectMemories: true, extractMemories: true, autoMaintain: true, ...config };
+    const defaults = { enabled: true, injectMemories: true, extractMemories: true, autoMaintain: true };
+    this.config = deepMergePluginConfig(defaults, config as unknown as Record<string, unknown>) as unknown as BrainMemoryPluginConfig;
   }
 
   async init(): Promise<void> {

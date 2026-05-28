@@ -44,6 +44,38 @@ interface OpenClawPluginApi {
 import { DEFAULT_CONFIG as FULL_DEFAULT_CONFIG } from './src/types';
 import { logger } from './src/utils/logger';
 
+// ─── Deep config merge ─────────────────────────────────────────
+
+/**
+ * Known nested config keys that must be deep-merged (not shallow-replaced).
+ * When OpenClaw passes partial config like `{ decay: { enabled: false } }`,
+ * shallow spread would replace the entire decay object, losing 10 other fields.
+ */
+const DEEP_MERGE_KEYS = [
+  'decay', 'reflection', 'workingMemory', 'fusion', 'reasoning',
+  'memoryInjection', 'memorySharing', 'noiseFilter', 'rerank', 'embedding', 'llm',
+] as const;
+
+/**
+ * Deep-merge a user config into the full default config.
+ * For known nested keys, merges recursively instead of replacing.
+ */
+function deepMergeConfig(base: Record<string, unknown>, override: Record<string, unknown>): Record<string, unknown> {
+  const result = { ...base };
+  for (const key of Object.keys(override)) {
+    const overrideVal = override[key];
+    const baseVal = base[key];
+    if (DEEP_MERGE_KEYS.includes(key as typeof DEEP_MERGE_KEYS[number]) &&
+        typeof baseVal === 'object' && baseVal !== null && !Array.isArray(baseVal) &&
+        typeof overrideVal === 'object' && overrideVal !== null && !Array.isArray(overrideVal)) {
+      result[key] = { ...baseVal as Record<string, unknown>, ...overrideVal as Record<string, unknown> };
+    } else {
+      result[key] = overrideVal;
+    }
+  }
+  return result;
+}
+
 // Global plugin instance
 let pluginInstance: BrainMemoryPluginClass | null = null;
 
@@ -169,10 +201,10 @@ export function register(api: OpenClawPluginApi) {
   }
 
   // Store config globally for access in hook functions.
-  // Merge with the FULL_DEFAULT_CONFIG from src/types.ts to ensure all
-  // nested fields (decay, reflection, workingMemory, fusion, reasoning, etc.)
-  // are present and won't cause runtime crashes in ContextEngine.
-  storedConfig = { ...FULL_DEFAULT_CONFIG, ...bmConfig };
+  // Deep-merge with FULL_DEFAULT_CONFIG to ensure all nested fields
+  // (decay, reflection, workingMemory, fusion, reasoning, etc.)
+  // survive partial overrides from OpenClaw's config.
+  storedConfig = deepMergeConfig(FULL_DEFAULT_CONFIG as unknown as Record<string, unknown>, bmConfig);
 
   // Register hooks using OpenClaw Plugin SDK api.on()
   // api.on() is the official Plugin SDK typed hook API
@@ -227,8 +259,8 @@ export async function init(config: Record<string, unknown>) {
     console.log('[brain-memory] Initializing plugin...');
 
     // Merge incoming config with full defaults to guarantee complete BmConfig structure.
-    // storedConfig from register() may differ if OpenClaw's configSchema is incomplete.
-    const mergedConfig = { ...FULL_DEFAULT_CONFIG, ...(config || {}) };
+    // Use deep merge so nested objects (decay, reflection, etc.) aren't lost.
+    const mergedConfig = deepMergeConfig(FULL_DEFAULT_CONFIG as unknown as Record<string, unknown>, (config || {}) as Record<string, unknown>);
 
     // If register() already populated storedConfig, prefer it for consistency
     // (register() has already merged full defaults with user overrides)
