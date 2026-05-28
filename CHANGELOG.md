@@ -9,45 +9,31 @@ All notable changes to the brain-memory project.
 
 ## [Unreleased]
 
-## [2.0.1] — 2026-05-27
+## [2.0.0] — 2026-05-28
 
-> **版本主题**: 代码审查修复 — 103 个问题（3 P0 + 32 P1 + 37 P2 + 31 P3）全部解决
+> **版本主题**：认知金字塔审计闭环 — 7 偏差 + 4 风险 + 4 改进全部处理
 
-### Fixed — Phase 1 止血 (9 项)
-- **安全**: GitHub Token 吊销 (M1-P0-1)
-- **数据完整性**: scope_id 迁移算法修复 — 从 hex(CONCAT) 改为 sha256 (M3-P0-1)
-- **质量门**: Lint 从 64 errors → 0 (M9-P0-1)
-- **清理**: 删除死文件 openclaw-plugin.js (M2-P0-1)
-- **一致性**: 版本号统一为 2.0.0 + check:versions 脚本 (M2-P1-2)
-- **测试工程**: 测试目录重组为 unit/integration/performance/e2e (M1-P1-3)
-- **配置**: core-only.tsconfig 不存在文件引用修复 (M1-P1-2)
-- **配置**: tsconfig 路径别名 @test 修正 (M1-P1-4)
-- **逻辑**: evaluateSessionValue archive 分支永不可达修复 (M5-P1-1)
+### 架构重构
+- **ContextEngine 拆分完成**：新增 FusionService / ReflectionService / ReasoningService 三个领域服务，ContextEngine 行数从 656 → 约 350 行
+- **D7: LanceDBStorageAdapter 废弃**：LanceDB 回归 ISearchIndex 伴随语义索引角色，SQLite 确认唯一 IStorageAdapter 实现
+- **R3: 统一错误码体系**：新增 BrainMemoryError 基类 + ConfigError / StorageError / LLMError / EmbeddingError / ValidationError / RuntimeError 6 子类
+- **I2: 配置分组**：新增 EngineCoreConfig / RecallParamsConfig / MaintenanceParamsConfig 类型别名
 
-### Refactored — Phase 2 治本 (8 项)
-- **Scope 统一**: 4 处独立 scope 匹配实现 → 统一为 scopeMatchV2 (M1/M3/M6/M7)
-- **ContextEngine 拆分**: 656 行上帝对象 → 4 个领域服务 (Extraction/Recall/Maintenance/Health)
-- **IStorageAdapter 完善**: +6 方法 + 能力标志位 + LanceDB stub 警告 (M3/M5/M7)
-- **测试补盲**: 4 个零覆盖关键模块 → 全部覆盖 (SQLiteAdapter/Pipeline/Community/Scope)
-- **cosine 统一**: 3 处独立实现 → utils/similarity.ts (M4/M5/M8)
-- **token 估算统一**: 3 种 → estimateNodeTokens (M6)
-- **source 类型修复**: 'manual' 类型补齐 (M3-P1-2)
-- **冗余清理**: toNode 重复定义删除 (-42行) + 桥接层合并 + tsconfig 5→3
+### 召回增强
+- **D9: 路径感知融合**：四路种子（精确/泛化/语义/外部）标记来源，多路命中节点 ×1.2 加权
+- **D10: 时间敏感性查询偏向**：intent-analyzer 新增 `time_sensitive` 意图，recall 时对 recency 加权
+- **D8: 前置信息量判断**：`shouldRecall()` 过滤低信息量消息（"好的""继续""嗯" 不触发召回）
+- **R2: 缓存失效改进**：RecallCache.isValid() 从脏节点计数 → 所有节点 updatedAt 的 MD5 hash
 
-### Changed — Phase 3 加固
-- **CI**: 新增 lint/check:versions/coverage 步骤
-- **安全**: .env.example 安全提示
-- **架构**: reflection/store.ts + compressor.ts 迁移到 IStorageAdapter
-- **文档**: 非确定性模式调查报告 + Reflection/Compressor 迁移规划
+### 测试修复
+- **第一阶段 5 项修复**：source 列迁移 / getAllCommunities 适配 / c7-recall-baseline getRawDb / SQLite 锁改用 :memory: / recaller 导入路径修正
+- **E2E 测试补齐（I3）**：4 个场景 — 全生命周期 / 多会话 / scope 隔离 / 六层字段验证
+- **测试全绿**：847/847 用例通过，0 失败
 
-### Known Issues (预存)
-- integration.test.ts: mock 缺少 getAllCommunities
-- embedding-integration.test.ts: 需本地 Ollama 运行
-- 性能基准测试: perf-1k/perf-tiered/c7-baseline 偶发 flaky
-
-## [2.0.0] — 2026-05-24
-
-> **版本主题**：六层 Scope 隔离 — 解决记忆"串台"问题
+### 其他
+- **I4**: 图缓存 TTL 30s → 60s
+- **CI**: Lint 门禁、版本一致性检查、覆盖率步骤
+- **文档**: 认知金字塔分析报告 / 审核清单锁定
 
 ### Breaking Changes
 - **Scope 从三层升级到六层**（`platform/workspace/agent/user/chat/thread`），替代旧版 `session/agent/workspace`

@@ -70,6 +70,11 @@ function filterByScopeV2<T extends { scopePlatform: string|null; scopeWorkspace:
 
 // ─── Adapter ──────────────────────────────────────────────
 
+/**
+ * @deprecated LanceDB should be used via ISearchIndex as a companion semantic index.
+ * Use ContextEngine.setSearchIndex() to inject a LanceDB ISearchIndex implementation.
+ * This class is kept for backward compatibility with existing LanceDB POC tests only.
+ */
 export class LanceDBStorageAdapter implements IStorageAdapter {
   readonly capabilities = {
     communities: false,

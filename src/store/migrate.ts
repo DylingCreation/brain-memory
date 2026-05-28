@@ -93,6 +93,10 @@ function migrateToV2_ScopeUpgrade(db: DatabaseSyncInstance): void {
     db.prepare('UPDATE bm_meta SET value = \'2\' WHERE key = \'schema_version\'').run();
     return;
   }
+
+  // 0. source 列补加（幂等：列已存在则跳过。v2.0.1 之前创建的数据库可能缺此列）
+  try { db.exec('ALTER TABLE bm_nodes ADD COLUMN source TEXT NOT NULL DEFAULT \'user\' CHECK(source IN (\'user\', \'assistant\', \'manual\'))'); } catch { /* 列已存在 */ }
+
   // 1. 新增六层 scope 列（幂等：列已存在则跳过）
   const newColumns = [
     'ALTER TABLE bm_nodes ADD COLUMN scope_platform TEXT',

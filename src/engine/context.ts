@@ -25,25 +25,29 @@ import type {
 } from '../types';
 import type { FusionResult } from '../fusion/analyzer';
 import type { ISearchIndex } from '../store/search/index';
+import { StorageError } from '../utils/errors';
 import { logger } from '../utils/logger';
 import { IStorageAdapter } from '../store/adapter';
 import { scopeMatchV2 } from '../scope/isolation';
 import { SQLiteStorageAdapter } from '../store/sqlite-adapter';
-import { LanceDBStorageAdapter } from '../store/lancedb-adapter';
+// LanceDBStorageAdapter is deprecated — LanceDB should be used via ISearchIndex as companion semantic index
+// import { LanceDBStorageAdapter } from '../store/lancedb-adapter';
 import { Extractor } from '../extractor/extract';
 import { Recaller } from '../recaller/recall';
 import { createCompleteFn } from './llm';
 import { createEmbedFn, createBatchEmbedFn, type EmbedFn, type BatchEmbedFn } from './embed';
-import { runFusion } from '../fusion/analyzer';
-import { reflectOnSession } from '../reflection/extractor';
+// Fusion/Reflection/Reasoning are now delegated to domain services (I1 refactor)
+import { type ReasoningConclusion } from '../reasoning/engine';
 import { createWorkingMemory, buildWorkingMemoryContext } from '../working-memory/manager';
-import { runReasoning, type ReasoningConclusion } from '../reasoning/engine';
 import { createHookRegistry, type HookRegistry } from '../plugin/hooks';
 
 import { ExtractionService, type ProcessTurnParams, type ProcessTurnResult } from './extraction-service';
 import { RecallService } from './recall-service';
 import { MaintenanceService } from './maintenance-service';
 import { HealthService } from './health-service';
+import { FusionService } from './fusion-service';
+import { ReflectionService } from './reflection-service';
+import { ReasoningService } from './reasoning-service';
 export type { EngineStats, HealthComponentStatus, HealthLlmStatus, HealthEmbedStatus, HealthOverallStatus, HealthStats, HealthStatus } from './health-service';
 
 /**
@@ -64,6 +68,9 @@ export class ContextEngine {
   private recallService: RecallService;
   private maintenanceService: MaintenanceService;
   private healthService: HealthService;
+  private fusionService: FusionService;
+  private reflectionService: ReflectionService;
+  private reasoningService: ReasoningService;
   private recaller: Recaller;
   private workingMemory: WorkingMemoryState;
   private llmEnabled: boolean;
@@ -74,16 +81,16 @@ export class ContextEngine {
   constructor(config: BmConfig) {
     this.config = config;
     try {
+      // SQLite is the sole IStorageAdapter implementation.
+      // LanceDB is available as a companion semantic index via ISearchIndex (injected via setSearchIndex()).
       if (config.storage === 'lancedb') {
-        logger.warn('context', 'LanceDB backend selected — limited functionality: community detection, message history, and reflections are disabled. See docs for details.');
-        this.storage = new LanceDBStorageAdapter(config.dbPath);
-      } else {
-        this.storage = new SQLiteStorageAdapter(config.dbPath);
+        logger.warn('context', 'LanceDB as standalone storage is deprecated. Using SQLite as the storage backend. LanceDB is still available as a companion semantic index via ISearchIndex — call engine.setSearchIndex() to inject it.');
       }
+      this.storage = new SQLiteStorageAdapter(config.dbPath);
       this.storage.initialize();
     } catch (error) {
       logger.error('context', `Failed to initialize database at ${config.dbPath}:`, error);
-      throw new Error(`Database initialization failed: ${(error as Error).message}`);
+      throw new StorageError(`Database initialization failed at ${config.dbPath}: ${(error as Error).message}`);
     }
 
     const llm = createCompleteFn(config.llm);
@@ -137,6 +144,9 @@ export class ContextEngine {
     this.healthService = new HealthService(
       this.storage, config, this.llmEnabled, this.embedEnabled, Date.now(),
     );
+    this.fusionService = new FusionService(this.storage, config, this.hooks, this.llmEnabled);
+    this.reflectionService = new ReflectionService(this.storage, config, this.llmEnabled);
+    this.reasoningService = new ReasoningService(this.storage, config, this.llmEnabled);
 
     logger.info('context', `Initialized with ${this.storage.findAllActive().length} existing nodes`);
   }
@@ -183,62 +193,29 @@ export class ContextEngine {
   /** Get the underlying storage adapter (for UI Server, etc.). */
   getStorage(): IStorageAdapter { return this.healthService.getStorage(); }
 
+  /** @internal Get the raw database instance (for testing/benchmarking only). */
+  getRawDb(): ReturnType<typeof import('../store/sqlite-adapter').SQLiteStorageAdapter.prototype.getDb> {
+    return (this.storage as import('../store/sqlite-adapter').SQLiteStorageAdapter).getDb();
+  }
+
   /** v2.0.0 S-2: Set companion semantic search index (LanceDB). */
   setSearchIndex(idx: ISearchIndex): void { this.recaller.setSearchIndex(idx); }
 
-  // ─── Direct methods (cross-cutting, keep in orchestrator) ──
+  // ─── Cross-cutting services (I1 refactor) ──────────────
 
   /** Perform knowledge fusion: deduplicate nodes or link related ones. */
   async performFusion(sessionId: string = 'fusion'): Promise<FusionResult> {
-    if ((this.config.mode ?? 'full') === 'lite' || !this.config.fusion.enabled) return { candidates: [], merged: 0, linked: 0, durationMs: 0 };
-    try {
-      for (const hook of this.hooks.beforeFusion) {
-        try { await hook([]); } catch (err) { logger.warn('context', `beforeFusion hook failed: ${err}`); }
-      }
-
-      const result = await runFusion(this.storage, this.config, this.llmEnabled ? createCompleteFn(this.config.llm) : null, createEmbedFn(this.config.embedding), sessionId);
-
-      for (const hook of this.hooks.afterFusion) {
-        try { await hook({ merged: result.merged, linked: result.linked }); } catch (err) { logger.warn('context', `afterFusion hook failed: ${err}`); }
-      }
-
-      return result;
-    } catch (error) {
-      logger.error('context', 'Failed to perform fusion:', error);
-      throw new Error(`Fusion failed: ${(error as Error).message}`);
-    }
+    return this.fusionService.run(sessionId);
   }
 
   /** Reflect on an entire session to derive high-level insights. */
   async reflectOnSession(sessionId: string, messages: Array<{ role?: string; content: string }>): Promise<ReflectionInsight[]> {
-    if ((this.config.mode ?? 'full') === 'lite' || !this.config.reflection.enabled || !this.config.reflection.sessionReflection) return [];
-    if (!this.llmEnabled) { logger.warn('context', 'Session reflection skipped — LLM not configured'); return []; }
-    if (!this.storage.capabilities.reflections) { logger.warn('context', 'Session reflection skipped — storage backend does not support reflections'); return []; }
-    try {
-      const sessionNodes = this.storage.findAllActive().filter(n => n.sourceSessions.includes(sessionId));
-      return await reflectOnSession(this.config.reflection, createCompleteFn(this.config.llm)!, {
-        sessionMessages: messages.map(m => m.content).join('\n'),
-        extractedNodes: sessionNodes.map(n => ({ name: n.name, category: n.category, type: n.type, content: n.content })),
-      }, this.config.mode as 'full' | 'small' | 'lite');
-    } catch (error) {
-      logger.error('context', 'Failed to perform session reflection:', error);
-      throw new Error(`Session reflection failed: ${(error as Error).message}`);
-    }
+    return this.reflectionService.run(sessionId, messages);
   }
 
   /** Perform graph-level reasoning across all active nodes. */
   async performReasoning(query?: string): Promise<ReasoningConclusion[]> {
-    if ((this.config.mode ?? 'full') === 'lite' || !this.config.reasoning.enabled) return [];
-    if (!this.llmEnabled) { logger.warn('context', 'Reasoning skipped — LLM not configured'); return []; }
-    try {
-      const nodes = this.storage.findAllActive();
-      const edges = this.storage.findAllEdges();
-      const reasoningResult = await runReasoning(createCompleteFn(this.config.llm)!, nodes, edges, query || '', this.config);
-      return reasoningResult?.conclusions || [];
-    } catch (error) {
-      logger.error('context', 'Failed to perform reasoning:', error);
-      throw new Error(`Reasoning failed: ${(error as Error).message}`);
-    }
+    return this.reasoningService.run(query);
   }
 
   /** Get working memory context as formatted string. */

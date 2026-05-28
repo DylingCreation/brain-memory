@@ -4,7 +4,8 @@
  * v1.1.0 F-1: Decouples storage from algorithms.
  * All CRUD, graph queries, vector search, and message operations go through this interface.
  *
- * Implementations: SQLiteStorageAdapter (v1.1.0), LanceDBStorageAdapter (v1.3.0 POC).
+ * Implementations: SQLiteStorageAdapter (v1.1.0).
+ * @deprecated LanceDBStorageAdapter was a POC — LanceDB should be used via ISearchIndex as a companion semantic index, not as an IStorageAdapter.
  *
  * Authors: brain-memory contributors
  */

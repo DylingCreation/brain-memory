@@ -63,7 +63,7 @@ export {
 } from './src/scope/isolation';
 export { assembleContext, buildSystemPromptAddition } from './src/format/assemble';
 export { scoreDecay, applyTimeDecay } from './src/decay/engine';
-export { isNoise } from './src/noise/filter';
+export { isNoise, shouldRecall } from './src/noise/filter';
 export { classifyTemporal } from './src/temporal/classifier';
 export { 
   computeGlobalPageRank,
@@ -77,8 +77,17 @@ export {
   communityRepresentatives 
 } from './src/graph/community';
 export { 
-  extractJson 
+  extractJson, extractJsonTolerant
 } from './src/utils/json';
+export {
+  BrainMemoryError,
+  ConfigError,
+  StorageError,
+  LLMError,
+  EmbeddingError,
+  ValidationError,
+  RuntimeError,
+} from './src/utils/errors';
 export { 
   escapeXml 
 } from './src/utils/xml';

@@ -18,6 +18,7 @@ import type {
 import type { Recaller } from '../recaller/recall';
 import type { HookRegistry } from '../plugin/hooks';
 import { logger } from '../utils/logger';
+import { shouldRecall } from '../noise/filter';
 
 export class RecallService {
   constructor(
@@ -28,6 +29,12 @@ export class RecallService {
 
   /** Recall memories relevant to a query, with scope filtering and hook lifecycle. */
   async recall(query: string, scope?: MemoryScopeV2): Promise<RecallResult> {
+    // D8: Pre-filter — skip recall entirely for low-information messages
+    if (!shouldRecall(query)) {
+      logger.debug('recall', `Skipping recall for low-information query: "${query.slice(0, 30)}"`);
+      return { nodes: [], edges: [], tokenEstimate: 0 };
+    }
+
     // v1.2.0 F-7: Before-recall hook
     let hookQuery = query;
     for (const hook of this.hooks.beforeRecall) {

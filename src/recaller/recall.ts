@@ -94,11 +94,26 @@ export class Recaller {
       return { nodes: [], edges: [], tokenEstimate: 0 };
     }
 
-    // Unified seed set — deduplicate across all four paths
-    const unifiedSeeds = [...preciseSeeds, ...externalSeedIds];
-    const seen = new Set(unifiedSeeds);
-    for (const id of [...generalizedSeeds, ...semanticSeeds]) {
+    // Unified seed set — deduplicate across all four paths, track origin
+    const pathOrigin = new Map<string, number>(); // bitmap: 1=precise, 2=generalized, 4=semantic, 8=external
+    const unifiedSeeds: string[] = [];
+    const seen = new Set<string>();
+
+    for (const id of preciseSeeds) {
       if (!seen.has(id)) { unifiedSeeds.push(id); seen.add(id); }
+      pathOrigin.set(id, (pathOrigin.get(id) || 0) | 1);
+    }
+    for (const id of generalizedSeeds) {
+      if (!seen.has(id)) { unifiedSeeds.push(id); seen.add(id); }
+      pathOrigin.set(id, (pathOrigin.get(id) || 0) | 2);
+    }
+    for (const id of semanticSeeds) {
+      if (!seen.has(id)) { unifiedSeeds.push(id); seen.add(id); }
+      pathOrigin.set(id, (pathOrigin.get(id) || 0) | 4);
+    }
+    for (const id of externalSeedIds) {
+      if (!seen.has(id)) { unifiedSeeds.push(id); seen.add(id); }
+      pathOrigin.set(id, (pathOrigin.get(id) || 0) | 8);
     }
 
     // Single graphWalk from unified seeds
@@ -110,13 +125,36 @@ export class Recaller {
     const { scores: pprScores } = personalizedPageRank(this.storage, unifiedSeeds, candidateIds, this.cfg);
 
     // Sort by unified PPR + time decay + validatedCount + updatedAt
+    // D9: Path-aware fusion — nodes hit by multiple recall paths get a boost (×1.2)
+    // D10: Time-sensitive boost — when query contains time-sensitive keywords,
+    //      recency (updatedAt normalized) gets extra weight in sorting
+    const MULTI_PATH_BOOST = 1.2;
+    const isTimeSensitive = intent.intent === 'time_sensitive';
+    const now = Date.now();
+    const TIME_SENSITIVE_RECENCY_WEIGHT = 0.3;
+
     let filtered = nodes
-      .sort((a, b) => {
-        const scoreA = this.cfg.decay.enabled ? applyTimeDecay(pprScores.get(a.id) || 0, a, this.cfg.decay) : (pprScores.get(a.id) || 0);
-        const scoreB = this.cfg.decay.enabled ? applyTimeDecay(pprScores.get(b.id) || 0, b, this.cfg.decay) : (pprScores.get(b.id) || 0);
-        return scoreB - scoreA || b.validatedCount - a.validatedCount || b.updatedAt - a.updatedAt;
+      .map(n => {
+        const baseScore = this.cfg.decay.enabled
+          ? applyTimeDecay(pprScores.get(n.id) || 0, n, this.cfg.decay)
+          : (pprScores.get(n.id) || 0);
+        const originBits = pathOrigin.get(n.id) || 0;
+        // Count how many distinct paths hit this node (bitcount)
+        const pathCount = [1, 2, 4, 8].filter(b => (originBits & b) !== 0).length;
+        let finalScore = pathCount >= 2 ? baseScore * MULTI_PATH_BOOST : baseScore;
+        // D10: Boost recency for time-sensitive queries
+        if (isTimeSensitive) {
+          const ageDays = Math.max(0, (now - n.updatedAt) / 86_400_000);
+          const recencyBoost = 1 / (1 + ageDays); // fresher → higher boost
+          finalScore += TIME_SENSITIVE_RECENCY_WEIGHT * recencyBoost;
+        }
+        return { node: n, score: finalScore };
       })
-      .slice(0, limit);
+      .sort((a, b) => {
+        return b.score - a.score || b.node.validatedCount - a.node.validatedCount || b.node.updatedAt - a.node.updatedAt;
+      })
+      .slice(0, limit)
+      .map(x => x.node);
 
     // Apply source filter after sorting
     if (sourceFilter && sourceFilter !== 'both') {

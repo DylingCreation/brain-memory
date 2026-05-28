@@ -3,8 +3,10 @@
  *
  * v1.6.0 A-1: LRU 缓存 + 脏标记失效
  * v2.0.0: 支持 ScopeFilterV2（六层 scope）
+ * v2.0.x R2-fix: 内容级 hash 失效替代简单计数
  */
 
+import { createHash } from 'crypto';
 import type { RecallResult } from '../types';
 import type { ScopeFilter } from '../scope/isolation';
 import type { ScopeFilterV2 } from '../types';
@@ -29,6 +31,8 @@ export class RecallCache {
   private cache: Map<string, CacheEntry> = new Map();
   private maxSize: number;
   private ttlMs: number;
+  /** Content hash of all active node IDs + updatedAt timestamps for cache invalidation. */
+  private _contentHash: string | null = null;
 
   constructor(maxSize = 100, ttlMs = 5 * 60 * 1000) {
     this.maxSize = maxSize;
@@ -45,8 +49,35 @@ export class RecallCache {
     return `${query}::${scopeKey}::${sourceFilter || ''}`;
   }
 
+  /**
+   * R2 fix: Check cache validity using content hash (not just dirty node count).
+   * If no dirty nodes exist but active node content has changed (e.g. node updated),
+   * the content hash will differ and the cache is invalidated.
+   */
   isValid(storage: IStorageAdapter): boolean {
-    return storage.getDirtyNodes().size === 0;
+    if (storage.getDirtyNodes().size > 0) {
+      this._contentHash = null;
+      return false;
+    }
+    // Fast path: no dirty nodes, check content hash
+    const currentHash = this._computeContentHash(storage);
+    if (this._contentHash === null) {
+      this._contentHash = currentHash;
+      return true;
+    }
+    if (this._contentHash !== currentHash) {
+      this._contentHash = currentHash;
+      this.invalidate();
+      return false;
+    }
+    return true;
+  }
+
+  /** Compute a lightweight content hash of all active nodes for cache invalidation. */
+  private _computeContentHash(storage: IStorageAdapter): string {
+    const nodes = storage.findAllActive();
+    const key = nodes.map(n => `${n.id}:${n.updatedAt}`).sort().join(',');
+    return createHash('md5').update(key).digest('hex');
   }
 
   get(query: string, scopeFilter?: AnyFilter, sourceFilter?: 'user' | 'assistant' | 'both'): RecallResult | null {

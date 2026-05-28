@@ -414,7 +414,7 @@ describe("Full lifecycle: ingest → extract → assemble → maintain", () => {
     const recaller = new Recaller(storage, cfg);
     const recall = await recaller.recall("docker flask");
 
-    const { xml, systemPrompt, tokens, episodicXml, episodicTokens } = assembleContext(db, {
+    const { xml, systemPrompt, tokens, episodicXml, episodicTokens } = assembleContext(storage, {
       tokenBudget: 4000,
       activeNodes: allActiveNodes(db),
       activeEdges: db.prepare("SELECT * FROM bm_edges").all() as any[],
@@ -507,7 +507,7 @@ describe("Full lifecycle: ingest → extract → assemble → maintain", () => {
     expect(recall.nodes.length).toBeGreaterThanOrEqual(1);
 
     // Phase 4: Assemble context
-    const { xml, systemPrompt, tokens } = assembleContext(db, {
+    const { xml, systemPrompt, tokens } = assembleContext(storage, {
       tokenBudget: 4000,
       activeNodes: allActiveNodes(db),
       activeEdges: db.prepare("SELECT * FROM bm_edges").all() as any[],

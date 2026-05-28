@@ -450,7 +450,16 @@ export interface ReflectionConfig {
   minConfidence: number;
 }
 
-/** brain-memory 主配置接口。包含引擎模式、存储路径、LLM、衰减、反思、工作记忆等全部配置项。 */
+// ─── 分组配置接口（v2.x I2：语义分组，便于子模块按需引用）───
+
+/** 核心引擎配置 */
+export type EngineCoreConfig = Pick<BmConfig, 'engine' | 'mode' | 'storage' | 'dbPath'>;
+/** 召回参数配置 */
+export type RecallParamsConfig = Pick<BmConfig, 'recallMaxNodes' | 'recallMaxDepth' | 'recallCacheSize' | 'recallCacheTtlMs' | 'recallStrategy'>;
+/** 图维护参数配置 */
+export type MaintenanceParamsConfig = Pick<BmConfig, 'dedupThreshold' | 'pagerankDamping' | 'pagerankIterations' | 'compactTurnCount'>;
+
+/** brain-memory 主配置接口。同时满足 EngineCoreConfig / RecallParamsConfig / MaintenanceParamsConfig。 */
 export interface BmConfig {
   /** 引擎模式：graph=知识图谱(默认), vector=向量检索, hybrid=双引擎 */
   engine: EngineMode;

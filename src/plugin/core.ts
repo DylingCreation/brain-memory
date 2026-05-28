@@ -10,6 +10,7 @@ import { assembleContext } from '../format/assemble';
 import { logger } from '../utils/logger';
 import { createCompleteFn } from '../engine/llm';
 import { createUiServer } from '../ui/server';
+import { shouldRecall } from '../noise/filter';
 
 // Define minimal OpenClaw plugin interfaces
 export interface Message {
@@ -221,9 +222,16 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
         thread: message.threadId ?? null,
       };
 
+      // D8: Pre-filter — skip recall for low-information messages ("好的", "继续", "嗯" etc.)
+      const queryText = message.content.toString();
+      if (!shouldRecall(queryText)) {
+        logger.debug('plugin', `Skipping recall for low-information message: "${queryText.slice(0, 30)}"`);
+        return null;
+      }
+
       // Query relevant memories for this conversation
       const recallResult = await this.engine.recall(
-        message.content.toString(),
+        queryText,
         scope
       );
 

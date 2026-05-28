@@ -56,7 +56,7 @@ describe("C-7 核心召回响应时间基线", () => {
     const categories = ["tasks", "skills", "events", "entities", "patterns"] as const;
 
     for (let i = 0; i < 200; i++) {
-      engine.getDb().prepare(`INSERT INTO bm_nodes
+      engine.getRawDb().prepare(`INSERT INTO bm_nodes
         (id, type, category, name, description, content, status, validated_count,
          source_sessions, pagerank, importance, access_count, last_accessed,
          temporal_type, source,

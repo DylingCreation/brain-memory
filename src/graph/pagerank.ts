@@ -21,7 +21,7 @@ interface GraphStructure {
 }
 
 let _cached: GraphStructure | null = null;
-const CACHE_TTL = 30_000;
+const CACHE_TTL = 60_000; // 60s — graph mutations are infrequent, PPR is expensive
 
 function loadGraph(storage: IStorageAdapter): GraphStructure {
   if (_cached && Date.now() - _cached.cachedAt < CACHE_TTL) return _cached;

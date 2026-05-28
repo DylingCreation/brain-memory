@@ -11,6 +11,7 @@ export type IntentType =
   | 'preference'   // user likes/dislikes — prefer preferences/profile
   | 'factual'      // entity, fact — prefer entities/profile
   | 'task'         // specific task/project — prefer tasks
+  | 'time_sensitive' // "latest", "recent", "today" — boost recency
   | 'general';     // fallback — use all categories
 
 interface IntentRule {
@@ -37,6 +38,10 @@ const INTENT_RULES: IntentRule[] = [
 
   // Task
   { pattern: /(任务|task|进度|status|进展)/i, intent: 'task', weight: 1.0 },
+
+  // Time-sensitive (D10)
+  { pattern: /(最新|最近|近期|当前|今天|昨天|刚才|刚刚|latest|recent|current|today|now|lately|recently)/i, intent: 'time_sensitive', weight: 1.0 },
+  { pattern: /(这次|上次|上回|最近一次)/i, intent: 'time_sensitive', weight: 0.8 },
 ];
 
 /** 意图分析结果：包含识别出的意图和分类分数。 */
@@ -52,6 +57,7 @@ export function analyzeIntent(query: string): IntentResult {
     preference: 0,
     factual: 0,
     task: 0,
+    time_sensitive: 0,
     general: 0,
   };
 

@@ -33,7 +33,7 @@ describe("Recaller", () => {
   });
 
   it("decay integration: decay reduces score for older nodes", async () => {
-    const { applyTimeDecay } = await import("../src/decay/engine.ts");
+    const { applyTimeDecay } = await import("../../src/decay/engine.js");
     const cfgWithDecay = { ...DEFAULT_CONFIG, decay: { ...DEFAULT_CONFIG.decay, enabled: true } };
     const now = Date.now();
 

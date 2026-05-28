@@ -7,6 +7,9 @@ import { createHookRegistry, type HookRegistry } from "../../src/plugin/hooks";
 import { ContextEngine } from "../../src/engine/context";
 import { DEFAULT_CONFIG } from "../../src/types";
 
+/** Isolated in-memory DB for hooks tests — avoids collision with real ~/.openclaw/brain-memory.db */
+const TEST_CONFIG = { ...DEFAULT_CONFIG, dbPath: ":memory:" };
+
 describe("F-7 开发者 Hook", () => {
   let engine: ContextEngine;
 
@@ -34,7 +37,7 @@ describe("F-7 开发者 Hook", () => {
 
   describe("beforeExtract hook", () => {
     it("is called with messages and existingNames", async () => {
-      engine = new ContextEngine({ ...DEFAULT_CONFIG });
+      engine = new ContextEngine({ ...TEST_CONFIG });
       const hook = vi.fn(async (input) => input);
       engine.hooks.beforeExtract.push(hook);
 
@@ -58,7 +61,7 @@ describe("F-7 开发者 Hook", () => {
 
   describe("afterExtract hook", () => {
     it("is called with extraction results", async () => {
-      engine = new ContextEngine({ ...DEFAULT_CONFIG });
+      engine = new ContextEngine({ ...TEST_CONFIG });
       const hook = vi.fn(async (input) => input);
       engine.hooks.afterExtract.push(hook);
 
@@ -79,7 +82,7 @@ describe("F-7 开发者 Hook", () => {
 
   describe("beforeRecall hook", () => {
     it("is called with query", async () => {
-      engine = new ContextEngine({ ...DEFAULT_CONFIG });
+      engine = new ContextEngine({ ...TEST_CONFIG });
       const hook = vi.fn(async (input) => input);
       engine.hooks.beforeRecall.push(hook);
 
@@ -94,7 +97,7 @@ describe("F-7 开发者 Hook", () => {
 
   describe("beforeFusion hook", () => {
     it("is called in performFusion", async () => {
-      engine = new ContextEngine({ ...DEFAULT_CONFIG, fusion: { enabled: true, similarityThreshold: 0.75, minNodes: 20, minCommunities: 3 } });
+      engine = new ContextEngine({ ...TEST_CONFIG, fusion: { enabled: true, similarityThreshold: 0.75, minNodes: 20, minCommunities: 3 } });
       const hook = vi.fn(async (input) => input);
       engine.hooks.beforeFusion.push(hook);
 
@@ -107,7 +110,7 @@ describe("F-7 开发者 Hook", () => {
 
   describe("hook error resilience", () => {
     it("catching hooks don't break the pipeline", async () => {
-      engine = new ContextEngine({ ...DEFAULT_CONFIG });
+      engine = new ContextEngine({ ...TEST_CONFIG });
       const badHook = vi.fn(async () => { throw new Error("test error"); });
       engine.hooks.beforeRecall.push(badHook);
 

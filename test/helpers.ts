@@ -194,36 +194,26 @@ export function insertVector(db: DatabaseSyncInstance, nodeId: string, vec: numb
 
 // ─── IStorageAdapter helper ─────────────────────────────────────
 
-let _testCounter = 0;
 
 /**
- * Create a test SQLiteStorageAdapter backed by a temp file.
- * Call cleanupTestDb() in afterEach to remove the file.
+ * Create a test SQLiteStorageAdapter backed by an in-memory database.
+ * Using :memory: avoids file-based SQLite lock contention across forked test processes.
+ * Call cleanupTestDb() in afterEach to close the connection.
  */
 export function createTestStorage(): IStorageAdapter {
-  _testCounter++;
-  const dbPath = join(tmpdir(), `brain-memory-test-${Date.now()}-${_testCounter}.db`);
-  const storage = new SQLiteStorageAdapter(dbPath);
+  const storage = new SQLiteStorageAdapter(":memory:");
   storage.initialize();
   return storage;
 }
 
 /**
- * Clean up the test database file. Call this in afterEach.
- * Accepts either a SQLiteStorageAdapter or a DatabaseSyncInstance.
+ * Clean up the test database. Closes the storage connection.
+ * Safe for both :memory: and file-based databases.
  */
 export function cleanupTestDb(storageOrDb: IStorageAdapter | DatabaseSyncInstance): void {
   if (storageOrDb && typeof (storageOrDb as any).close === "function") {
-    // It's a SQLiteStorageAdapter
-    const storage = storageOrDb as SQLiteStorageAdapter;
-    try {
-      const db = storage.getDb();
-      // DatabaseSync doesn't expose the path directly, but SQLiteStorageAdapter stores it
-      // We'll use a workaround: just close and let the OS clean up temp files
-      storage.close();
-    } catch { /* ignore */ }
+    try { (storageOrDb as IStorageAdapter).close(); } catch { /* ignore */ }
   } else {
-    // It's a DatabaseSyncInstance (in-memory, nothing to clean)
     try { (storageOrDb as DatabaseSyncInstance).close(); } catch { /* ignore */ }
   }
 }

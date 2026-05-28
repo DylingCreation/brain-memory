@@ -35,7 +35,7 @@ describe("analyzeIntent", () => {
 
   it("defaults to general for ambiguous queries", () => {
     // "怎么样" contains "怎么" so avoid that
-    const result = analyzeIntent("今天天气");
+    const result = analyzeIntent("随便聊聊");
     expect(result.intent).toBe("general");
     expect(result.scores.general).toBe(1);
   });

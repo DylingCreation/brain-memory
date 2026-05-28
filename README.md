@@ -103,14 +103,15 @@ brain-memory simulates human brain memory mechanisms:
 └────────────────────────┬────────────────────────────────────────┘
                          │
 ┌────────────────────────┴────────────────────────────────────────┐
-│                     🎛️ Control Layer                            │
+│                     🎛️ Service Layer（领域服务，v2.0 全部独立）    │
 │  ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐ ┌─────────┐ │
-│  │ Extractor│ │ Recaller │ │ Fusion │ │Reflection│ │Reasoning│ │
+│  │Extraction│ │ Recall   │ │ Fusion │ │Reflection│ │Reasoning│ │
+│  │ Service  │ │ Service  │ │Service │ │ Service  │ │Service  │ │
 │  └──────────┘ └──────────┘ └────────┘ └──────────┘ └─────────┘ │
-│  ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐ ┌─────────┐ │
-│  │  Hybrid  │ │  Vector  │ │ Rerank │ │Admission │ │ Working │ │
-│  │  Recall  │ │  Recall  │ │  er    │ │ Control  │ │ Memory  │ │
-│  └──────────┘ └──────────┘ └────────┘ └──────────┘ └─────────┘ │
+│  ┌──────────┐ ┌────────────────────────────────────────────────┐ │
+│  │Maintenanc│ │  Extractor / Recaller / Hybrid / Rerank /      │ │
+│  │ Service  │ │  Admission / Working Memory (算法实现)         │ │
+│  └──────────┘ └────────────────────────────────────────────────┘ │
 └────────────────────────┬────────────────────────────────────────┘
                          │
 ┌────────────────────────┴────────────────────────────────────────┐
@@ -127,9 +128,8 @@ brain-memory simulates human brain memory mechanisms:
                          │
 ┌────────────────────────┴────────────────────────────────────────┐
 │                     💾 Storage Layer                            │
-│    SQLite: 6 tables + FTS5 + Triggers + 8 indexes (v1.1.0: IStorageAdapter abstraction, supports LanceDB POC)               │
-│    bm_nodes │ bm_edges │ bm_vectors │ bm_messages               │
-│    bm_communities │ bm_nodes_fts                                │
+│    SQLite (唯一 IStorageAdapter): 6 tables + FTS5 + Triggers    │
+│    LanceDB (ISearchIndex 伴随索引): embedding → nodeId 映射       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
