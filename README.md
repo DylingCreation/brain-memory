@@ -135,10 +135,17 @@ cd brain-memory && npm install
 #### Step 1: Install
 
 ```bash
-npm install -g memory-likehuman-pro
+# From npm (recommended)
+openclaw plugins install memory-likehuman-pro
+
+# Or from a cloned repository
+openclaw plugins install -l ./brain-memory
+
+# Or directly from Git
+openclaw plugins install git:github.com/DylingCreation/brain-memory
 ```
 
-> Global install. OpenClaw Gateway resolves `openclaw.extensions` in `package.json` and loads the entry file `openclaw-register.ts`.
+> `openclaw plugins install` installs into the managed plugin directory and Gateway loads it automatically on startup. The `-l` flag symlinks instead of copying — ideal for local development.
 
 #### Step 2: Enable in openclaw.json
 
@@ -210,23 +217,20 @@ export default definePluginEntry({
 #### Troubleshooting: Plugin Not Loaded
 
 ```bash
-# 1. Confirm package is installed globally
-npm list -g memory-likehuman-pro
+# 1. Confirm plugin is installed
+openclaw plugins list | grep brain-memory
 
-# 2. Confirm manifest file exists in the package
-ls $(npm root -g)/memory-likehuman-pro/openclaw.plugin.json
-
-# 3. Confirm brain-memory entry exists in openclaw.json
+# 2. Confirm brain-memory entry exists in openclaw.json
 cat ~/.openclaw/openclaw.json | grep brain-memory
 
-# 4. Check Gateway startup logs for plugin load info
+# 3. Check Gateway startup logs for plugin load info
 openclaw gateway restart
 
-# 5. If still not loading, inspect plugin diagnostics
-openclaw plugins inspect brain-memory
+# 4. If still not loading, inspect plugin diagnostics
+openclaw plugins inspect brain-memory --runtime
 ```
 
-> **Requirements**: ① `npm install -g` global install ② `plugins.entries.brain-memory.enabled = true` in openclaw.json ③ `openclaw.plugin.json` manifest present in package root. Restart Gateway after all three are met.
+> **Requirements**: ① `openclaw plugins install` completed ② `plugins.entries.brain-memory.enabled = true` in openclaw.json ③ Restart Gateway. For cloned repos, use `openclaw plugins install -l ./brain-memory` to symlink.
 
 ### Option 2: Standalone Library
 
