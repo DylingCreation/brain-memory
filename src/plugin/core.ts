@@ -6,6 +6,7 @@
 
 import { ContextEngine } from '../engine/context';
 import type { BmConfig, BmNode, MemoryScopeV2 } from '../types';
+import { DEFAULT_CONFIG } from '../types';
 import { assembleContext } from '../format/assemble';
 import { logger } from '../utils/logger';
 import { createCompleteFn } from '../engine/llm';
@@ -104,8 +105,13 @@ export class BrainMemoryPluginCore implements OpenClawPlugin {
   private _healthCheckAbort: AbortController | null = null;
 
   constructor(config: BrainMemoryPluginConfig) {
-    const defaults = { enabled: true, injectMemories: true, extractMemories: true, autoMaintain: true };
-    this.config = deepMergePluginConfig(defaults, config as unknown as Record<string, unknown>) as unknown as BrainMemoryPluginConfig;
+    // Merge user config on top of DEFAULT_CONFIG, then apply plugin-specific defaults.
+    // DEFAULT_CONFIG provides all 30+ BmConfig required fields (storage, engine, decay, etc.).
+    const pluginDefaults = { enabled: true, injectMemories: true, extractMemories: true, autoMaintain: true };
+    this.config = deepMergePluginConfig(
+      DEFAULT_CONFIG as unknown as Record<string, unknown>,
+      deepMergePluginConfig(pluginDefaults, config as unknown as Record<string, unknown>),
+    ) as unknown as BrainMemoryPluginConfig;
   }
 
   async init(): Promise<void> {

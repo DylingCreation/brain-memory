@@ -32,6 +32,10 @@ export default defineConfig({
         'index.ts',
         'vitest.config.ts',
         'openclaw-register.ts',
+        // Non-source files that dilute coverage stats
+        '_backup/**',
+        'openclaw-wrapper.ts',
+        'test-engine.ts',
       ]
     },
     

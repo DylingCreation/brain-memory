@@ -9,6 +9,22 @@ All notable changes to the brain-memory project.
 
 ## [Unreleased]
 
+## [2.1.1] — 2026-06-01
+
+> **版本主题**：工程修复 — 覆盖率数据准确化 + 关键路径测试安全网 + plugin-core config 修复
+
+### 修复
+- **F-2**: 修复 `BrainMemoryPluginCore` 构造函数中 sparse config 导致 `onSessionEnd` 链路 `Cannot read properties of undefined` 的问题。根因：构造时仅用 4 个 plugin 开关作为 base config，缺少 BmConfig 必需字段。修复为使用 DEFAULT_CONFIG 作为基础配置
+- **F-1**: 修复覆盖率被非源码文件稀释（37.6% → 64%）。vitest coverage.exclude 新增 `_backup/**` + `openclaw-wrapper.ts` + `test-engine.ts`
+
+### 新增测试
+- **F-3**: `format/assemble.ts` Token 预算截断单元测试（+17 tests）
+- **F-4**: `reflection/extractor.ts` 安全过滤单元测试，覆盖 6 种 prompt injection 模式（+16 tests）
+- **F-5**: UI controllers 集成测试，覆盖 /api/stats, /api/nodes, /api/graph 端点（+5 tests）
+
+### 清理
+- 删除 `lancedb-poc.test.ts`（12 个永远 skip 的死测试）
+
 ## [2.0.0] — 2026-05-28
 
 > **版本主题**：认知金字塔审计闭环 — 7 偏差 + 4 风险 + 4 改进全部处理
