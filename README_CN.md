@@ -132,13 +132,15 @@ cd brain-memory && npm install
 
 ### 方式一：OpenClaw 插件
 
-#### 第一步：安装插件包
+#### 第一步：安装
 
 ```bash
-openclaw plugins install memory-likehuman-pro
+npm install -g memory-likehuman-pro
 ```
 
-> 安装后包存放在 `~/.openclaw/npm/`，Gateway 启动时自动加载。
+> 全局安装后，OpenClaw Gateway 自动发现并加载插件。
+>
+> 注册 ClawHub 后可使用：`openclaw plugins install clawhub:brain-memory`
 
 #### 第二步：在 openclaw.json 中启用
 

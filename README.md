@@ -132,13 +132,15 @@ cd brain-memory && npm install
 
 ### Option 1: OpenClaw Plugin
 
-#### Step 1: Install the plugin package
+#### Step 1: Install
 
 ```bash
-openclaw plugins install memory-likehuman-pro
+npm install -g memory-likehuman-pro
 ```
 
-> The package is stored under `~/.openclaw/npm/` and loaded automatically on Gateway startup.
+> Global install. OpenClaw Gateway auto-discovers and loads the plugin.
+>
+> Once registered on ClawHub, use: `openclaw plugins install clawhub:brain-memory`
 
 #### Step 2: Enable in openclaw.json
 
