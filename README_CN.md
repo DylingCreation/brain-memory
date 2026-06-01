@@ -130,9 +130,19 @@ cd brain-memory && npm install
 
 ## 🚀 快速开始
 
-### 方式一：OpenClaw 插件（零代码）
+### 方式一：OpenClaw 插件
 
-在 `~/.openclaw/openclaw.json` 中添加：
+#### 第一步：安装插件包
+
+```bash
+openclaw plugins install memory-likehuman-pro
+```
+
+> 安装后包存放在 `~/.openclaw/npm/`，Gateway 启动时自动加载。
+
+#### 第二步：在 openclaw.json 中启用
+
+编辑 `~/.openclaw/openclaw.json`，在 `plugins.entries` 中添加：
 
 ```json
 {
@@ -151,13 +161,49 @@ cd brain-memory && npm install
 }
 ```
 
-重启 Gateway，插件自动工作。**插件自动注册 5 个钩子**：
+> 大量配置可直接放 `config` 内，等价于 `BmConfig`。完整字段见下方 [配置参考](#配置参考)。
+
+#### 第三步：重启 Gateway
+
+```bash
+openclaw gateway restart
+```
+
+#### 插件注册原理
+
+brain-memory 遵循 OpenClaw 标准插件协议，包含两个必需的元数据文件和入口注册：
+
+| 文件 | 作用 |
+|------|------|
+| `package.json` | 含 `openclaw.extensions` 字段，声明入口文件 `openclaw-register.ts` |
+| `openclaw.plugin.json` | 插件清单（manifest），声明 `id`、`contracts.hooks`（5 个钩子）、`activation.onStartup: true`、`configSchema`（204 行 JSON Schema） |
+
+```typescript
+// openclaw-register.ts
+import { definePluginEntry } from 'openclaw/plugin-sdk/plugin-entry';
+
+export default definePluginEntry({
+  id: 'brain-memory',
+  name: 'Brain Memory',
+  version: '2.1.2',
+  description: 'Unified knowledge graph + vector memory system for AI agents',
+  register(api) {
+    api.on('message_received',  handleMessage);      // 提取用户消息中的知识
+    api.on('message_sent',     handleMessage);      // 提取 AI 回复中的建议/代码/承诺
+    api.on('message_sending',  beforeMessageSend);   // 注入相关记忆到对话上下文
+    api.on('session_start',    onSessionStart);     // 预热记忆缓存
+    api.on('session_end',      onSessionEnd);       // 会话反思 + 图维护
+  },
+});
+```
+
+**插件生命周期钩子**：
 
 | 钩子 | 触发时机 | 行为 |
 |------|---------|------|
 | `message_received` | 收到用户消息 | 提取知识节点 + 边关系 → 存入 SQLite |
 | `message_sent` | AI 回复完成 | 提取 AI 回复中的建议/代码/承诺 |
-| `before_message_write` | AI 回复发出前 | 召回相关记忆 → 注入到对话上下文 |
+| `message_sending` | AI 回复发出前 | 召回相关记忆 → 注入到对话上下文 |
 | `session_start` | 新会话 | 预热记忆缓存 |
 | `session_end` | 会话结束 | 会话反思 + 图维护（PageRank/社区/衰减） |
 

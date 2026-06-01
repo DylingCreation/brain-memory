@@ -130,9 +130,19 @@ cd brain-memory && npm install
 
 ## 🚀 Quick Start
 
-### Option 1: OpenClaw Plugin (Zero Code)
+### Option 1: OpenClaw Plugin
 
-Add to `~/.openclaw/openclaw.json`:
+#### Step 1: Install the plugin package
+
+```bash
+openclaw plugins install memory-likehuman-pro
+```
+
+> The package is stored under `~/.openclaw/npm/` and loaded automatically on Gateway startup.
+
+#### Step 2: Enable in openclaw.json
+
+Edit `~/.openclaw/openclaw.json` and add to `plugins.entries`:
 
 ```json
 {
@@ -151,13 +161,49 @@ Add to `~/.openclaw/openclaw.json`:
 }
 ```
 
-Restart Gateway. The plugin auto-registers **5 lifecycle hooks**:
+> Most config keys go inside `config` — equivalent to `BmConfig`. See [Configuration Reference](#configuration-reference) below for full details.
+
+#### Step 3: Restart Gateway
+
+```bash
+openclaw gateway restart
+```
+
+#### Plugin Registration Details
+
+brain-memory follows the standard OpenClaw plugin protocol with two required metadata files and entry-point registration:
+
+| File | Purpose |
+|------|---------|
+| `package.json` | Contains `openclaw.extensions` pointing to `openclaw-register.ts` |
+| `openclaw.plugin.json` | Plugin manifest declaring `id`, `contracts.hooks` (5 hooks), `activation.onStartup: true`, and `configSchema` (204-line JSON Schema) |
+
+```typescript
+// openclaw-register.ts
+import { definePluginEntry } from 'openclaw/plugin-sdk/plugin-entry';
+
+export default definePluginEntry({
+  id: 'brain-memory',
+  name: 'Brain Memory',
+  version: '2.1.2',
+  description: 'Unified knowledge graph + vector memory system for AI agents',
+  register(api) {
+    api.on('message_received',  handleMessage);      // Extract knowledge from user messages
+    api.on('message_sent',     handleMessage);      // Extract AI suggestions/code/commitments
+    api.on('message_sending',  beforeMessageSend);   // Inject relevant memories into context
+    api.on('session_start',    onSessionStart);     // Warm up memory cache
+    api.on('session_end',      onSessionEnd);       // Session reflection + graph maintenance
+  },
+});
+```
+
+**Lifecycle hooks**:
 
 | Hook | Trigger | Behavior |
 |------|---------|----------|
 | `message_received` | User message received | Extract knowledge nodes + edges → store in SQLite |
 | `message_sent` | AI reply sent | Extract AI suggestions/code/commitments |
-| `before_message_write` | Before AI reply delivered | Recall relevant memories → inject into context |
+| `message_sending` | Before AI reply delivered | Recall relevant memories → inject into context |
 | `session_start` | New session | Warm up memory cache |
 | `session_end` | Session ends | Session reflection + graph maintenance (PageRank/Community/Decay) |
 
