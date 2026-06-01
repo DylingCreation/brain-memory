@@ -138,9 +138,7 @@ cd brain-memory && npm install
 npm install -g memory-likehuman-pro
 ```
 
-> 全局安装后，OpenClaw Gateway 自动发现并加载插件。
->
-> 注册 ClawHub 后可使用：`openclaw plugins install clawhub:brain-memory`
+> 全局安装后，OpenClaw Gateway 解析 `package.json` 中的 `openclaw.extensions` 字段，加载入口文件 `openclaw-register.ts`。
 
 #### 第二步：在 openclaw.json 中启用
 
@@ -208,6 +206,27 @@ export default definePluginEntry({
 | `message_sending` | AI 回复发出前 | 召回相关记忆 → 注入到对话上下文 |
 | `session_start` | 新会话 | 预热记忆缓存 |
 | `session_end` | 会话结束 | 会话反思 + 图维护（PageRank/社区/衰减） |
+
+#### 手动排查：如果 Gateway 未加载插件
+
+```bash
+# 1. 确认包已全局安装
+npm list -g memory-likehuman-pro
+
+# 2. 确认包中存在清单文件
+ls $(npm root -g)/memory-likehuman-pro/openclaw.plugin.json
+
+# 3. 确认 openclaw.json 中 plugins.entries 包含 brain-memory 条目
+cat ~/.openclaw/openclaw.json | grep brain-memory
+
+# 4. 检查 Gateway 启动日志中的插件加载信息
+openclaw gateway restart
+
+# 5. 如仍无法加载，检查插件诊断信息
+openclaw plugins inspect brain-memory
+```
+
+> **必要条件**：① `npm install -g` 全局安装 ② `openclaw.json` 中 `plugins.entries.brain-memory.enabled = true` ③ `openclaw.plugin.json` 清单文件存在于包根目录。三个条件全部满足后重启 Gateway 即可。
 
 ### 方式二：独立库
 

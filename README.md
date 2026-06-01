@@ -138,9 +138,7 @@ cd brain-memory && npm install
 npm install -g memory-likehuman-pro
 ```
 
-> Global install. OpenClaw Gateway auto-discovers and loads the plugin.
->
-> Once registered on ClawHub, use: `openclaw plugins install clawhub:brain-memory`
+> Global install. OpenClaw Gateway resolves `openclaw.extensions` in `package.json` and loads the entry file `openclaw-register.ts`.
 
 #### Step 2: Enable in openclaw.json
 
@@ -208,6 +206,27 @@ export default definePluginEntry({
 | `message_sending` | Before AI reply delivered | Recall relevant memories → inject into context |
 | `session_start` | New session | Warm up memory cache |
 | `session_end` | Session ends | Session reflection + graph maintenance (PageRank/Community/Decay) |
+
+#### Troubleshooting: Plugin Not Loaded
+
+```bash
+# 1. Confirm package is installed globally
+npm list -g memory-likehuman-pro
+
+# 2. Confirm manifest file exists in the package
+ls $(npm root -g)/memory-likehuman-pro/openclaw.plugin.json
+
+# 3. Confirm brain-memory entry exists in openclaw.json
+cat ~/.openclaw/openclaw.json | grep brain-memory
+
+# 4. Check Gateway startup logs for plugin load info
+openclaw gateway restart
+
+# 5. If still not loading, inspect plugin diagnostics
+openclaw plugins inspect brain-memory
+```
+
+> **Requirements**: ① `npm install -g` global install ② `plugins.entries.brain-memory.enabled = true` in openclaw.json ③ `openclaw.plugin.json` manifest present in package root. Restart Gateway after all three are met.
 
 ### Option 2: Standalone Library
 
