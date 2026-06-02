@@ -34,7 +34,13 @@ temp/
 *.db-shm
 *.db-wal
 
-# Test & docs
+# Test data & benchmarks (not source)
+test_data/
+benchmark/
+
+# Backups
+_backup/
+
+# Test results & internal docs
 test-results/
 llm-cost-analysis.md
-_backup/

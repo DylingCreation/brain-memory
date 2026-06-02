@@ -93,10 +93,15 @@
   },
   "files": [
     "dist/**/*",
+    "scripts/**/*",
     "README.md",
+    "README_CN.md",
+    "CHANGELOG.md",
     "LICENSE",
     "package.json",
-    "openclaw.plugin.json"
+    "openclaw.plugin.json",
+    ".env.example",
+    "config.template.js"
   ],
   "publishConfig": {
     "access": "public"
