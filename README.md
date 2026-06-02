@@ -23,13 +23,13 @@ Brain-Memory is a TypeScript memory engine that gives AI Agents long-term memory
 ## 🧠 Four Capacities
 
 ```
-    👤 Human Memory               🤖 Brain-Memory
-  ┌─────────────────┐         ┌───────────────────────┐
-  │ Remember        │   ←→    │ 8-Category Auto-Class │
-  │ Forget          │   ←→    │ Weibull Decay Model   │
-  │ Reflect         │   ←→    │ Dual-Level Reflection │
-  │ Reason          │   ←→    │ Graph Reasoning Engine│
-  └─────────────────┘         └───────────────────────┘
+       👤 Human Memory             🤖 Brain-Memory
+  ┌─────────────────┐         ┌────────────────────────┐
+  │ Remember        │   ←→   │ 8-Category Auto-Class  │
+  │ Forget          │   ←→   │ Weibull Decay Model    │
+  │ Reflect         │   ←→   │ Dual-Level Reflection  │
+  │ Reason          │   ←→   │ Graph Reasoning Engine │
+  └─────────────────┘         └────────────────────────┘
 ```
 
 ### Remember — 8 Categories, Auto-Extracted
